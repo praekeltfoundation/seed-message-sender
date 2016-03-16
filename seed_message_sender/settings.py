@@ -182,15 +182,25 @@ CELERY_ACCEPT_CONTENT = ['json']
 import djcelery
 djcelery.setup_loader()
 
-VUMI_API_URL = \
-    os.environ.get('MESSAGE_SENDER_VUMI_API_URL',
+VUMI_API_URL_VOICE = \
+    os.environ.get('MESSAGE_SENDER_VUMI_API_URL_VOICE',
                    'http://example.com/api/v1/go/http_api_nostream')
-VUMI_ACCOUNT_KEY = \
-    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_KEY', 'acc-key')
-VUMI_CONVERSATION_KEY = \
-    os.environ.get('MESSAGE_SENDER_VUMI_CONVERSATION_KEY', 'conv-key')
-VUMI_ACCOUNT_TOKEN = \
-    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN', 'conv-token')
+VUMI_ACCOUNT_KEY_VOICE = \
+    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_KEY_VOICE', 'acc-key')
+VUMI_CONVERSATION_KEY_VOICE = \
+    os.environ.get('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_VOICE', 'conv-key')
+VUMI_ACCOUNT_TOKEN_VOICE = \
+    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_VOICE', 'conv-token')
+
+VUMI_API_URL_TEXT = \
+    os.environ.get('MESSAGE_SENDER_VUMI_API_URL_TEXT',
+                   'http://example.com/api/v1/go/http_api_nostream')
+VUMI_ACCOUNT_KEY_TEXT = \
+    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_KEY_TEXT', 'acc-key')
+VUMI_CONVERSATION_KEY_TEXT = \
+    os.environ.get('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_TEXT', 'conv-key')
+VUMI_ACCOUNT_TOKEN_TEXT = \
+    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_TEXT', 'conv-token')
 
 MESSAGE_SENDER_MAX_RETRIES = \
     int(os.environ.get('MESSAGE_SENDER_MAX_RETRIES', 3))
