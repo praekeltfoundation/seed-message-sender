@@ -2,11 +2,9 @@ import json
 import uuid
 import logging
 
-from django.db.models.signals import *
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
-from rest_hooks.models import model_saved
 
 from rest_framework import status
 from rest_framework.test import APIClient
@@ -75,7 +73,6 @@ class AuthenticatedAPITestCase(APITestCase):
 
     def _restore_post_save_hooks_outbound(self):
         post_save.connect(fire_msg_action_if_new, sender=Outbound)
-
 
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):

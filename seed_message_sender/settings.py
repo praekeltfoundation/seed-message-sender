@@ -12,6 +12,9 @@ import os
 
 import dj_database_url
 
+from kombu import Exchange, Queue
+import djcelery
+
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -143,8 +146,6 @@ CELERYBEAT_SCHEDULER = 'djcelery.schedulers.DatabaseScheduler'
 
 BROKER_URL = os.environ.get('BROKER_URL', 'redis://localhost:6379/0')
 
-from kombu import Exchange, Queue
-
 CELERY_DEFAULT_QUEUE = 'seed_message_sender'
 CELERY_QUEUES = (
     Queue('seed_message_sender',
@@ -179,7 +180,6 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 
-import djcelery
 djcelery.setup_loader()
 
 VUMI_API_URL_VOICE = \

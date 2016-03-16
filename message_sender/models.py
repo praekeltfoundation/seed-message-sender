@@ -63,7 +63,7 @@ class Inbound(models.Model):
 
 # Make sure new messages are sent
 
-from .tasks import send_message
+from .tasks import send_message  # noqa
 
 
 @receiver(post_save, sender=Outbound)
