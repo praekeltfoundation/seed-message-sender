@@ -130,7 +130,7 @@ class Send_Message(Task):
         try:
             message = Outbound.objects.get(id=message_id)
             if message.attempts < settings.MESSAGE_SENDER_MAX_RETRIES:
-                print("Attempts: %s" % message.attempts)
+                l.info("Attempts: %s" % message.attempts)
                 # send or resend
                 try:
                     if "voice_speech_url" in message.metadata:

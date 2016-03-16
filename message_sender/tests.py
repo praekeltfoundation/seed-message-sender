@@ -65,7 +65,6 @@ class AuthenticatedAPITestCase(APITestCase):
             logs = self.handler.logs
         for log in logs:
             logline = log.msg.replace("u'", "'")
-            print(logline)
             if logline == msg:
                 return True
         return False
