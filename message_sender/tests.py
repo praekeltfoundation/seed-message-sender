@@ -28,6 +28,7 @@ class RecordingHandler(logging.Handler):
     def emit(self, record):
         if self.logs is None:
             self.logs = []
+
         self.logs.append(record)
 
 
@@ -63,8 +64,9 @@ class AuthenticatedAPITestCase(APITestCase):
         else:
             logs = self.handler.logs
         for log in logs:
-            print(log)
-            if log.msg == msg:
+            logline = log.msg.replace("u'", "'")
+            print(logline)
+            if logline == msg:
                 return True
         return False
 
@@ -89,8 +91,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         }
         outbound = Outbound.objects.create(**outbound_message)
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
-        self.check_logs(
-            "Message: u'Simple outbound message' sent to u'+27123'")
         return str(outbound.id)
 
     def make_inbound(self, in_reply_to):
@@ -268,7 +268,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["ack_timestamp"],
                          "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
-            "Message: u'Simple outbound message' sent to u'+27123'"))
+            "Message: 'Simple outbound message' sent to '+27123'"))
 
     def test_event_delivery_report(self):
         existing = self.make_outbound()
@@ -293,7 +293,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_timestamp"],
                          "2015-10-28 16:20:37.485612")
         self.assertEquals(False, self.check_logs(
-            "Message: u'Simple outbound message' sent to u'+27123'"))
+            "Message: 'Simple outbound message' sent to '+27123'"))
 
     def test_event_nack_first(self):
         existing = self.make_outbound()
@@ -360,7 +360,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["nack_reason"],
                          "no answer")
         self.assertEquals(False, self.check_logs(
-            "Message: u'Simple outbound message' sent to u'+27123'"
+            "Message: 'Simple outbound message' sent to '+27123'"
             "[session_event: new]"))
         # TODO: Bring metrics back
         # self.assertEquals(
