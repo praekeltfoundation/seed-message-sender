@@ -70,3 +70,13 @@ from .tasks import send_message  # noqa
 def fire_msg_action_if_new(sender, instance, created, **kwargs):
     if created:
         send_message.delay(str(instance.id))
+
+
+@receiver(post_save, sender=Inbound)
+def fire_metrics_if_new(sender, instance, created, **kwargs):
+    from .tasks import fire_metric
+    if created:
+        fire_metric.apply_async(kwargs={
+            "metric_name": 'inbounds.created.sum',
+            "metric_value": 1.0
+        })
