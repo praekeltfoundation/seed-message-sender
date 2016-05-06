@@ -171,14 +171,23 @@ CELERY_ROUTES = {
     'message_sender.tasks.send_message': {
         'queue': 'lowpriority',
     },
-    'message_sender.tasks.send_metric': {
-        'queue': 'lowpriority',
+    'message_sender.tasks.fire_metric': {
+        'queue': 'metrics',
     },
 }
+
+METRICS_REALTIME = [
+    'inbounds.created.sum',
+    'vumimessage.tries.sum',
+    'vumimessage.maxretries.sum'
+]
+METRICS_SCHEDULED = [
+]
 
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
+CELERY_IGNORE_RESULT = True
 
 djcelery.setup_loader()
 
@@ -206,3 +215,6 @@ MESSAGE_SENDER_MAX_RETRIES = \
     int(os.environ.get('MESSAGE_SENDER_MAX_RETRIES', 3))
 MESSAGE_SENDER_MAX_FAILURES = \
     int(os.environ.get('MESSAGE_SENDER_MAX_FAILURES', 5))
+
+METRICS_URL = os.environ.get("METRICS_URL", None)
+METRICS_AUTH_TOKEN = os.environ.get("METRICS_AUTH_TOKEN", "REPLACEME")

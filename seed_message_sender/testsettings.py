@@ -12,3 +12,6 @@ CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
 CELERY_ALWAYS_EAGER = True
 BROKER_BACKEND = 'memory'
 CELERY_RESULT_BACKEND = 'djcelery.backends.database:DatabaseBackend'
+
+METRICS_URL = "http://metrics-url"
+METRICS_AUTH_TOKEN = "REPLACEME"

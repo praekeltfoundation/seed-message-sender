@@ -9,7 +9,9 @@ from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
 from go_http.send import HttpApiSender
+from go_http.metrics import MetricsApiClient
 from requests.exceptions import HTTPError
+
 
 from .models import Outbound
 
@@ -44,50 +46,30 @@ def deliver_hook_wrapper(target, payload, instance, hook):
     DeliverHook.apply_async(kwargs=kwargs)
 
 
-class Send_Metric(Task):
+def get_metric_client(session=None):
+    return MetricsApiClient(
+        auth_token=settings.METRICS_AUTH_TOKEN,
+        api_url=settings.METRICS_URL,
+        session=session)
 
+
+class FireMetric(Task):
+
+    """ Fires a metric using the MetricsApiClient
     """
-    Task to fire metrics
-    TODO: Replace fire with metrics client creation when ready.
-    """
-    name = "messages.tasks.send_metric"
+    name = "seed_identity_store.identities.tasks.fire_metric"
 
-    class FailedEventRequest(Exception):
+    def run(self, metric_name, metric_value, session=None, **kwargs):
+        metric_value = float(metric_value)
+        metric = {
+            metric_name: metric_value
+        }
+        metric_client = get_metric_client(session=session)
+        metric_client.fire(metric)
+        return "Fired metric <%s> with value <%s>" % (
+            metric_name, metric_value)
 
-        """
-        The attempted task failed because of a non-200 HTTP return
-        code.
-        """
-
-    def vumi_client(self):
-        return HttpApiSender(
-            account_key=settings.VUMI_ACCOUNT_KEY_TEXT,
-            conversation_key=settings.VUMI_CONVERSATION_KEY_TEXT,
-            conversation_token=settings.VUMI_ACCOUNT_TOKEN_TEXT
-        )
-
-    def run(self, metric, value, agg, **kwargs):
-        """
-        Returns count from api
-        """
-        l = self.get_logger(**kwargs)
-
-        l.info("Firing metric: %r [%s] -> %g" % (metric, agg, float(value)))
-        try:
-            # TODO: Real metric firing
-            # sender = self.vumi_client()
-            # result = sender.fire_metric(metric, value, agg=agg)
-            result = {"success": "Fake metric fired"}
-            l.info("Result of firing metric: %s" % (result["success"]))
-            return result
-
-        except SoftTimeLimitExceeded:
-            logger.error(
-                'Soft time limit exceed processing metric fire \
-                 via Celery.',
-                exc_info=True)
-
-send_metric = Send_Metric()
+fire_metric = FireMetric()
 
 
 class Send_Message(Task):
@@ -152,8 +134,10 @@ class Send_Message(Task):
                     message.attempts += 1
                     message.vumi_message_id = vumiresponse["message_id"]
                     message.save()
-                    send_metric.delay(metric="vumimessage.tries", value=1,
-                                      agg="sum")
+                    fire_metric.apply_async(kwargs={
+                        "metric_name": 'vumimessage.tries.sum',
+                        "metric_value": 1.0
+                    })
                 except HTTPError as e:
                     # retry message sending if in 500 range (3 default
                     # retries)
@@ -164,8 +148,10 @@ class Send_Message(Task):
                 return vumiresponse
             else:
                 l.info("Message <%s> at max retries." % str(message_id))
-                send_metric.delay(metric="vumimessage.maxretries", value=1,
-                                  agg="sum")
+                fire_metric.apply_async(kwargs={
+                    "metric_name": 'vumimessage.maxretries.sum',
+                    "metric_value": 1.0
+                })
         except ObjectDoesNotExist:
             logger.error('Missing Outbound message', exc_info=True)
 

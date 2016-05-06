@@ -2,22 +2,40 @@ import json
 import uuid
 import logging
 
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
 from django.test import TestCase
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
-
+from django.conf import settings
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
-
+from requests_testadapter import TestAdapter, TestSession
+from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
 
-from .models import Inbound, Outbound, fire_msg_action_if_new
-from .tasks import Send_Message, Send_Metric
+from .models import (Inbound, Outbound, fire_msg_action_if_new,
+                     fire_metrics_if_new)
+from .tasks import Send_Message, fire_metric
+from . import tasks
 
-Send_Metric.vumi_client = lambda x: LoggingSender('go_http.test')
 Send_Message.vumi_client_text = lambda x: LoggingSender('go_http.test')
 Send_Message.vumi_client_voice = lambda x: LoggingSender('go_http.test')
+
+
+class RecordingAdapter(TestAdapter):
+
+    """ Record the request that was handled by the adapter.
+    """
+    request = None
+
+    def send(self, request, *args, **kw):
+        self.request = request
+        return super(RecordingAdapter, self).send(request, *args, **kw)
 
 
 class RecordingHandler(logging.Handler):
@@ -36,47 +54,10 @@ class APITestCase(TestCase):
 
     def setUp(self):
         self.client = APIClient()
+        self.session = TestSession()
 
 
 class AuthenticatedAPITestCase(APITestCase):
-
-    def setUp(self):
-        super(AuthenticatedAPITestCase, self).setUp()
-        self.username = 'testuser'
-        self.password = 'testpass'
-        self.user = User.objects.create_user(self.username,
-                                             'testuser@example.com',
-                                             self.password)
-        token = Token.objects.create(user=self.user)
-        self.token = token.key
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
-
-        self.handler = RecordingHandler()
-        logger = logging.getLogger('go_http.test')
-        logger.setLevel(logging.INFO)
-        logger.addHandler(self.handler)
-
-    def check_logs(self, msg):
-        if self.handler.logs is None:  # nothing to check
-            return False
-        if type(self.handler.logs) != list:
-            [logs] = self.handler.logs
-        else:
-            logs = self.handler.logs
-        for log in logs:
-            logline = log.msg.replace("u'", "'")
-            if logline == msg:
-                return True
-        return False
-
-    def _replace_post_save_hooks_outbound(self):
-        post_save.disconnect(fire_msg_action_if_new, sender=Outbound)
-
-    def _restore_post_save_hooks_outbound(self):
-        post_save.connect(fire_msg_action_if_new, sender=Outbound)
-
-
-class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     def make_outbound(self):
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
@@ -105,6 +86,96 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         }
         inbound = Inbound.objects.create(**inbound_message)
         return str(inbound.id)
+
+    def _replace_get_metric_client(self, session=None):
+        return MetricsApiClient(
+            auth_token=settings.METRICS_AUTH_TOKEN,
+            api_url=settings.METRICS_URL,
+            session=self.session)
+
+    def _restore_get_metric_client(self, session=None):
+        return MetricsApiClient(
+            auth_token=settings.METRICS_AUTH_TOKEN,
+            api_url=settings.METRICS_URL,
+            session=session)
+
+    def _replace_post_save_hooks_outbound(self):
+        post_save.disconnect(fire_msg_action_if_new, sender=Outbound)
+
+    def _replace_post_save_hooks_inbound(self):
+        post_save.disconnect(fire_msg_action_if_new, sender=Inbound)
+
+    def _restore_post_save_hooks_outbound(self):
+        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+
+    def _restore_post_save_hooks_inbound(self):
+        post_save.connect(fire_msg_action_if_new, sender=Inbound)
+
+    def check_request(
+            self, request, method, params=None, data=None, headers=None):
+        self.assertEqual(request.method, method)
+        if params is not None:
+            url = urlparse.urlparse(request.url)
+            qs = urlparse.parse_qsl(url.query)
+            self.assertEqual(dict(qs), params)
+        if headers is not None:
+            for key, value in headers.items():
+                self.assertEqual(request.headers[key], value)
+        if data is None:
+            self.assertEqual(request.body, None)
+        else:
+            self.assertEqual(json.loads(request.body), data)
+
+    def _mount_session(self):
+        response = [{
+            'name': 'foo',
+            'value': 9000,
+            'aggregator': 'bar',
+        }]
+        adapter = RecordingAdapter(json.dumps(response).encode('utf-8'))
+        self.session.mount(
+            "http://metrics-url/metrics/", adapter)
+        return adapter
+
+    def setUp(self):
+        super(AuthenticatedAPITestCase, self).setUp()
+        self._replace_post_save_hooks_inbound
+        tasks.get_metric_client = self._replace_get_metric_client
+        self.adapter = self._mount_session()
+
+        self.username = 'testuser'
+        self.password = 'testpass'
+        self.user = User.objects.create_user(self.username,
+                                             'testuser@example.com',
+                                             self.password)
+        token = Token.objects.create(user=self.user)
+        self.token = token.key
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
+
+        self.handler = RecordingHandler()
+        logger = logging.getLogger('go_http.test')
+        logger.setLevel(logging.INFO)
+        logger.addHandler(self.handler)
+
+    def tearDown(self):
+        self._restore_post_save_hooks_inbound()
+        tasks.get_metric_client = self._restore_get_metric_client
+
+    def check_logs(self, msg):
+        if self.handler.logs is None:  # nothing to check
+            return False
+        if type(self.handler.logs) != list:
+            [logs] = self.handler.logs
+        else:
+            logs = self.handler.logs
+        for log in logs:
+            logline = log.msg.replace("u'", "'")
+            if logline == msg:
+                return True
+        return False
+
+
+class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     def test_create_outbound_data(self):
         post_outbound = {
@@ -368,3 +439,43 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         # self.assertEquals(
         #     True,
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
+
+
+class TestMetrics(AuthenticatedAPITestCase):
+
+    def test_direct_fire(self):
+        # Setup
+        adapter = self._mount_session()
+        # Execute
+        result = fire_metric.apply_async(kwargs={
+            "metric_name": 'foo.last',
+            "metric_value": 1,
+            "session": self.session
+        })
+        # Check
+        self.check_request(
+            adapter.request, 'POST',
+            data={"foo.last": 1.0}
+        )
+        self.assertEqual(result.get(),
+                         "Fired metric <foo.last> with value <1.0>")
+
+    def test_created_metrics(self):
+        # Setup
+        adapter = self._mount_session()
+        # reconnect metric post_save hook
+        post_save.connect(fire_metrics_if_new, sender=Inbound)
+        # make outbound
+        existing_outbound = self.make_outbound()
+        out = Outbound.objects.get(pk=existing_outbound)
+
+        # Execute
+        self.make_inbound(out.vumi_message_id)
+
+        # Check
+        self.check_request(
+            adapter.request, 'POST',
+            data={"inbounds.created.sum": 1.0}
+        )
+        # remove post_save hooks to prevent teardown errors
+        post_save.disconnect(fire_metrics_if_new, sender=Inbound)
