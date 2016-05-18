@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+import responses
 
 try:
     from urllib.parse import urlparse
@@ -439,6 +440,40 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         # self.assertEquals(
         #     True,
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
+
+
+class TestMetricsAPI(AuthenticatedAPITestCase):
+
+    def test_metrics_read(self):
+        # Setup
+        # Execute
+        response = self.client.get('/api/metrics/',
+                                   content_type='application/json')
+        # Check
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            response.data["metrics_available"], [
+                'inbounds.created.sum',
+                'vumimessage.tries.sum',
+                'vumimessage.maxretries.sum'
+            ]
+        )
+
+    @responses.activate
+    def test_post_metrics(self):
+        # Setup
+        # deactivate Testsession for this test
+        self.session = None
+        responses.add(responses.POST,
+                      "http://metrics-url/metrics/",
+                      json={"foo": "bar"},
+                      status=200, content_type='application/json')
+        # Execute
+        response = self.client.post('/api/metrics/',
+                                    content_type='application/json')
+        # Check
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["scheduled_metrics_initiated"], True)
 
 
 class TestMetrics(AuthenticatedAPITestCase):
