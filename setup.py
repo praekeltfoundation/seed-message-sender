@@ -22,7 +22,7 @@ setup(
         'django-celery==3.1.17',
         'redis==2.10.5',
         'pytz==2015.7',
-        'django-rest-hooks==1.2.1',
+        'django-rest-hooks==1.3.1',
         'go_http==0.3.0'
     ],
     classifiers=[
