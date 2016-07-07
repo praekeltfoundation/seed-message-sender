@@ -108,9 +108,9 @@ class Send_Message(Task):
         """
         l = self.get_logger(**kwargs)
 
-        l.info("Loading Outbound Message")
+        l.info("Loading Outbound Message <%s>" % message_id)
         try:
-            message = Outbound.objects.get(id=message_id)
+            message = Outbound.objects.get(pk=message_id)
             if message.attempts < settings.MESSAGE_SENDER_MAX_RETRIES:
                 l.info("Attempts: %s" % message.attempts)
                 # send or resend
