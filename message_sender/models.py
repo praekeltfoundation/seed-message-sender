@@ -69,7 +69,7 @@ from .tasks import send_message  # noqa
 @receiver(post_save, sender=Outbound)
 def fire_msg_action_if_new(sender, instance, created, **kwargs):
     if created:
-        send_message.delay(str(instance.id))
+        send_message.apply_async(kwargs={"message_id": str(instance.id)})
 
 
 @receiver(post_save, sender=Inbound)
