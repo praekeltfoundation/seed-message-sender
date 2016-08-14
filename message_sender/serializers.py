@@ -27,3 +27,7 @@ class HookSerializer(serializers.ModelSerializer):
     class Meta:
         model = Hook
         read_only_fields = ('user',)
+
+
+class CreateUserSerializer(serializers.Serializer):
+    email = serializers.EmailField()

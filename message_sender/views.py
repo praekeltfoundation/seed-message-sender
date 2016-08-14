@@ -1,16 +1,42 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_hooks.models import Hook
-from rest_framework import viewsets
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework import viewsets, status
+from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
 
 from .models import Outbound, Inbound
-from .serializers import OutboundSerializer, InboundSerializer, HookSerializer
+from django.contrib.auth.models import User
+from .serializers import (OutboundSerializer, InboundSerializer,
+                          HookSerializer, CreateUserSerializer)
 from .tasks import send_message
 from seed_message_sender.utils import get_available_metrics
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
+
+
+class UserView(APIView):
+    """ API endpoint that allows users creation and returns their token.
+    Only admin users can do this to avoid permissions escalation.
+    """
+    permission_classes = (IsAdminUser,)
+
+    def post(self, request):
+        '''Create a user and token, given an email. If user exists just
+        provide the token.'''
+        serializer = CreateUserSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data.get('email')
+        try:
+            user = User.objects.get(username=email)
+        except User.DoesNotExist:
+            user = User.objects.create_user(email, email=email)
+        token, created = Token.objects.get_or_create(user=user)
+
+        return Response(
+            status=status.HTTP_201_CREATED, data={'token': token.key})
 
 
 class HookViewSet(viewsets.ModelViewSet):
@@ -135,4 +161,22 @@ class MetricsView(APIView):
         # Uncomment line below if scheduled metrics are added
         # scheduled_metrics.apply_async()
         resp = {"scheduled_metrics_initiated": True}
+        return Response(resp, status=status)
+
+
+class HealthcheckView(APIView):
+
+    """ Healthcheck Interaction
+        GET - returns service up - getting auth'd requires DB
+    """
+    permission_classes = (IsAuthenticated,)
+
+    def get(self, request, *args, **kwargs):
+        status = 200
+        resp = {
+            "up": True,
+            "result": {
+                "database": "Accessible"
+            }
+        }
         return Response(resp, status=status)
