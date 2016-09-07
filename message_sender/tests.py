@@ -24,8 +24,8 @@ from .models import (Inbound, Outbound, fire_msg_action_if_new,
 from .tasks import Send_Message, fire_metric
 from . import tasks
 
-Send_Message.vumi_client_text = lambda x: LoggingSender('go_http.test')
-Send_Message.vumi_client_voice = lambda x: LoggingSender('go_http.test')
+Send_Message.get_text_client = lambda x: LoggingSender('go_http.test')
+Send_Message.get_voice_client = lambda x: LoggingSender('go_http.test')
 
 
 class RecordingAdapter(TestAdapter):

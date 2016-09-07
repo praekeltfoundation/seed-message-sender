@@ -86,7 +86,7 @@ class Send_Message(Task):
         code.
         """
 
-    def vumi_client_text(self):
+    def get_text_client(self):
         return HttpApiSender(
             api_url=settings.VUMI_API_URL_TEXT,
             account_key=settings.VUMI_ACCOUNT_KEY_TEXT,
@@ -94,7 +94,7 @@ class Send_Message(Task):
             conversation_token=settings.VUMI_ACCOUNT_TOKEN_TEXT
         )
 
-    def vumi_client_voice(self):
+    def get_voice_client(self):
         return HttpApiSender(
             api_url=settings.VUMI_API_URL_VOICE,
             account_key=settings.VUMI_ACCOUNT_KEY_VOICE,
@@ -117,7 +117,7 @@ class Send_Message(Task):
                 try:
                     if "voice_speech_url" in message.metadata:
                         # Voice message
-                        sender = self.vumi_client_voice()
+                        sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
                             message.to_addr, message.content,
@@ -126,7 +126,7 @@ class Send_Message(Task):
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
-                        sender = self.vumi_client_text()
+                        sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             message.to_addr, message.content,
                             session_event="new")
