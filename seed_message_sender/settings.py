@@ -193,7 +193,7 @@ CELERY_IGNORE_RESULT = True
 
 djcelery.setup_loader()
 
-MESSAGE_BACKEND = 'vumi'
+MESSAGE_BACKEND = os.environ.get('MESSAGE_SENDER_MESSAGE_BACKEND', 'vumi')
 
 VUMI_API_URL_VOICE = \
     os.environ.get('MESSAGE_SENDER_VUMI_API_URL_VOICE',
