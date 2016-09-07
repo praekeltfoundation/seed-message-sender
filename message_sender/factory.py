@@ -46,7 +46,8 @@ class MessageClientFactory(object):
             raise MessageClientFactoryException(
                 'Undefined message backend: %r' % (backend_type,))
 
-        handler = getattr(cls, 'create_%s_client' % (backend_type,), None)
+        handler = getattr(cls,
+                          'create_%s_client' % (backend_type.lower(),), None)
         if not handler:
             raise MessageClientFactoryException(
                 'Unknown backend type: %r' % (backend_type,))
