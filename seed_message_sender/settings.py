@@ -193,6 +193,8 @@ CELERY_IGNORE_RESULT = True
 
 djcelery.setup_loader()
 
+VOICE_BACKEND = 'junebug'
+
 VUMI_API_URL_VOICE = \
     os.environ.get('MESSAGE_SENDER_VUMI_API_URL_VOICE',
                    'http://example.com/api/v1/go/http_api_nostream')

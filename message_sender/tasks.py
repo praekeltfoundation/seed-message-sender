@@ -8,9 +8,10 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
-from go_http.send import HttpApiSender
 from go_http.metrics import MetricsApiClient
 from requests.exceptions import HTTPError
+
+from .factory import MessageClientFactory
 
 
 from .models import Outbound
@@ -87,20 +88,10 @@ class Send_Message(Task):
         """
 
     def get_text_client(self):
-        return HttpApiSender(
-            api_url=settings.VUMI_API_URL_TEXT,
-            account_key=settings.VUMI_ACCOUNT_KEY_TEXT,
-            conversation_key=settings.VUMI_CONVERSATION_KEY_TEXT,
-            conversation_token=settings.VUMI_ACCOUNT_TOKEN_TEXT
-        )
+        return MessageClientFactory.create('text')
 
     def get_voice_client(self):
-        return HttpApiSender(
-            api_url=settings.VUMI_API_URL_VOICE,
-            account_key=settings.VUMI_ACCOUNT_KEY_VOICE,
-            conversation_key=settings.VUMI_CONVERSATION_KEY_VOICE,
-            conversation_token=settings.VUMI_ACCOUNT_TOKEN_VOICE
-        )
+        return MessageClientFactory.create('voice')
 
     def run(self, message_id, **kwargs):
         """
