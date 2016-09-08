@@ -59,8 +59,8 @@ class OutboundViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
     queryset = Outbound.objects.all()
     serializer_class = OutboundSerializer
-    filter_fields = ('version', 'to_addr', 'delivered', 'attempts', 'metadata',
-                     'created_at', 'updated_at',)
+    filter_fields = ('version', 'to_addr', 'vumi_message_id', 'delivered',
+                     'attempts', 'metadata', 'created_at', 'updated_at',)
 
 
 class InboundViewSet(viewsets.ModelViewSet):
