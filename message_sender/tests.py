@@ -631,8 +631,7 @@ class TestFactory(TestCase):
         message_sender = MessageClientFactory.create('text')
         self.assertTrue(isinstance(message_sender, HttpApiSender))
         self.assertEqual(
-            message_sender.api_url,
-            'http://example.com/api/v1/go/http_api_nostream')
+            message_sender.api_url, 'http://example.com/')
         self.assertEqual(message_sender.account_key, 'account-key')
         self.assertEqual(message_sender.conversation_key, 'conv-key')
         self.assertEqual(message_sender.conversation_token, 'account-token')
@@ -646,8 +645,7 @@ class TestFactory(TestCase):
         message_sender = MessageClientFactory.create('voice')
         self.assertTrue(isinstance(message_sender, HttpApiSender))
         self.assertEqual(
-            message_sender.api_url,
-            'http://example.com/api/v1/go/http_api_nostream')
+            message_sender.api_url, 'http://example.com/')
         self.assertEqual(message_sender.account_key, 'account-key')
         self.assertEqual(message_sender.conversation_key, 'conv-key')
         self.assertEqual(message_sender.conversation_token, 'account-token')
