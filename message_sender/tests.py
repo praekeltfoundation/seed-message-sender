@@ -8,7 +8,7 @@ try:
 except ImportError:
     from urlparse import urlparse
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.conf import settings
@@ -19,6 +19,7 @@ from requests_testadapter import TestAdapter, TestSession
 from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
 
+from .factory import MessageClientFactory, JunebugApiSender
 from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
 from .tasks import Send_Message, fire_metric
@@ -599,3 +600,24 @@ class TestUserCreation(AuthenticatedAPITestCase):
             error, "You do not have permission to perform this action.",
             "Error message was unexpected: %s."
             % error)
+
+
+class TestFactory(TestCase):
+
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_TEXT='http://example.com/',
+                       JUNEBUG_API_AUTH_TEXT=('username', 'password'))
+    def test_create_junebug_text(self):
+        message_sender = MessageClientFactory.create('text')
+        self.assertTrue(isinstance(message_sender, JunebugApiSender))
+        self.assertEqual(message_sender.api_url, 'http://example.com/')
+        self.assertEqual(message_sender.auth, ('username', 'password'))
+
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_VOICE='http://example.com/voice',
+                       JUNEBUG_API_AUTH_VOICE=('username', 'password'))
+    def test_create_junebug_voice(self):
+        message_sender = MessageClientFactory.create('voice')
+        self.assertTrue(isinstance(message_sender, JunebugApiSender))
+        self.assertEqual(message_sender.api_url, 'http://example.com/voice')
+        self.assertEqual(message_sender.auth, ('username', 'password'))

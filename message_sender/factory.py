@@ -18,6 +18,12 @@ class JunebugApiSenderException(Exception):
 class JunebugApiSender(HttpApiSender):
 
     def __init__(self, url, auth=None, session=None):
+        """
+        :param url str: The URL for the Junebug HTTP channel
+        :param auth tuple: (username, password) or anything
+            accepted by the requests library. Defaults to None.
+        :param session requests.Session: A requests session. Defaults to None
+        """
         self.api_url = url
         self.auth = auth
         if session is None:
