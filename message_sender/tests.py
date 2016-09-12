@@ -19,7 +19,7 @@ from requests_testadapter import TestAdapter, TestSession
 from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
 
-from .factory import MessageClientFactory, JunebugApiSender
+from .factory import MessageClientFactory, JunebugApiSender, HttpApiSender
 from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
 from .tasks import Send_Message, fire_metric
@@ -621,3 +621,33 @@ class TestFactory(TestCase):
         self.assertTrue(isinstance(message_sender, JunebugApiSender))
         self.assertEqual(message_sender.api_url, 'http://example.com/voice')
         self.assertEqual(message_sender.auth, ('username', 'password'))
+
+    @override_settings(MESSAGE_BACKEND='vumi',
+                       VUMI_CONVERSATION_KEY_TEXT='conv-key',
+                       VUMI_ACCOUNT_KEY_TEXT='account-key',
+                       VUMI_ACCOUNT_TOKEN_TEXT='account-token',
+                       VUMI_API_URL_TEXT='http://example.com/')
+    def test_create_vumi_text(self):
+        message_sender = MessageClientFactory.create('text')
+        self.assertTrue(isinstance(message_sender, HttpApiSender))
+        self.assertEqual(
+            message_sender.api_url,
+            'http://example.com/api/v1/go/http_api_nostream')
+        self.assertEqual(message_sender.account_key, 'account-key')
+        self.assertEqual(message_sender.conversation_key, 'conv-key')
+        self.assertEqual(message_sender.conversation_token, 'account-token')
+
+    @override_settings(MESSAGE_BACKEND='vumi',
+                       VUMI_CONVERSATION_KEY_VOICE='conv-key',
+                       VUMI_ACCOUNT_KEY_VOICE='account-key',
+                       VUMI_ACCOUNT_TOKEN_VOICE='account-token',
+                       VUMI_API_URL_VOICE='http://example.com/')
+    def test_create_vumi_voice(self):
+        message_sender = MessageClientFactory.create('voice')
+        self.assertTrue(isinstance(message_sender, HttpApiSender))
+        self.assertEqual(
+            message_sender.api_url,
+            'http://example.com/api/v1/go/http_api_nostream')
+        self.assertEqual(message_sender.account_key, 'account-key')
+        self.assertEqual(message_sender.conversation_key, 'conv-key')
+        self.assertEqual(message_sender.conversation_token, 'account-token')
