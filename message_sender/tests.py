@@ -8,7 +8,7 @@ try:
 except ImportError:
     from urlparse import urlparse
 
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.conf import settings
@@ -23,6 +23,8 @@ from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
 from .tasks import Send_Message, fire_metric
 from . import tasks
+
+from seed_message_sender.utils import load_callable
 
 Send_Message.vumi_client_text = lambda x: LoggingSender('go_http.test')
 Send_Message.vumi_client_voice = lambda x: LoggingSender('go_http.test')
@@ -599,3 +601,19 @@ class TestUserCreation(AuthenticatedAPITestCase):
             error, "You do not have permission to perform this action.",
             "Error message was unexpected: %s."
             % error)
+
+
+class TestFormatter(TestCase):
+
+    @override_settings(
+        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.noop')
+    def test_noop(self):
+        cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
+        self.assertEqual(cb('12345'), '12345')
+
+    @override_settings(
+        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_voice')
+    def test_vas2nets(self):
+        cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
+        self.assertEqual(cb('+23456'), '956')
+        self.assertEqual(cb('23456'), '956')

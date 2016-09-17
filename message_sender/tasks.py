@@ -14,8 +14,12 @@ from requests.exceptions import HTTPError
 
 
 from .models import Outbound
+from seed_message_sender.utils import load_callable
 
 logger = get_task_logger(__name__)
+
+voice_to_addr_formatter = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
+text_to_addr_formatter = load_callable(settings.TEXT_TO_ADDR_FORMATTER)
 
 
 class DeliverHook(Task):
@@ -120,7 +124,8 @@ class Send_Message(Task):
                         sender = self.vumi_client_voice()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
-                            message.to_addr, message.content,
+                            voice_to_addr_formatter(message.to_addr),
+                            message.content,
                             speech_url=speech_url,
                             session_event="new")
                         l.info("Sent voice message to <%s>" % message.to_addr)
@@ -128,7 +133,8 @@ class Send_Message(Task):
                         # Plain content
                         sender = self.vumi_client_text()
                         vumiresponse = sender.send_text(
-                            message.to_addr, message.content,
+                            text_to_addr_formatter(message.to_addr),
+                            message.content,
                             session_event="new")
                         l.info("Sent text message to <%s>" % message.to_addr)
                     message.attempts += 1
