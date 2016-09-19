@@ -25,6 +25,8 @@ from .models import (Inbound, Outbound, fire_msg_action_if_new,
 from .tasks import Send_Message, fire_metric
 from . import tasks
 
+from seed_message_sender.utils import load_callable
+
 Send_Message.get_text_client = lambda x: LoggingSender('go_http.test')
 Send_Message.get_voice_client = lambda x: LoggingSender('go_http.test')
 
@@ -600,6 +602,22 @@ class TestUserCreation(AuthenticatedAPITestCase):
             error, "You do not have permission to perform this action.",
             "Error message was unexpected: %s."
             % error)
+
+
+class TestFormatter(TestCase):
+
+    @override_settings(
+        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.noop')
+    def test_noop(self):
+        cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
+        self.assertEqual(cb('12345'), '12345')
+
+    @override_settings(
+        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_voice')
+    def test_vas2nets(self):
+        cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
+        self.assertEqual(cb('+23456'), '956')
+        self.assertEqual(cb('23456'), '956')
 
 
 class TestFactory(TestCase):

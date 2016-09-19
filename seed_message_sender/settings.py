@@ -205,6 +205,11 @@ VUMI_CONVERSATION_KEY_VOICE = \
 VUMI_ACCOUNT_TOKEN_VOICE = \
     os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_VOICE', 'conv-token')
 
+VOICE_TO_ADDR_FORMATTER = os.environ.get(
+    'VOICE_TO_ADDR_FORMATTER', 'message_sender.formatters.noop')
+TEXT_TO_ADDR_FORMATTER = os.environ.get(
+    'TEXT_TO_ADDR_FORMATTER', 'message_sender.formatters.noop')
+
 VUMI_API_URL_TEXT = \
     os.environ.get('MESSAGE_SENDER_VUMI_API_URL_TEXT',
                    'http://example.com/api/v1/go/http_api_nostream')
