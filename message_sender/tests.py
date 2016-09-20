@@ -615,5 +615,5 @@ class TestFormatter(TestCase):
         VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_voice')
     def test_vas2nets(self):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
-        self.assertEqual(cb('+23456'), '956')
-        self.assertEqual(cb('23456'), '956')
+        self.assertEqual(cb('+23456'), '9056')
+        self.assertEqual(cb('23456'), '9056')
