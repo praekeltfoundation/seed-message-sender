@@ -177,6 +177,7 @@ class JunebugEventListener(APIView):
             message.metadata["rejected_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
+            send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
             message.metadata["delivered_timestamp"] = request.data["timestamp"]
@@ -185,6 +186,7 @@ class JunebugEventListener(APIView):
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
+            send_message.delay(str(message.id))
 
         return Response({"accepted": True}, status=200)
 
