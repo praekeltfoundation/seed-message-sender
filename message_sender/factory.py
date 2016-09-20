@@ -93,6 +93,7 @@ class EventListenerFactory(object):
             from .views import EventListener
             return EventListener.as_view()
         elif backend_type == 'junebug':
-            raise FactoryException('Junebug backend not read yet')
+            from .view import JunebugEventListener
+            return JunebugEventListener.as_view
         raise FactoryException(
             'Unknown event handling type: %s' % (backend_type,))
