@@ -2,6 +2,7 @@ import json
 import uuid
 import logging
 import responses
+import sys
 
 try:
     from urllib.parse import urlparse
@@ -19,11 +20,13 @@ from requests_testadapter import TestAdapter, TestSession
 from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
 
-from .factory import MessageClientFactory, JunebugApiSender, HttpApiSender
+from .factory import (
+    MessageClientFactory, EventListenerFactory, JunebugApiSender,
+    HttpApiSender, JunebugApiSenderException, FactoryException)
 from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
 from .tasks import Send_Message, fire_metric
-from . import tasks
+from . import views, tasks
 
 from seed_message_sender.utils import load_callable
 
@@ -450,6 +453,139 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         # self.assertEquals(
         #     True,
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
+
+
+@override_settings(MESSAGE_BACKEND='junebug',
+                   ROOT_URLCONF='message_sender.urls')
+class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
+    def setUp(self, *args, **kwargs):
+        reload(sys.modules[settings.ROOT_URLCONF])
+        return super(TestJunebugMessagesAPI, self).setUp(*args, **kwargs)
+
+    def test_event_missing_fields(self):
+        '''
+        If there are missing fields in the request, and error response should
+        be returned.
+        '''
+        response = self.client.post(
+            '/api/v1/events', json.dumps({}), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_no_message(self):
+        '''
+        If we cannot find the message for the event, and error response should
+        be returned.
+        '''
+        ack = {
+            "event_type": "submitted",
+            "message_id": 'bad-message-id',
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(ack), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_ack(self):
+        '''A submitted event should update the message object accordingly.'''
+        existing = self.make_outbound()
+
+        d = Outbound.objects.get(pk=existing)
+        ack = {
+            "event_type": "submitted",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(ack), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(
+            d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+
+    def test_event_nack(self):
+        '''
+        A rejected event should retry and update the message object accordingly
+        '''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+        nack = {
+            "event_type": "rejected",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {"reason": "No answer"},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(nack),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        c = Outbound.objects.get(pk=existing)
+        self.assertEqual(c.delivered, False)
+        self.assertEqual(c.attempts, 2)
+        self.assertEqual(
+            c.metadata["nack_reason"], {"reason": "No answer"})
+        self.assertEquals(True, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123' "
+            "[session_event: new]"))
+
+    def test_event_delivery_succeeded(self):
+        '''A successful delivery should update the message accordingly.'''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        dr = {
+            "event_type": "delivery_succeeded",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(dr), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(
+            d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+
+    def test_event_delivery_failed(self):
+        '''
+        A failed delivery should retry and update the message accordingly.
+        '''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        dr = {
+            "event_type": "delivery_failed",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(dr), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 2)
+        self.assertEqual(
+            d.metadata["delivery_failed_reason"], {})
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
 
 
 class TestMetricsAPI(AuthenticatedAPITestCase):
