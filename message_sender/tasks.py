@@ -8,9 +8,10 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 
-from go_http.send import HttpApiSender
 from go_http.metrics import MetricsApiClient
 from requests.exceptions import HTTPError
+
+from .factory import MessageClientFactory
 
 
 from .models import Outbound
@@ -90,21 +91,11 @@ class Send_Message(Task):
         code.
         """
 
-    def vumi_client_text(self):
-        return HttpApiSender(
-            api_url=settings.VUMI_API_URL_TEXT,
-            account_key=settings.VUMI_ACCOUNT_KEY_TEXT,
-            conversation_key=settings.VUMI_CONVERSATION_KEY_TEXT,
-            conversation_token=settings.VUMI_ACCOUNT_TOKEN_TEXT
-        )
+    def get_text_client(self):
+        return MessageClientFactory.create('text')
 
-    def vumi_client_voice(self):
-        return HttpApiSender(
-            api_url=settings.VUMI_API_URL_VOICE,
-            account_key=settings.VUMI_ACCOUNT_KEY_VOICE,
-            conversation_key=settings.VUMI_CONVERSATION_KEY_VOICE,
-            conversation_token=settings.VUMI_ACCOUNT_TOKEN_VOICE
-        )
+    def get_voice_client(self):
+        return MessageClientFactory.create('voice')
 
     def run(self, message_id, **kwargs):
         """
@@ -121,7 +112,7 @@ class Send_Message(Task):
                 try:
                     if "voice_speech_url" in message.metadata:
                         # Voice message
-                        sender = self.vumi_client_voice()
+                        sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
                             voice_to_addr_formatter(message.to_addr),
@@ -131,7 +122,7 @@ class Send_Message(Task):
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
-                        sender = self.vumi_client_text()
+                        sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
                             message.content,

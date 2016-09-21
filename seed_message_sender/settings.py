@@ -193,6 +193,8 @@ CELERY_IGNORE_RESULT = True
 
 djcelery.setup_loader()
 
+MESSAGE_BACKEND = os.environ.get('MESSAGE_SENDER_MESSAGE_BACKEND', 'vumi')
+
 VUMI_API_URL_VOICE = \
     os.environ.get('MESSAGE_SENDER_VUMI_API_URL_VOICE',
                    'http://example.com/api/v1/go/http_api_nostream')
@@ -217,6 +219,22 @@ VUMI_CONVERSATION_KEY_TEXT = \
     os.environ.get('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_TEXT', 'conv-key')
 VUMI_ACCOUNT_TOKEN_TEXT = \
     os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_TEXT', 'conv-token')
+
+JUNEBUG_API_URL_VOICE = \
+    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_URL_VOICE',
+                   'http://example.com/jb/channels/abc-def/messages')
+JUNEBUG_API_AUTH_VOICE = \
+    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_AUTH_VOICE', None)
+JUNEBUG_API_FROM_VOICE = \
+    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_FROM_VOICE', None)
+
+JUNEBUG_API_URL_TEXT = \
+    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_URL_TEXT',
+                   'http://example.com/jb/channels/def-abc/messages')
+JUNEBUG_API_AUTH_TEXT = \
+    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_AUTH_TEXT', None)
+JUNEBUG_API_FROM_TEXT = \
+    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_FROM_TEXT', None)
 
 MESSAGE_SENDER_MAX_RETRIES = \
     int(os.environ.get('MESSAGE_SENDER_MAX_RETRIES', 3))

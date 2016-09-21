@@ -141,6 +141,56 @@ class EventListener(APIView):
     #     serializer.save(updated_by=self.request.user)
 
 
+class JunebugEventListener(APIView):
+
+    """
+    Triggers updates to outbound messages based on event data from Junebug
+    """
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        """
+        Updates the message from the event data.
+        """
+        expect = ["event_type", "message_id", "timestamp"]
+        if not set(expect).issubset(request.data.keys()):
+            return Response({
+                "accepted": False,
+                "reason": "Missing expected body keys"
+            }, status=400)
+
+        try:
+            message = Outbound.objects.get(
+                vumi_message_id=request.data["message_id"])
+        except ObjectDoesNotExist:
+            return Response({
+                "accepted": False,
+                "reason": "Cannot find message for event"
+            }, status=400)
+
+        event_type = request.data["event_type"]
+        if event_type == "submitted":
+            message.delivered = True
+            message.metadata["ack_timestamp"] = request.data["timestamp"]
+            message.save(update_fields=['metadata', 'delivered'])
+        elif event_type == "rejected":
+            message.metadata["nack_reason"] = (
+                request.data.get("event_details"))
+            message.save(update_fields=['metadata'])
+            send_message.delay(str(message.id))
+        elif event_type == "delivery_succeeded":
+            message.delivered = True
+            message.metadata["delivery_timestamp"] = request.data["timestamp"]
+            message.save(update_fields=['delivered', 'metadata'])
+        elif event_type == "delivery_failed":
+            message.metadata["delivery_failed_reason"] = (
+                request.data.get("event_details"))
+            message.save(update_fields=['metadata'])
+            send_message.delay(str(message.id))
+
+        return Response({"accepted": True}, status=200)
+
+
 class MetricsView(APIView):
 
     """ Metrics Interaction

@@ -2,6 +2,7 @@ import json
 import uuid
 import logging
 import responses
+import sys
 
 try:
     from urllib.parse import urlparse
@@ -12,6 +13,7 @@ from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.conf import settings
+from imp import reload
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -19,15 +21,18 @@ from requests_testadapter import TestAdapter, TestSession
 from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
 
+from .factory import (
+    MessageClientFactory, EventListenerFactory, JunebugApiSender,
+    HttpApiSender, JunebugApiSenderException, FactoryException)
 from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
 from .tasks import Send_Message, fire_metric
-from . import tasks
+from . import views, tasks
 
 from seed_message_sender.utils import load_callable
 
-Send_Message.vumi_client_text = lambda x: LoggingSender('go_http.test')
-Send_Message.vumi_client_voice = lambda x: LoggingSender('go_http.test')
+Send_Message.get_text_client = lambda x: LoggingSender('go_http.test')
+Send_Message.get_voice_client = lambda x: LoggingSender('go_http.test')
 
 
 class RecordingAdapter(TestAdapter):
@@ -451,6 +456,139 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
 
 
+@override_settings(MESSAGE_BACKEND='junebug',
+                   ROOT_URLCONF='message_sender.urls')
+class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
+    def setUp(self, *args, **kwargs):
+        reload(sys.modules[settings.ROOT_URLCONF])
+        return super(TestJunebugMessagesAPI, self).setUp(*args, **kwargs)
+
+    def test_event_missing_fields(self):
+        '''
+        If there are missing fields in the request, and error response should
+        be returned.
+        '''
+        response = self.client.post(
+            '/api/v1/events', json.dumps({}), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_no_message(self):
+        '''
+        If we cannot find the message for the event, and error response should
+        be returned.
+        '''
+        ack = {
+            "event_type": "submitted",
+            "message_id": 'bad-message-id',
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(ack), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_ack(self):
+        '''A submitted event should update the message object accordingly.'''
+        existing = self.make_outbound()
+
+        d = Outbound.objects.get(pk=existing)
+        ack = {
+            "event_type": "submitted",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(ack), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(
+            d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+
+    def test_event_nack(self):
+        '''
+        A rejected event should retry and update the message object accordingly
+        '''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+        nack = {
+            "event_type": "rejected",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {"reason": "No answer"},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(nack),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        c = Outbound.objects.get(pk=existing)
+        self.assertEqual(c.delivered, False)
+        self.assertEqual(c.attempts, 2)
+        self.assertEqual(
+            c.metadata["nack_reason"], {"reason": "No answer"})
+        self.assertEquals(True, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123' "
+            "[session_event: new]"))
+
+    def test_event_delivery_succeeded(self):
+        '''A successful delivery should update the message accordingly.'''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        dr = {
+            "event_type": "delivery_succeeded",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(dr), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(
+            d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+
+    def test_event_delivery_failed(self):
+        '''
+        A failed delivery should retry and update the message accordingly.
+        '''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        dr = {
+            "event_type": "delivery_failed",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        response = self.client.post(
+            '/api/v1/events', json.dumps(dr), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 2)
+        self.assertEqual(
+            d.metadata["delivery_failed_reason"], {})
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+
+
 class TestMetricsAPI(AuthenticatedAPITestCase):
 
     def test_metrics_read(self):
@@ -617,3 +755,166 @@ class TestFormatter(TestCase):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
         self.assertEqual(cb('+23456'), '9056')
         self.assertEqual(cb('23456'), '9056')
+
+
+class TestFactory(TestCase):
+
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_TEXT='http://example.com/',
+                       JUNEBUG_API_AUTH_TEXT=('username', 'password'))
+    def test_create_junebug_text(self):
+        message_sender = MessageClientFactory.create('text')
+        self.assertTrue(isinstance(message_sender, JunebugApiSender))
+        self.assertEqual(message_sender.api_url, 'http://example.com/')
+        self.assertEqual(message_sender.auth, ('username', 'password'))
+
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_VOICE='http://example.com/voice',
+                       JUNEBUG_API_AUTH_VOICE=('username', 'password'))
+    def test_create_junebug_voice(self):
+        message_sender = MessageClientFactory.create('voice')
+        self.assertTrue(isinstance(message_sender, JunebugApiSender))
+        self.assertEqual(message_sender.api_url, 'http://example.com/voice')
+        self.assertEqual(message_sender.auth, ('username', 'password'))
+
+    @override_settings(MESSAGE_BACKEND='vumi',
+                       VUMI_CONVERSATION_KEY_TEXT='conv-key',
+                       VUMI_ACCOUNT_KEY_TEXT='account-key',
+                       VUMI_ACCOUNT_TOKEN_TEXT='account-token',
+                       VUMI_API_URL_TEXT='http://example.com/')
+    def test_create_vumi_text(self):
+        message_sender = MessageClientFactory.create('text')
+        self.assertTrue(isinstance(message_sender, HttpApiSender))
+        self.assertEqual(
+            message_sender.api_url, 'http://example.com/')
+        self.assertEqual(message_sender.account_key, 'account-key')
+        self.assertEqual(message_sender.conversation_key, 'conv-key')
+        self.assertEqual(message_sender.conversation_token, 'account-token')
+
+    @override_settings(MESSAGE_BACKEND='vumi',
+                       VUMI_CONVERSATION_KEY_VOICE='conv-key',
+                       VUMI_ACCOUNT_KEY_VOICE='account-key',
+                       VUMI_ACCOUNT_TOKEN_VOICE='account-token',
+                       VUMI_API_URL_VOICE='http://example.com/')
+    def test_create_vumi_voice(self):
+        message_sender = MessageClientFactory.create('voice')
+        self.assertTrue(isinstance(message_sender, HttpApiSender))
+        self.assertEqual(
+            message_sender.api_url, 'http://example.com/')
+        self.assertEqual(message_sender.account_key, 'account-key')
+        self.assertEqual(message_sender.conversation_key, 'conv-key')
+        self.assertEqual(message_sender.conversation_token, 'account-token')
+
+    @override_settings(MESSAGE_BACKEND='unknown')
+    def test_create_unknown(self):
+        '''
+        The message client factory should raise an exception if an unknown
+        message type is specified.
+        '''
+        self.assertRaises(
+            FactoryException, MessageClientFactory.create, 'voice')
+
+    @override_settings(MESSAGE_BACKEND=None)
+    def test_create_no_backend_type_specified(self):
+        '''
+        If no message backend is specified, an error should be raised when
+        getting the message client.
+        '''
+        self.assertRaises(
+            FactoryException, MessageClientFactory.create, 'voice')
+
+    @override_settings(MESSAGE_BACKEND='vumi')
+    def test_create_event_vumi(self):
+        '''
+        The event listener factory should return an EventListner view for the
+        vumi backend.
+        '''
+        view = EventListenerFactory.create()
+        self.assertEqual(view.view_class, views.EventListener)
+
+    @override_settings(MESSAGE_BACKEND='junebug')
+    def test_create_event_junebug(self):
+        '''
+        The event listener facetory should return a JunebugEventListner view
+        for the junebug backend.
+        '''
+        view = EventListenerFactory.create()
+        self.assertEqual(view.view_class, views.JunebugEventListener)
+
+    @override_settings(MESSAGE_BACKEND='unknown')
+    def test_create_event_unknown(self):
+        '''
+        The event listener factory should raise an exception for an unknown
+        message backend.
+        '''
+        self.assertRaises(FactoryException, EventListenerFactory.create)
+
+
+class TestJunebugAPISender(TestCase):
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_TEXT='http://example.com/',
+                       JUNEBUG_API_FROM_TEXT='+4321')
+    @responses.activate
+    def test_send_text(self):
+        '''
+        Using the send_text function should send a request to Junebug with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        message_sender = MessageClientFactory.create('text')
+        res = message_sender.send_text('+1234', 'Test', session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], 'Test')
+        self.assertEqual(r['channel_data']['session_event'], 'resume')
+
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_VOICE='http://example.com/',
+                       JUNEBUG_API_FROM_VOICE='+4321')
+    @responses.activate
+    def test_send_voice(self):
+        '''
+        Using the send_voice function should send a request to Junebug with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        message_sender = MessageClientFactory.create('voice')
+        res = message_sender.send_voice(
+            '+1234', 'Test', speech_url='http://test.mp3', wait_for='#',
+            session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], 'Test')
+        self.assertEqual(r['channel_data']['session_event'], 'resume')
+        self.assertEqual(
+            r['channel_data']['voice']['speech_url'], 'http://test.mp3')
+        self.assertEqual(r['channel_data']['voice']['wait_for'], '#')
+
+    @override_settings(MESSAGE_BACKEND='junebug')
+    def test_fire_metric(self):
+        '''
+        Using the fire_metric function should result in an exception being
+        raised, since Junebug doesn't support metrics sending.
+        '''
+        message_sender = MessageClientFactory.create('voice')
+        self.assertRaises(
+            JunebugApiSenderException, message_sender.fire_metric, 'foo.bar',
+            3.0, agg='sum')
