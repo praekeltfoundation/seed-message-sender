@@ -54,11 +54,14 @@ class JunebugApiSender(HttpApiSender):
             'channel_data': channel_data,
         }
 
-        data = json.dumps(py_data)
+        data = json.dumps(data)
         r = self.session.post(self.api_url, auth=self.auth,
                               data=data, headers=headers)
         r.raise_for_status()
-        return r.json()
+        res = r.json()
+        return {
+            "message_id": res.get('result', {}).get('id')
+        }
 
     def fire_metric(self, metric, value, agg="last"):
         raise JunebugApiSenderException(
