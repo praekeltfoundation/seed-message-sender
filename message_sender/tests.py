@@ -803,3 +803,47 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.account_key, 'account-key')
         self.assertEqual(message_sender.conversation_key, 'conv-key')
         self.assertEqual(message_sender.conversation_token, 'account-token')
+
+    @override_settings(MESSAGE_BACKEND='unknown')
+    def test_create_unknown(self):
+        '''
+        The message client factory should raise an exception if an unknown
+        message type is specified.
+        '''
+        self.assertRaises(
+            FactoryException, MessageClientFactory.create, 'voice')
+
+    @override_settings(MESSAGE_BACKEND=None)
+    def test_create_no_backend_type_specified(self):
+        '''
+        If no message backend is specified, an error should be raised when
+        getting the message client.
+        '''
+        self.assertRaises(
+            FactoryException, MessageClientFactory.create, 'voice')
+
+    @override_settings(MESSAGE_BACKEND='vumi')
+    def test_create_event_vumi(self):
+        '''
+        The event listener factory should return an EventListner view for the
+        vumi backend.
+        '''
+        view = EventListenerFactory.create()
+        self.assertEqual(view.view_class, views.EventListener)
+
+    @override_settings(MESSAGE_BACKEND='junebug')
+    def test_create_event_junebug(self):
+        '''
+        The event listener facetory should return a JunebugEventListner view
+        for the junebug backend.
+        '''
+        view = EventListenerFactory.create()
+        self.assertEqual(view.view_class, views.JunebugEventListener)
+
+    @override_settings(MESSAGE_BACKEND='unknown')
+    def test_create_event_unknown(self):
+        '''
+        The event listener factory should raise an exception for an unknown
+        message backend.
+        '''
+        self.assertRaises(FactoryException, EventListenerFactory.create)
