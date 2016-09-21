@@ -847,3 +847,73 @@ class TestFactory(TestCase):
         message backend.
         '''
         self.assertRaises(FactoryException, EventListenerFactory.create)
+
+
+class TestJunebugAPISender(TestCase):
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_TEXT='http://example.com/',
+                       JUNEBUG_API_FROM_TEXT='+4321')
+    @responses.activate
+    def test_send_text(self):
+        '''
+        Using the send_text function should send a request to Junebug with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        message_sender = MessageClientFactory.create('text')
+        res = message_sender.send_text('+1234', 'Test', session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], 'Test')
+        self.assertEqual(r['channel_data']['session_event'], 'resume')
+
+    @override_settings(MESSAGE_BACKEND='junebug',
+                       JUNEBUG_API_URL_VOICE='http://example.com/',
+                       JUNEBUG_API_FROM_VOICE='+4321')
+    @responses.activate
+    def test_send_voice(self):
+        '''
+        Using the send_voice function should send a request to Junebug with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        message_sender = MessageClientFactory.create('voice')
+        res = message_sender.send_voice(
+            '+1234', 'Test', speech_url='http://test.mp3', wait_for='#',
+            session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], 'Test')
+        self.assertEqual(r['channel_data']['session_event'], 'resume')
+        self.assertEqual(
+            r['channel_data']['voice']['speech_url'], 'http://test.mp3')
+        self.assertEqual(r['channel_data']['voice']['wait_for'], '#')
+
+    @override_settings(MESSAGE_BACKEND='junebug')
+    def test_fire_metric(self):
+        '''
+        Using the fire_metric function should result in an exception being
+        raised, since Junebug doesn't support metrics sending.
+        '''
+        message_sender = MessageClientFactory.create('voice')
+        self.assertRaises(
+            JunebugApiSenderException, message_sender.fire_metric, 'foo.bar',
+            3.0, agg='sum')
