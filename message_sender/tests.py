@@ -862,7 +862,7 @@ class TestJunebugAPISender(TestCase):
         '''
         responses.add(
             responses.POST, "http://example.com/",
-            json={"result": {"id": "message-uuid"}}, status=200,
+            json={"result": {"message_id": "message-uuid"}}, status=200,
             content_type='application/json')
 
         message_sender = MessageClientFactory.create('text')
@@ -888,7 +888,7 @@ class TestJunebugAPISender(TestCase):
         '''
         responses.add(
             responses.POST, "http://example.com/",
-            json={"result": {"id": "message-uuid"}}, status=200,
+            json={"result": {"message_id": "message-uuid"}}, status=200,
             content_type='application/json')
 
         message_sender = MessageClientFactory.create('voice')

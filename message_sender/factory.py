@@ -59,9 +59,7 @@ class JunebugApiSender(HttpApiSender):
                               data=data, headers=headers)
         r.raise_for_status()
         res = r.json()
-        return {
-            "message_id": res.get('result', {}).get('id')
-        }
+        return res.get('result', {})
 
     def fire_metric(self, metric, value, agg="last"):
         raise JunebugApiSenderException(
