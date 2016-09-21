@@ -171,16 +171,16 @@ class JunebugEventListener(APIView):
         event_type = request.data["event_type"]
         if event_type == "submitted":
             message.delivered = True
-            message.metadata["submitted_timestamp"] = request.data["timestamp"]
+            message.metadata["ack_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['metadata', 'delivered'])
         elif event_type == "rejected":
-            message.metadata["rejected_reason"] = (
+            message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
-            message.metadata["delivered_timestamp"] = request.data["timestamp"]
+            message.metadata["delivery_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['delivered', 'metadata'])
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
