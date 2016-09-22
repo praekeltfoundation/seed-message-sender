@@ -11,8 +11,9 @@ class FactoryException(Exception):
     pass
 
 
-def get_backend_type():
-    backend_type = getattr(settings, 'MESSAGE_BACKEND', None)
+def get_backend_type(client_type):
+    backend_type = getattr(
+        settings, 'MESSAGE_BACKEND_%s' % client_type.upper(), None)
     if not backend_type:
         raise FactoryException(
             'Undefined message backend: %r' % (backend_type,))
@@ -70,7 +71,7 @@ class MessageClientFactory(object):
 
     @classmethod
     def create(cls, client_type):
-        backend_type = get_backend_type()
+        backend_type = get_backend_type(client_type)
         handler = getattr(cls,
                           'create_%s_client' % (backend_type,), None)
         if not handler:

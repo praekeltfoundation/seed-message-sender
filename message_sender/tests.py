@@ -2,7 +2,6 @@ import json
 import uuid
 import logging
 import responses
-import sys
 
 try:
     from urllib.parse import urlparse
@@ -13,7 +12,6 @@ from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.conf import settings
-from imp import reload
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -22,12 +20,12 @@ from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
 
 from .factory import (
-    MessageClientFactory, EventListenerFactory, JunebugApiSender,
-    HttpApiSender, JunebugApiSenderException, FactoryException)
+    MessageClientFactory, JunebugApiSender, HttpApiSender,
+    JunebugApiSenderException, FactoryException)
 from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
 from .tasks import Send_Message, fire_metric
-from . import views, tasks
+from . import tasks
 
 from seed_message_sender.utils import load_callable
 
@@ -758,7 +756,7 @@ class TestFormatter(TestCase):
 
 class TestFactory(TestCase):
 
-    @override_settings(MESSAGE_BACKEND='junebug',
+    @override_settings(MESSAGE_BACKEND_TEXT='junebug',
                        JUNEBUG_API_URL_TEXT='http://example.com/',
                        JUNEBUG_API_AUTH_TEXT=('username', 'password'))
     def test_create_junebug_text(self):
@@ -767,7 +765,7 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.api_url, 'http://example.com/')
         self.assertEqual(message_sender.auth, ('username', 'password'))
 
-    @override_settings(MESSAGE_BACKEND='junebug',
+    @override_settings(MESSAGE_BACKEND_VOICE='junebug',
                        JUNEBUG_API_URL_VOICE='http://example.com/voice',
                        JUNEBUG_API_AUTH_VOICE=('username', 'password'))
     def test_create_junebug_voice(self):
@@ -776,7 +774,7 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.api_url, 'http://example.com/voice')
         self.assertEqual(message_sender.auth, ('username', 'password'))
 
-    @override_settings(MESSAGE_BACKEND='vumi',
+    @override_settings(MESSAGE_BACKEND_TEXT='vumi',
                        VUMI_CONVERSATION_KEY_TEXT='conv-key',
                        VUMI_ACCOUNT_KEY_TEXT='account-key',
                        VUMI_ACCOUNT_TOKEN_TEXT='account-token',
@@ -790,7 +788,7 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.conversation_key, 'conv-key')
         self.assertEqual(message_sender.conversation_token, 'account-token')
 
-    @override_settings(MESSAGE_BACKEND='vumi',
+    @override_settings(MESSAGE_BACKEND_VOICE='vumi',
                        VUMI_CONVERSATION_KEY_VOICE='conv-key',
                        VUMI_ACCOUNT_KEY_VOICE='account-key',
                        VUMI_ACCOUNT_TOKEN_VOICE='account-token',
@@ -804,7 +802,7 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.conversation_key, 'conv-key')
         self.assertEqual(message_sender.conversation_token, 'account-token')
 
-    @override_settings(MESSAGE_BACKEND='unknown')
+    @override_settings(MESSAGE_BACKEND_VOICE='unknown')
     def test_create_unknown(self):
         '''
         The message client factory should raise an exception if an unknown
@@ -813,7 +811,7 @@ class TestFactory(TestCase):
         self.assertRaises(
             FactoryException, MessageClientFactory.create, 'voice')
 
-    @override_settings(MESSAGE_BACKEND=None)
+    @override_settings(MESSAGE_BACKEND_VOICE=None)
     def test_create_no_backend_type_specified(self):
         '''
         If no message backend is specified, an error should be raised when
@@ -824,7 +822,7 @@ class TestFactory(TestCase):
 
 
 class TestJunebugAPISender(TestCase):
-    @override_settings(MESSAGE_BACKEND='junebug',
+    @override_settings(MESSAGE_BACKEND_TEXT='junebug',
                        JUNEBUG_API_URL_TEXT='http://example.com/',
                        JUNEBUG_API_FROM_TEXT='+4321')
     @responses.activate
@@ -850,7 +848,7 @@ class TestJunebugAPISender(TestCase):
         self.assertEqual(r['content'], 'Test')
         self.assertEqual(r['channel_data']['session_event'], 'resume')
 
-    @override_settings(MESSAGE_BACKEND='junebug',
+    @override_settings(MESSAGE_BACKEND_VOICE='junebug',
                        JUNEBUG_API_URL_VOICE='http://example.com/',
                        JUNEBUG_API_FROM_VOICE='+4321')
     @responses.activate
@@ -881,7 +879,7 @@ class TestJunebugAPISender(TestCase):
             r['channel_data']['voice']['speech_url'], 'http://test.mp3')
         self.assertEqual(r['channel_data']['voice']['wait_for'], '#')
 
-    @override_settings(MESSAGE_BACKEND='junebug')
+    @override_settings(MESSAGE_BACKEND_VOICE='junebug')
     def test_fire_metric(self):
         '''
         Using the fire_metric function should result in an exception being
