@@ -11,8 +11,9 @@ class FactoryException(Exception):
     pass
 
 
-def get_backend_type():
-    backend_type = getattr(settings, 'MESSAGE_BACKEND', None)
+def get_backend_type(client_type):
+    backend_type = getattr(
+        settings, 'MESSAGE_BACKEND_%s' % client_type.upper(), None)
     if not backend_type:
         raise FactoryException(
             'Undefined message backend: %r' % (backend_type,))
@@ -70,7 +71,7 @@ class MessageClientFactory(object):
 
     @classmethod
     def create(cls, client_type):
-        backend_type = get_backend_type()
+        backend_type = get_backend_type(client_type)
         handler = getattr(cls,
                           'create_%s_client' % (backend_type,), None)
         if not handler:
@@ -98,18 +99,3 @@ class MessageClientFactory(object):
             api_url=getattr(settings,
                             'VUMI_API_URL_%s' % (client_type.upper(),)),
         )
-
-
-class EventListenerFactory(object):
-
-    @classmethod
-    def create(cls):
-        backend_type = get_backend_type()
-        if backend_type == 'vumi':
-            from .views import EventListener
-            return EventListener.as_view()
-        elif backend_type == 'junebug':
-            from .views import JunebugEventListener
-            return JunebugEventListener.as_view()
-        raise FactoryException(
-            'Unknown event handling type: %s' % (backend_type,))
