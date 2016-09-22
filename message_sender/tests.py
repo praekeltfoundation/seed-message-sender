@@ -748,10 +748,17 @@ class TestFormatter(TestCase):
 
     @override_settings(
         VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_voice')
-    def test_vas2nets(self):
+    def test_vas2nets_voice(self):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
         self.assertEqual(cb('+23456'), '9056')
         self.assertEqual(cb('23456'), '9056')
+
+    @override_settings(
+        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_text')
+    def test_vas2nets_text(self):
+        cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
+        self.assertEqual(cb('+23456'), '056')
+        self.assertEqual(cb('23456'), '056')
 
 
 class TestFactory(TestCase):
