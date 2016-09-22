@@ -456,20 +456,15 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
 
 
-@override_settings(MESSAGE_BACKEND='junebug',
-                   ROOT_URLCONF='message_sender.urls')
 class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
-    def setUp(self, *args, **kwargs):
-        reload(sys.modules[settings.ROOT_URLCONF])
-        return super(TestJunebugMessagesAPI, self).setUp(*args, **kwargs)
-
     def test_event_missing_fields(self):
         '''
         If there are missing fields in the request, and error response should
         be returned.
         '''
         response = self.client.post(
-            '/api/v1/events', json.dumps({}), content_type='application/json')
+            '/api/v1/events/junebug', json.dumps({}),
+            content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_event_no_message(self):
@@ -485,7 +480,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events', json.dumps(ack), content_type='application/json')
+            '/api/v1/events/junebug', json.dumps(ack),
+            content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_event_ack(self):
@@ -501,7 +497,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events', json.dumps(ack), content_type='application/json')
+            '/api/v1/events/junebug', json.dumps(ack),
+            content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -527,7 +524,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {"reason": "No answer"},
         }
         response = self.client.post(
-            '/api/v1/events', json.dumps(nack),
+            '/api/v1/events/junebug', json.dumps(nack),
             content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -552,7 +549,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events', json.dumps(dr), content_type='application/json')
+            '/api/v1/events/junebug', json.dumps(dr),
+            content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -577,7 +575,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events', json.dumps(dr), content_type='application/json')
+            '/api/v1/events/junebug', json.dumps(dr),
+            content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -822,32 +821,6 @@ class TestFactory(TestCase):
         '''
         self.assertRaises(
             FactoryException, MessageClientFactory.create, 'voice')
-
-    @override_settings(MESSAGE_BACKEND='vumi')
-    def test_create_event_vumi(self):
-        '''
-        The event listener factory should return an EventListner view for the
-        vumi backend.
-        '''
-        view = EventListenerFactory.create()
-        self.assertEqual(view.view_class, views.EventListener)
-
-    @override_settings(MESSAGE_BACKEND='junebug')
-    def test_create_event_junebug(self):
-        '''
-        The event listener facetory should return a JunebugEventListner view
-        for the junebug backend.
-        '''
-        view = EventListenerFactory.create()
-        self.assertEqual(view.view_class, views.JunebugEventListener)
-
-    @override_settings(MESSAGE_BACKEND='unknown')
-    def test_create_event_unknown(self):
-        '''
-        The event listener factory should raise an exception for an unknown
-        message backend.
-        '''
-        self.assertRaises(FactoryException, EventListenerFactory.create)
 
 
 class TestJunebugAPISender(TestCase):

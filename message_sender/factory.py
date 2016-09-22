@@ -98,18 +98,3 @@ class MessageClientFactory(object):
             api_url=getattr(settings,
                             'VUMI_API_URL_%s' % (client_type.upper(),)),
         )
-
-
-class EventListenerFactory(object):
-
-    @classmethod
-    def create(cls):
-        backend_type = get_backend_type()
-        if backend_type == 'vumi':
-            from .views import EventListener
-            return EventListener.as_view()
-        elif backend_type == 'junebug':
-            from .views import JunebugEventListener
-            return JunebugEventListener.as_view()
-        raise FactoryException(
-            'Unknown event handling type: %s' % (backend_type,))
