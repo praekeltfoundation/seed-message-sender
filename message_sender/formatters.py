@@ -23,4 +23,4 @@ def vas2nets_text(msisdn):
     format, prefixed with a 0, instead of the international format with the
     country code.
     """
-    return re.sub(r'\+?234(\d+)$', r'0\1', msisdn)
+    return re.sub(r'\+234(\d+)$', r'234\1', msisdn)

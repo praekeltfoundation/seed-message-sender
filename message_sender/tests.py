@@ -757,8 +757,8 @@ class TestFormatter(TestCase):
         VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_text')
     def test_vas2nets_text(self):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
-        self.assertEqual(cb('+23456'), '056')
-        self.assertEqual(cb('23456'), '056')
+        self.assertEqual(cb('+23456'), '23456')
+        self.assertEqual(cb('23456'), '23456')
 
 
 class TestFactory(TestCase):
@@ -803,7 +803,7 @@ class TestFactory(TestCase):
     def test_create_vumi_voice(self):
         message_sender = MessageClientFactory.create('voice')
         self.assertTrue(isinstance(message_sender, HttpApiSender))
-        self.assertEqual(
+	self.assertEqual(
             message_sender.api_url, 'http://example.com/')
         self.assertEqual(message_sender.account_key, 'account-key')
         self.assertEqual(message_sender.conversation_key, 'conv-key')
