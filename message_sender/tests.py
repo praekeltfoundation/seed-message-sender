@@ -803,7 +803,7 @@ class TestFactory(TestCase):
     def test_create_vumi_voice(self):
         message_sender = MessageClientFactory.create('voice')
         self.assertTrue(isinstance(message_sender, HttpApiSender))
-	self.assertEqual(
+        self.assertEqual(
             message_sender.api_url, 'http://example.com/')
         self.assertEqual(message_sender.account_key, 'account-key')
         self.assertEqual(message_sender.conversation_key, 'conv-key')
