@@ -23,7 +23,8 @@ setup(
         'redis==2.10.5',
         'pytz==2015.7',
         'django-rest-hooks==1.3.1',
-        'go_http==0.3.0'
+        'go_http==0.3.0',
+        'drfdocs==0.0.11',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
