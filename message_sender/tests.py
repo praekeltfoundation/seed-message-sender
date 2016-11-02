@@ -854,6 +854,8 @@ class TestJunebugAPISender(TestCase):
         self.assertEqual(r['from'], '+4321')
         self.assertEqual(r['content'], 'Test')
         self.assertEqual(r['channel_data']['session_event'], 'resume')
+        self.assertEqual(
+            r['event_url'], 'http://example.com/api/v1/events/junebug')
 
     @override_settings(MESSAGE_BACKEND_VOICE='junebug',
                        JUNEBUG_API_URL_VOICE='http://example.com/',
@@ -885,6 +887,8 @@ class TestJunebugAPISender(TestCase):
         self.assertEqual(
             r['channel_data']['voice']['speech_url'], 'http://test.mp3')
         self.assertEqual(r['channel_data']['voice']['wait_for'], '#')
+        self.assertEqual(
+            r['event_url'], 'http://example.com/api/v1/events/junebug')
 
     @override_settings(MESSAGE_BACKEND_VOICE='junebug')
     def test_fire_metric(self):
