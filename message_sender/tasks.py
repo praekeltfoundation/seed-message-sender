@@ -1,4 +1,5 @@
 import json
+import redis
 import requests
 
 from celery.task import Task
@@ -158,4 +159,7 @@ class Send_Message(Task):
                  via Celery.',
                 exc_info=True)
 
+redis_server = redis.StrictRedis(host=settings.REDIS_HOST,
+                                 port=settings.REDIS_PORT,
+                                 db=settings.REDIS_DB)
 send_message = Send_Message()

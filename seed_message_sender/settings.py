@@ -248,3 +248,7 @@ MESSAGE_SENDER_MAX_FAILURES = \
 
 METRICS_URL = os.environ.get("METRICS_URL", None)
 METRICS_AUTH_TOKEN = os.environ.get("METRICS_AUTH_TOKEN", "REPLACEME")
+
+REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
+REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
+REDIS_DB = os.environ.get("REDIS_DB", 0)
