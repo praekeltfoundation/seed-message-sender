@@ -1,10 +1,13 @@
 import json
 
 from django.conf import settings
+from django.core.urlresolvers import reverse
 
 import requests
 
 from go_http.send import HttpApiSender
+
+from .utils import make_absolute_url
 
 
 class FactoryException(Exception):
@@ -53,6 +56,7 @@ class JunebugApiSender(HttpApiSender):
             'from': self.from_addr,
             'content': py_data['content'],
             'channel_data': channel_data,
+            'event_url': make_absolute_url(reverse('junebug-events')),
         }
 
         data = json.dumps(data)

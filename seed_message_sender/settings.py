@@ -43,6 +43,7 @@ INSTALLED_APPS = (
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.sites',
     # documentation
     'rest_framework_docs',
     # 3rd party
@@ -56,6 +57,9 @@ INSTALLED_APPS = (
     'message_sender',
 
 )
+
+SITE_ID = 1
+USE_SSL = os.environ.get('USE_SSL', 'false').lower() == 'true'
 
 MIDDLEWARE_CLASSES = (
     'django.contrib.sessions.middleware.SessionMiddleware',
