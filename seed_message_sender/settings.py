@@ -252,3 +252,6 @@ METRICS_AUTH_TOKEN = os.environ.get("METRICS_AUTH_TOKEN", "REPLACEME")
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
 REDIS_DB = os.environ.get("REDIS_DB", 0)
+
+CONCURRENT_VOICE_LIMIT = 2
+VOICE_MESSAGE_DELAY = 300  # seconds

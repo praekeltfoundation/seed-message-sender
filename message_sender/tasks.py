@@ -1,6 +1,7 @@
 import json
 import redis
 import requests
+import time
 
 from celery.task import Task
 from celery.utils.log import get_task_logger
@@ -78,6 +79,28 @@ class FireMetric(Task):
 fire_metric = FireMetric()
 
 
+def get_current_message_count(msg_type):
+    keys = redis.keys(pattern=msg_type + "_messages_at_*")
+    total = 0
+    for key in keys:
+        total += redis.get(key)
+    return total
+
+
+def incr_message_count(msg_type, delay):
+    key = msg_type + "_messages_at_" + time.strftime("%M")  # Buckets of 1min
+    value = redis.incr(key, 1)
+    if value == 1:
+        # Add 60 seconds to the expiry time so messages that start at the end
+        # of the minute still complete
+        redis.expire(key, delay + 60)
+
+
+def decr_message_count(msg_type, delay):
+    key = msg_type + "_messages_at_" + time.strftime("%M")  # Buckets of 1min
+    redis.decr(key, 1)
+
+
 class Send_Message(Task):
 
     """
@@ -113,6 +136,13 @@ class Send_Message(Task):
                 try:
                     if "voice_speech_url" in message.metadata:
                         # Voice message
+                        if settings.CONCURRENT_VOICE_LIMIT > 0:
+                            if get_current_message_count("voice") >= \
+                                    settings.CONCURRENT_VOICE_LIMIT:
+                                self.retry(
+                                    countdown=settings.VOICE_MESSAGE_DELAY)
+                        incr_message_count("voice",
+                                           settings.VOICE_MESSAGE_DELAY)
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
@@ -123,6 +153,12 @@ class Send_Message(Task):
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
+                        if settings.CONCURRENT_TEXT_LIMIT > 0:
+                            if get_current_message_count("text") >= \
+                                    settings.CONCURRENT_TEXT_LIMIT:
+                                self.retry(
+                                    countdown=settings.TEXT_MESSAGE_DELAY)
+                        incr_message_count("text", settings.TEXT_MESSAGE_DELAY)
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
