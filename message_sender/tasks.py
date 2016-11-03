@@ -80,25 +80,25 @@ fire_metric = FireMetric()
 
 
 def get_current_message_count(msg_type):
-    keys = redis.keys(pattern=msg_type + "_messages_at_*")
+    keys = redis_server.keys(pattern=msg_type + "_messages_at_*")
     total = 0
     for key in keys:
-        total += redis.get(key)
+        total += redis_server.get(key)
     return total
 
 
 def incr_message_count(msg_type, delay):
     key = msg_type + "_messages_at_" + time.strftime("%M")  # Buckets of 1min
-    value = redis.incr(key, 1)
+    value = redis_server.incr(key, 1)
     if value == 1:
         # Add 60 seconds to the expiry time so messages that start at the end
         # of the minute still complete
-        redis.expire(key, delay + 60)
+        redis_server.expire(key, delay + 60)
 
 
 def decr_message_count(msg_type, delay):
     key = msg_type + "_messages_at_" + time.strftime("%M")  # Buckets of 1min
-    redis.decr(key, 1)
+    redis_server.decr(key, 1)
 
 
 class Send_Message(Task):
