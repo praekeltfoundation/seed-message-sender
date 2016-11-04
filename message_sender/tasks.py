@@ -82,8 +82,9 @@ fire_metric = FireMetric()
 def get_current_message_count(msg_type):
     keys = redis_server.keys(pattern=msg_type + "_messages_at_*")
     total = 0
+    # Sum the values in all the buckets to get the total
     for key in keys:
-        total += redis_server.get(key)
+        total += int(redis_server.get(key))
     return total
 
 
