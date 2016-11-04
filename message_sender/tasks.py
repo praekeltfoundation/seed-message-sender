@@ -79,27 +79,36 @@ class FireMetric(Task):
 fire_metric = FireMetric()
 
 
-def get_current_message_count(msg_type):
-    keys = redis_server.keys(pattern=msg_type + "_messages_at_*")
-    total = 0
-    # Sum the values in all the buckets to get the total
-    for key in keys:
-        total += int(redis_server.get(key))
-    return total
+class Concurrency_Limiter(object):
+    def __init__(self):
+        self.redis_server = redis.StrictRedis(host=settings.REDIS_HOST,
+                                              port=settings.REDIS_PORT,
+                                              db=settings.REDIS_DB)
 
+    def get_current_message_count(self, msg_type):
+        keys = self.redis_server.keys(pattern=msg_type + "_messages_at_*")
+        total = 0
+        # Sum the values in all the buckets to get the total
+        for key in keys:
+            total += int(self.redis_server.get(key))
+        print "current message count %s" % total
+        return total
 
-def incr_message_count(msg_type, delay):
-    key = msg_type + "_messages_at_" + time.strftime("%M")  # Buckets of 1min
-    value = redis_server.incr(key, 1)
-    if value == 1:
-        # Add 60 seconds to the expiry time so messages that start at the end
-        # of the minute still complete
-        redis_server.expire(key, delay + 60)
+    def incr_message_count(self, msg_type, delay):
+        # Buckets of 1min
+        key = msg_type + "_messages_at_" + time.strftime("%M")
+        value = self.redis_server.incr(key, 1)
+        if value == 1:
+            # Add 60 seconds to the expiry time so messages that start at the
+            # end of the minute still complete
+            self.redis_server.expire(key, delay + 60)
 
+    def decr_message_count(self, msg_type, delay):
+        # Buckets of 1min
+        key = msg_type + "_messages_at_" + time.strftime("%M")
+        self.redis_server.decr(key, 1)
 
-def decr_message_count(msg_type, delay):
-    key = msg_type + "_messages_at_" + time.strftime("%M")  # Buckets of 1min
-    redis_server.decr(key, 1)
+limiter = Concurrency_Limiter()
 
 
 class Send_Message(Task):
@@ -138,12 +147,12 @@ class Send_Message(Task):
                     if "voice_speech_url" in message.metadata:
                         # Voice message
                         if settings.CONCURRENT_VOICE_LIMIT > 0:
-                            if get_current_message_count("voice") >= \
+                            if limiter.get_current_message_count("voice") >= \
                                     settings.CONCURRENT_VOICE_LIMIT:
                                 self.retry(
                                     countdown=settings.VOICE_MESSAGE_DELAY)
-                        incr_message_count("voice",
-                                           settings.VOICE_MESSAGE_DELAY)
+                        limiter.incr_message_count(
+                            "voice", settings.VOICE_MESSAGE_DELAY)
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
@@ -155,11 +164,12 @@ class Send_Message(Task):
                     else:
                         # Plain content
                         if settings.CONCURRENT_TEXT_LIMIT > 0:
-                            if get_current_message_count("text") >= \
+                            if limiter.get_current_message_count("text") >= \
                                     settings.CONCURRENT_TEXT_LIMIT:
                                 self.retry(
                                     countdown=settings.TEXT_MESSAGE_DELAY)
-                        incr_message_count("text", settings.TEXT_MESSAGE_DELAY)
+                        limiter.incr_message_count(
+                            "text", settings.TEXT_MESSAGE_DELAY)
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
@@ -196,7 +206,4 @@ class Send_Message(Task):
                  via Celery.',
                 exc_info=True)
 
-redis_server = redis.StrictRedis(host=settings.REDIS_HOST,
-                                 port=settings.REDIS_PORT,
-                                 db=settings.REDIS_DB)
 send_message = Send_Message()
