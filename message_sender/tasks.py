@@ -91,7 +91,6 @@ class Concurrency_Limiter(object):
         # Sum the values in all the buckets to get the total
         for key in keys:
             total += int(self.redis_server.get(key))
-        print "current message count %s" % total
         return total
 
     def incr_message_count(self, msg_type, delay):
@@ -107,6 +106,13 @@ class Concurrency_Limiter(object):
         # Buckets of 1min
         key = msg_type + "_messages_at_" + time.strftime("%M")
         self.redis_server.decr(key, 1)
+
+    def manage_limit(self, task, msg_type, limit, delay):
+        if limit > 0:
+            if self.get_current_message_count(msg_type) >= limit:
+                task.retry(countdown=delay)
+        self.incr_message_count(msg_type, delay)
+
 
 limiter = Concurrency_Limiter()
 
@@ -146,13 +152,9 @@ class Send_Message(Task):
                 try:
                     if "voice_speech_url" in message.metadata:
                         # Voice message
-                        if settings.CONCURRENT_VOICE_LIMIT > 0:
-                            if limiter.get_current_message_count("voice") >= \
-                                    settings.CONCURRENT_VOICE_LIMIT:
-                                self.retry(
-                                    countdown=settings.VOICE_MESSAGE_DELAY)
-                        limiter.incr_message_count(
-                            "voice", settings.VOICE_MESSAGE_DELAY)
+                        limiter.manage_limit(
+                            self, "voice", settings.CONCURRENT_VOICE_LIMIT,
+                            settings.VOICE_MESSAGE_DELAY)
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
@@ -163,13 +165,9 @@ class Send_Message(Task):
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
-                        if settings.CONCURRENT_TEXT_LIMIT > 0:
-                            if limiter.get_current_message_count("text") >= \
-                                    settings.CONCURRENT_TEXT_LIMIT:
-                                self.retry(
-                                    countdown=settings.TEXT_MESSAGE_DELAY)
-                        limiter.incr_message_count(
-                            "text", settings.TEXT_MESSAGE_DELAY)
+                        limiter.manage_limit(
+                            self, "text", settings.CONCURRENT_TEXT_LIMIT,
+                            settings.TEXT_MESSAGE_DELAY)
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
