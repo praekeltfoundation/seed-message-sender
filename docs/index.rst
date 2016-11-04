@@ -6,7 +6,8 @@ The Seed Message Sender is one of the microservices in the Seed Stack.
 
 The Message Sender has the following key responsibilities:
 
--
+- Storing and sending messages with an upstream provder service
+- Storing of incoming messages
 
 Getting started
 ===============
