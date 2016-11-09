@@ -153,8 +153,9 @@ class Send_Message(Task):
                     if "voice_speech_url" in message.metadata:
                         # Voice message
                         limiter.manage_limit(
-                            self, "voice", settings.CONCURRENT_VOICE_LIMIT,
-                            settings.VOICE_MESSAGE_DELAY)
+                            self, "voice",
+                            getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0),
+                            getattr(settings, 'VOICE_MESSAGE_DELAY', 0))
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
@@ -166,8 +167,9 @@ class Send_Message(Task):
                     else:
                         # Plain content
                         limiter.manage_limit(
-                            self, "text", settings.CONCURRENT_TEXT_LIMIT,
-                            settings.TEXT_MESSAGE_DELAY)
+                            self, "text",
+                            getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0),
+                            getattr(settings, 'TEXT_MESSAGE_DELAY', 0))
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
