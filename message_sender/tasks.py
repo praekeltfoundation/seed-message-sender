@@ -111,7 +111,7 @@ class Concurrency_Limiter(object):
         if limit > 0:
             if self.get_current_message_count(msg_type) >= limit:
                 task.retry(countdown=delay)
-        self.incr_message_count(msg_type, delay)
+            self.incr_message_count(msg_type, delay)
 
 
 limiter = Concurrency_Limiter()
