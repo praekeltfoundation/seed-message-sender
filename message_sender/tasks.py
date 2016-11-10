@@ -115,6 +115,12 @@ class ConcurrencyLimiter(object):
         else:
             delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
 
+        if not msg_time:
+            return
+
+        time_since = (datetime.now() - msg_time).total_seconds()
+        if time_since > delay:
+            return
         # Convert from datetime to seconds since epoch
         msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
         bucket = int(msg_time // cls.BUCKET_SIZE)
@@ -126,7 +132,7 @@ class ConcurrencyLimiter(object):
             if value < 0:
                 # Set the expiry time to the delay minus the time passed since
                 # the message was sent.
-                cache.set(key, 0, delay + cls.BUCKET_SIZE)
+                cache.set(key, 0, delay - time_since)
             else:
                 cache.decr(key)
 
