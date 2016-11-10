@@ -136,6 +136,7 @@ class ConcurrencyLimiter(object):
             else:
                 cache.decr(key)
 
+    @classmethod
     def manage_limit(self, task, msg_type, limit, delay):
         if limit > 0:
             if self.get_current_message_count(msg_type, delay) >= limit:
