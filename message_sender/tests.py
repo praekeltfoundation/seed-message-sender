@@ -599,7 +599,10 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
             response.data["metrics_available"], [
                 'inbounds.created.sum',
                 'vumimessage.tries.sum',
-                'vumimessage.maxretries.sum'
+                'vumimessage.maxretries.sum',
+                'vumimessage.obd.tries.sum',
+                'vumimessage.obd.successful.sum',
+                'vumimessage.obd.unsuccessful.sum',
             ]
         )
 
