@@ -95,7 +95,8 @@ class Concurrency_Limiter(object):
 
     def incr_message_count(self, msg_type, delay):
         # Buckets of 1min
-        key = msg_type + "_messages_at_" + time.strftime("%M")
+        bucket = int(time.time() // 60)
+        key = msg_type + "_messages_at_" + bucket
         value = self.redis_server.incr(key, 1)
         if value == 1:
             # Add 60 seconds to the expiry time so messages that start at the
@@ -104,7 +105,8 @@ class Concurrency_Limiter(object):
 
     def decr_message_count(self, msg_type, delay):
         # Buckets of 1min
-        key = msg_type + "_messages_at_" + time.strftime("%M")
+        bucket = int(time.time() // 60)
+        key = msg_type + "_messages_at_" + bucket
         self.redis_server.decr(key, 1)
 
     def manage_limit(self, task, msg_type, limit, delay):
