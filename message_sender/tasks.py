@@ -1,5 +1,4 @@
 import json
-import redis
 import requests
 import time
 
@@ -8,6 +7,7 @@ from celery.utils.log import get_task_logger
 from celery.exceptions import SoftTimeLimitExceeded
 
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 
 from go_http.metrics import MetricsApiClient
@@ -80,11 +80,6 @@ fire_metric = FireMetric()
 
 
 class Concurrency_Limiter(object):
-    def __init__(self):
-        self.redis_server = redis.StrictRedis(host=settings.REDIS_HOST,
-                                              port=settings.REDIS_PORT,
-                                              db=settings.REDIS_DB)
-
     def get_current_message_count(self, msg_type, delay):
         # Sum the values in all the buckets to get the total
         total = 0
@@ -92,7 +87,7 @@ class Concurrency_Limiter(object):
         bucket = int(time.time() // 60)
         for i in range(0, number_of_buckets):
             bucket = bucket - i
-            value = self.redis_server.get(msg_type+"_messages_at_"+bucket)
+            value = cache.get(msg_type+"_messages_at_"+bucket)
             if value:
                 total += int(value)
         return total
@@ -101,20 +96,24 @@ class Concurrency_Limiter(object):
         # Buckets of 1min
         bucket = int(time.time() // 60)
         key = msg_type + "_messages_at_" + bucket
-        value = self.redis_server.incr(key, 1)
-        if value == 1:
+        value = cache.get(key)
+        if value is None:
             # Add 60 seconds to the expiry time so messages that start at the
             # end of the minute still complete
-            self.redis_server.expire(key, delay + 60)
+            value = cache.set(key, 1, delay + 60)
+        else:
+            cache.incr(key)
 
     def decr_message_count(self, msg_type, delay):
         # Buckets of 1min
         bucket = int(time.time() // 60)
         key = msg_type + "_messages_at_" + bucket
-        value = self.redis_server.decr(key, 1)
+        value = cache.get(key)
         # Don't allow negative values
         if value < 0:
-            self.redis_server.set(key, 0)
+            cache.set(key, 0, delay + 60)
+        if value:
+            cache.decr(key)
 
     def manage_limit(self, task, msg_type, limit, delay):
         if limit > 0:
