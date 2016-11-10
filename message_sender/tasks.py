@@ -6,6 +6,7 @@ from celery.task import Task
 from celery.utils.log import get_task_logger
 from celery.exceptions import SoftTimeLimitExceeded
 
+from datetime import datetime
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -79,12 +80,15 @@ class FireMetric(Task):
 fire_metric = FireMetric()
 
 
-class Concurrency_Limiter(object):
-    def get_current_message_count(self, msg_type, delay):
+class ConcurrencyLimiter(object):
+    BUCKET_SIZE = 60
+
+    @classmethod
+    def get_current_message_count(cls, msg_type, delay):
         # Sum the values in all the buckets to get the total
         total = 0
-        number_of_buckets = delay / 60
-        bucket = int(time.time() // 60)
+        number_of_buckets = delay / cls.BUCKET_SIZE
+        bucket = int(time.time() // cls.BUCKET_SIZE)
         for i in range(0, number_of_buckets):
             bucket = bucket - i
             value = cache.get(msg_type+"_messages_at_"+bucket)
@@ -92,26 +96,30 @@ class Concurrency_Limiter(object):
                 total += int(value)
         return total
 
-    def incr_message_count(self, msg_type, delay):
+    @classmethod
+    def incr_message_count(cls, msg_type, delay):
         # Buckets of 1min
-        bucket = int(time.time() // 60)
+        bucket = int(time.time() // cls.BUCKET_SIZE)
         key = msg_type + "_messages_at_" + bucket
         value = cache.get(key)
         if value is None:
-            # Add 60 seconds to the expiry time so messages that start at the
-            # end of the minute still complete
-            value = cache.set(key, 1, delay + 60)
+            # Add the bucket size to the expiry time so messages that start at
+            # the end of the bucket still complete
+            value = cache.set(key, 1, delay + cls.BUCKET_SIZE)
         else:
             cache.incr(key)
 
-    def decr_message_count(self, msg_type, delay):
+    @classmethod
+    def decr_message_count(cls, msg_type, delay):
         # Buckets of 1min
-        bucket = int(time.time() // 60)
+        bucket = int(time.time() // cls.BUCKET_SIZE)
         key = msg_type + "_messages_at_" + bucket
         value = cache.get(key)
         # Don't allow negative values
         if value < 0:
-            cache.set(key, 0, delay + 60)
+            # Add the bucket size to the expiry time so messages that start at
+            # the end of the bucket still complete
+            cache.set(key, 0, delay + cls.BUCKET_SIZE)
         if value:
             cache.decr(key)
 
@@ -120,9 +128,6 @@ class Concurrency_Limiter(object):
             if self.get_current_message_count(msg_type, delay) >= limit:
                 task.retry(countdown=delay)
             self.incr_message_count(msg_type, delay)
-
-
-limiter = Concurrency_Limiter()
 
 
 class Send_Message(Task):
@@ -160,7 +165,7 @@ class Send_Message(Task):
                 try:
                     if "voice_speech_url" in message.metadata:
                         # Voice message
-                        limiter.manage_limit(
+                        ConcurrencyLimiter.manage_limit(
                             self, "voice",
                             getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0),
                             getattr(settings, 'VOICE_MESSAGE_DELAY', 0))
@@ -174,7 +179,7 @@ class Send_Message(Task):
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
-                        limiter.manage_limit(
+                        ConcurrencyLimiter.manage_limit(
                             self, "text",
                             getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0),
                             getattr(settings, 'TEXT_MESSAGE_DELAY', 0))
