@@ -116,7 +116,7 @@ class ConcurrencyLimiter(object):
             delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
 
         # Convert from datetime to seconds since epoch
-        msg_time = (msg_time - datetime.datetime(1970, 1, 1)).total_seconds()
+        msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
         bucket = int(msg_time // cls.BUCKET_SIZE)
 
         key = msg_type + "_messages_at_" + bucket
