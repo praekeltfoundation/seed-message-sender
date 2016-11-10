@@ -85,12 +85,16 @@ class Concurrency_Limiter(object):
                                               port=settings.REDIS_PORT,
                                               db=settings.REDIS_DB)
 
-    def get_current_message_count(self, msg_type):
-        keys = self.redis_server.keys(pattern=msg_type + "_messages_at_*")
-        total = 0
+    def get_current_message_count(self, msg_type, delay):
         # Sum the values in all the buckets to get the total
-        for key in keys:
-            total += int(self.redis_server.get(key))
+        total = 0
+        number_of_buckets = delay / 60
+        bucket = int(time.time() // 60)
+        for i in range(0, number_of_buckets):
+            bucket = bucket - i
+            value = self.redis_server.get(msg_type+"_messages_at_"+bucket)
+            if value:
+                total += int(value)
         return total
 
     def incr_message_count(self, msg_type, delay):
@@ -111,7 +115,7 @@ class Concurrency_Limiter(object):
 
     def manage_limit(self, task, msg_type, limit, delay):
         if limit > 0:
-            if self.get_current_message_count(msg_type) >= limit:
+            if self.get_current_message_count(msg_type, delay) >= limit:
                 task.retry(countdown=delay)
             self.incr_message_count(msg_type, delay)
 
