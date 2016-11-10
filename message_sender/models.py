@@ -25,7 +25,7 @@ class Outbound(models.Model):
     metadata = JSONField()
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    last_sent_time = models.DateTimeField(null=True)
+    last_sent_time = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(User, related_name='outbounds_created',
                                    null=True)
     updated_by = models.ForeignKey(User, related_name='outbounds_updated',
