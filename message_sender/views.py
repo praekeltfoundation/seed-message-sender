@@ -210,8 +210,8 @@ class JunebugEventListener(APIView):
             message.save(update_fields=['metadata'])
             send_message.delay(str(message.id))
 
-        if ("voice_speech_url" in message.metadata
-                and event_type in ("rejected", "delivery_failed")):
+        if ("voice_speech_url" in message.metadata and
+                event_type in ("rejected", "delivery_failed")):
             fire_metric.apply_async(kwargs={
                 "metric_name": 'vumimessage.obd.unsuccessful.sum',
                 "metric_value": 1.0
