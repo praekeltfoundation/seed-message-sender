@@ -10,7 +10,7 @@ from .models import Outbound, Inbound
 from django.contrib.auth.models import User
 from .serializers import (OutboundSerializer, InboundSerializer,
                           HookSerializer, CreateUserSerializer)
-from .tasks import send_message
+from .tasks import send_message, ConcurrencyLimiter
 from seed_message_sender.utils import get_available_metrics
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
@@ -115,6 +115,10 @@ class EventListener(APIView):
                                 request.data["nack_reason"]
                             message.save()
                         send_message.delay(str(message.id))
+                    outbound_type = "voice" if "voice_speech_url" in \
+                        message.metadata else "text"
+                    ConcurrencyLimiter.decr_message_count(
+                        message.last_sent_time, outbound_type)
                     # Return
                     status = 200
                     accepted = {"accepted": True}
@@ -187,6 +191,11 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             send_message.delay(str(message.id))
+
+        outbound_type = "voice" if "voice_speech_url" in \
+            message.metadata else "text"
+        ConcurrencyLimiter.decr_message_count(
+            message.last_sent_time, outbound_type)
 
         return Response({"accepted": True}, status=200)
 

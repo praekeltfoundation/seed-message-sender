@@ -98,7 +98,6 @@ class ConcurrencyLimiter(object):
 
     @classmethod
     def incr_message_count(cls, msg_type, delay):
-        # Buckets of 1min
         bucket = int(time.time() // cls.BUCKET_SIZE)
         key = msg_type + "_messages_at_" + bucket
         value = cache.get(key)
@@ -110,9 +109,16 @@ class ConcurrencyLimiter(object):
             cache.incr(key)
 
     @classmethod
-    def decr_message_count(cls, msg_type, delay):
-        # Buckets of 1min
-        bucket = int(time.time() // cls.BUCKET_SIZE)
+    def decr_message_count(cls, msg_time, msg_type):
+        if msg_type == "voice":
+            delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
+        else:
+            delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
+
+        # Convert from datetime to seconds since epoch
+        msg_time = (msg_time - datetime.datetime(1970, 1, 1)).total_seconds()
+        bucket = int(msg_time // cls.BUCKET_SIZE)
+
         key = msg_type + "_messages_at_" + bucket
         value = cache.get(key)
         # Don't allow negative values
@@ -189,6 +195,7 @@ class Send_Message(Task):
                             message.content,
                             session_event="new")
                         l.info("Sent text message to <%s>" % message.to_addr)
+                    message.last_sent_time = datetime.now()
                     message.attempts += 1
                     message.vumi_message_id = vumiresponse["message_id"]
                     message.save()
