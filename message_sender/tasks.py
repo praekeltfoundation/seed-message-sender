@@ -122,12 +122,13 @@ class ConcurrencyLimiter(object):
         key = msg_type + "_messages_at_" + bucket
         value = cache.get(key)
         # Don't allow negative values
-        if value < 0:
-            # Add the bucket size to the expiry time so messages that start at
-            # the end of the bucket still complete
-            cache.set(key, 0, delay + cls.BUCKET_SIZE)
         if value:
-            cache.decr(key)
+            if value < 0:
+                # Set the expiry time to the delay minus the time passed since
+                # the message was sent.
+                cache.set(key, 0, delay + cls.BUCKET_SIZE)
+            else:
+                cache.decr(key)
 
     def manage_limit(self, task, msg_type, limit, delay):
         if limit > 0:
