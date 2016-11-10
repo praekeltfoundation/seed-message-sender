@@ -143,21 +143,7 @@ class Send_Message(Task):
                         "metric_value": 1.0
                     })
 
-                    # OBD number of successful tries metric
-                    if "voice_speech_url" in message.metadata:
-                        fire_metric.apply_async(kwargs={
-                            "metric_name": 'vumimessage.obd.successful.sum',
-                            "metric_value": 1.0
-                        })
-
                 except HTTPError as e:
-                    # OBD number of unsuccessful tries metric
-                    if "voice_speech_url" in message.metadata:
-                        fire_metric.apply_async(kwargs={
-                            "metric_name": 'vumimessage.obd.unsuccessful.sum',
-                            "metric_value": 1.0
-                        })
-
                     # retry message sending if in 500 range (3 default
                     # retries)
                     if 500 < e.response.status_code < 599:

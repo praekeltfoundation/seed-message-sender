@@ -10,7 +10,7 @@ from .models import Outbound, Inbound
 from django.contrib.auth.models import User
 from .serializers import (OutboundSerializer, InboundSerializer,
                           HookSerializer, CreateUserSerializer)
-from .tasks import send_message
+from .tasks import send_message, fire_metric
 from seed_message_sender.utils import get_available_metrics
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
@@ -109,12 +109,27 @@ class EventListener(APIView):
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+
+                        # OBD number of successful tries metric
+                        if "voice_speech_url" in message.metadata:
+                            fire_metric.apply_async(kwargs={
+                                "metric_name":
+                                    'vumimessage.obd.successful.sum',
+                                "metric_value": 1.0
+                            })
                     elif event == "nack":
                         if "nack_reason" in request.data:
                             message.metadata["nack_reason"] = \
                                 request.data["nack_reason"]
                             message.save()
                         send_message.delay(str(message.id))
+
+                        if "voice_speech_url" in message.metadata:
+                            fire_metric.apply_async(kwargs={
+                                "metric_name":
+                                    'vumimessage.obd.unsuccessful.sum',
+                                "metric_value": 1.0
+                            })
                     # Return
                     status = 200
                     accepted = {"accepted": True}
@@ -182,11 +197,25 @@ class JunebugEventListener(APIView):
             message.delivered = True
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['delivered', 'metadata'])
+
+            # OBD number of successful tries metric
+            if "voice_speech_url" in message.metadata:
+                fire_metric.apply_async(kwargs={
+                    "metric_name": 'vumimessage.obd.successful.sum',
+                    "metric_value": 1.0
+                })
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             send_message.delay(str(message.id))
+
+        if ("voice_speech_url" in message.metadata
+                and event_type in ("rejected", "delivery_failed")):
+            fire_metric.apply_async(kwargs={
+                "metric_name": 'vumimessage.obd.unsuccessful.sum',
+                "metric_value": 1.0
+            })
 
         return Response({"accepted": True}, status=200)
 
