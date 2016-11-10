@@ -111,7 +111,10 @@ class Concurrency_Limiter(object):
         # Buckets of 1min
         bucket = int(time.time() // 60)
         key = msg_type + "_messages_at_" + bucket
-        self.redis_server.decr(key, 1)
+        value = self.redis_server.decr(key, 1)
+        # Don't allow negative values
+        if value < 0:
+            self.redis_server.set(key, 0)
 
     def manage_limit(self, task, msg_type, limit, delay):
         if limit > 0:
