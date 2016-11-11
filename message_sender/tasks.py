@@ -1,6 +1,5 @@
 import json
 import requests
-import redis
 import time
 
 from celery.task import Task
