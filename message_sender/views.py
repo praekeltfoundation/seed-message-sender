@@ -104,11 +104,6 @@ class EventListener(APIView):
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
-                    elif event == "delivery_report":
-                        message.delivered = True
-                        message.metadata["delivery_timestamp"] = \
-                            request.data["timestamp"]
-                        message.save()
 
                         # OBD number of successful tries metric
                         if "voice_speech_url" in message.metadata:
@@ -117,6 +112,11 @@ class EventListener(APIView):
                                     'vumimessage.obd.successful.sum',
                                 "metric_value": 1.0
                             })
+                    elif event == "delivery_report":
+                        message.delivered = True
+                        message.metadata["delivery_timestamp"] = \
+                            request.data["timestamp"]
+                        message.save()
                     elif event == "nack":
                         if "nack_reason" in request.data:
                             message.metadata["nack_reason"] = \
@@ -188,6 +188,13 @@ class JunebugEventListener(APIView):
             message.delivered = True
             message.metadata["ack_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['metadata', 'delivered'])
+
+            # OBD number of successful tries metric
+            if "voice_speech_url" in message.metadata:
+                fire_metric.apply_async(kwargs={
+                    "metric_name": 'vumimessage.obd.successful.sum',
+                    "metric_value": 1.0
+                })
         elif event_type == "rejected":
             message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
@@ -197,13 +204,6 @@ class JunebugEventListener(APIView):
             message.delivered = True
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['delivered', 'metadata'])
-
-            # OBD number of successful tries metric
-            if "voice_speech_url" in message.metadata:
-                fire_metric.apply_async(kwargs={
-                    "metric_name": 'vumimessage.obd.successful.sum',
-                    "metric_value": 1.0
-                })
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
