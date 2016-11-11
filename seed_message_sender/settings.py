@@ -257,3 +257,11 @@ CONCURRENT_VOICE_LIMIT = 0
 VOICE_MESSAGE_DELAY = 0  # seconds
 CONCURRENT_TEXT_LIMIT = 0
 TEXT_MESSAGE_DELAY = 0  # seconds
+
+CACHES = {
+    'default': {
+        'BACKEND': 'redis_cache.RedisCache',
+        'LOCATION': ['%s:%s' % (os.environ.get("REDIS_HOST", "localhost"),
+                                os.environ.get("REDIS_PORT", 6379))],
+    },
+}
