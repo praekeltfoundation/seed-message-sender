@@ -1,5 +1,6 @@
 import json
 import requests
+import redis
 import time
 
 from celery.task import Task
@@ -87,11 +88,11 @@ class ConcurrencyLimiter(object):
     def get_current_message_count(cls, msg_type, delay):
         # Sum the values in all the buckets to get the total
         total = 0
-        number_of_buckets = delay / cls.BUCKET_SIZE
+        number_of_buckets = delay // cls.BUCKET_SIZE + 1
         bucket = int(time.time() // cls.BUCKET_SIZE)
         for i in range(0, number_of_buckets):
-            bucket = bucket - i
-            value = cache.get(msg_type+"_messages_at_"+bucket)
+            value = cache.get(msg_type+"_messages_at_%s" % bucket)
+            bucket = bucket - 1
             if value:
                 total += int(value)
         return total
@@ -99,12 +100,12 @@ class ConcurrencyLimiter(object):
     @classmethod
     def incr_message_count(cls, msg_type, delay):
         bucket = int(time.time() // cls.BUCKET_SIZE)
-        key = msg_type + "_messages_at_" + bucket
+        key = msg_type + "_messages_at_%s" % bucket
         value = cache.get(key)
         if value is None:
             # Add the bucket size to the expiry time so messages that start at
             # the end of the bucket still complete
-            value = cache.set(key, 1, delay + cls.BUCKET_SIZE)
+            cache.set(key, 1, delay + cls.BUCKET_SIZE)
         else:
             cache.incr(key)
 
@@ -125,7 +126,7 @@ class ConcurrencyLimiter(object):
         msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
         bucket = int(msg_time // cls.BUCKET_SIZE)
 
-        key = msg_type + "_messages_at_" + bucket
+        key = msg_type + "_messages_at_%s" % bucket
         value = cache.get(key)
         # Don't allow negative values
         if value:
@@ -137,11 +138,11 @@ class ConcurrencyLimiter(object):
                 cache.decr(key)
 
     @classmethod
-    def manage_limit(self, task, msg_type, limit, delay):
+    def manage_limit(cls, task, msg_type, limit, delay):
         if limit > 0:
-            if self.get_current_message_count(msg_type, delay) >= limit:
+            if cls.get_current_message_count(msg_type, delay) >= limit:
                 task.retry(countdown=delay)
-            self.incr_message_count(msg_type, delay)
+            cls.incr_message_count(msg_type, delay)
 
 
 class Send_Message(Task):
