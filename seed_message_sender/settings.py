@@ -185,7 +185,10 @@ CELERY_ROUTES = {
 METRICS_REALTIME = [
     'inbounds.created.sum',
     'vumimessage.tries.sum',
-    'vumimessage.maxretries.sum'
+    'vumimessage.maxretries.sum',
+    'vumimessage.obd.tries.sum',
+    'vumimessage.obd.successful.sum',
+    'vumimessage.obd.unsuccessful.sum',
 ]
 METRICS_SCHEDULED = [
 ]
