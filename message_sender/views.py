@@ -1,6 +1,6 @@
 from django.core.exceptions import ObjectDoesNotExist
 from rest_hooks.models import Hook
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, filters
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -12,6 +12,8 @@ from .serializers import (OutboundSerializer, InboundSerializer,
                           HookSerializer, CreateUserSerializer)
 from .tasks import send_message, fire_metric
 from seed_message_sender.utils import get_available_metrics
+import django_filters
+
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
 
@@ -51,16 +53,28 @@ class HookViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-class OutboundViewSet(viewsets.ModelViewSet):
+class OutboundFilter(filters.FilterSet):
+    before = django_filters.IsoDateTimeFilter(name="created_at",
+                                              lookup_type='lte')
+    after = django_filters.IsoDateTimeFilter(name="created_at",
+                                             lookup_type='gte')
 
+    class Meta:
+        model = Outbound
+        fields = ('version', 'to_addr', 'vumi_message_id',
+                  'delivered', 'attempts', 'metadata',
+                  'created_at', 'updated_at',
+                  'before', 'after')
+
+
+class OutboundViewSet(viewsets.ModelViewSet):
     """
     API endpoint that allows Outbound models to be viewed or edited.
     """
     permission_classes = (IsAuthenticated,)
     queryset = Outbound.objects.all()
     serializer_class = OutboundSerializer
-    filter_fields = ('version', 'to_addr', 'vumi_message_id', 'delivered',
-                     'attempts', 'metadata', 'created_at', 'updated_at',)
+    filter_class = OutboundFilter
 
 
 class InboundViewSet(viewsets.ModelViewSet):

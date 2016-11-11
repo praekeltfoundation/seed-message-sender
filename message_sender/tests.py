@@ -2,11 +2,14 @@ import json
 import uuid
 import logging
 import responses
+from urllib import urlencode
 
 try:
     from urllib.parse import urlparse
 except ImportError:
     from urlparse import urlparse
+
+from datetime import timedelta
 
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
@@ -263,6 +266,23 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
         d = Outbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
+
+    def test_created_at_filter_outbound_exists(self):
+        existing = Outbound.objects.get(pk=self.make_outbound())
+        response = self.client.get('/api/v1/outbound/?%s' % (urlencode({
+            'before': (existing.created_at + timedelta(days=1)).isoformat(),
+            'after': (existing.created_at - timedelta(days=1)).isoformat(),
+        })))
+        [record] = response.data
+        self.assertEqual(record['id'], str(existing.id))
+
+    def test_created_at_filter_outbound_not_exists(self):
+        existing = Outbound.objects.get(pk=self.make_outbound())
+        response = self.client.get('/api/v1/outbound/?%s' % (urlencode({
+            'before': (existing.created_at - timedelta(days=1)).isoformat(),
+            'after': (existing.created_at + timedelta(days=1)).isoformat(),
+        })))
+        self.assertEqual(response.data, [])
 
     def test_create_inbound_data(self):
         existing_outbound = self.make_outbound()
