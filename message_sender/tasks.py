@@ -118,11 +118,12 @@ class ConcurrencyLimiter(object):
         if not msg_time:
             return
 
-        time_since = (datetime.now() - msg_time).total_seconds()
-        if time_since > delay:
-            return
         # Convert from datetime to seconds since epoch
         msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
+
+        time_since = time.time() - msg_time
+        if time_since > delay:
+            return
         bucket = int(msg_time // cls.BUCKET_SIZE)
 
         key = msg_type + "_messages_at_%s" % bucket
