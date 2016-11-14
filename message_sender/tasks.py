@@ -179,6 +179,13 @@ class Send_Message(Task):
                 # send or resend
                 try:
                     if "voice_speech_url" in message.metadata:
+
+                        # OBD number of tries metric
+                        fire_metric.apply_async(kwargs={
+                            "metric_name": 'vumimessage.obd.tries.sum',
+                            "metric_value": 1.0
+                        })
+
                         # Voice message
                         ConcurrencyLimiter.manage_limit(
                             self, "voice",
@@ -212,6 +219,7 @@ class Send_Message(Task):
                         "metric_name": 'vumimessage.tries.sum',
                         "metric_value": 1.0
                     })
+
                 except HTTPError as e:
                     # retry message sending if in 500 range (3 default
                     # retries)

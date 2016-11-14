@@ -4,9 +4,12 @@ import logging
 import responses
 
 try:
-    from urllib.parse import urlparse
+    from urllib.parse import urlparse, urlencode
 except ImportError:
     from urlparse import urlparse
+    from urllib import urlencode
+
+from datetime import timedelta
 
 from celery.exceptions import Retry
 from datetime import datetime
@@ -288,6 +291,23 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
         d = Outbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
+
+    def test_created_at_filter_outbound_exists(self):
+        existing = Outbound.objects.get(pk=self.make_outbound())
+        response = self.client.get('/api/v1/outbound/?%s' % (urlencode({
+            'before': (existing.created_at + timedelta(days=1)).isoformat(),
+            'after': (existing.created_at - timedelta(days=1)).isoformat(),
+        })))
+        [record] = response.data
+        self.assertEqual(record['id'], str(existing.id))
+
+    def test_created_at_filter_outbound_not_exists(self):
+        existing = Outbound.objects.get(pk=self.make_outbound())
+        response = self.client.get('/api/v1/outbound/?%s' % (urlencode({
+            'before': (existing.created_at - timedelta(days=1)).isoformat(),
+            'after': (existing.created_at + timedelta(days=1)).isoformat(),
+        })))
+        self.assertEqual(response.data, [])
 
     def test_create_inbound_data(self):
         existing_outbound = self.make_outbound()
@@ -665,7 +685,10 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
             response.data["metrics_available"], [
                 'inbounds.created.sum',
                 'vumimessage.tries.sum',
-                'vumimessage.maxretries.sum'
+                'vumimessage.maxretries.sum',
+                'vumimessage.obd.tries.sum',
+                'vumimessage.obd.successful.sum',
+                'vumimessage.obd.unsuccessful.sum',
             ]
         )
 
@@ -920,6 +943,8 @@ class TestJunebugAPISender(TestCase):
         self.assertEqual(r['from'], '+4321')
         self.assertEqual(r['content'], 'Test')
         self.assertEqual(r['channel_data']['session_event'], 'resume')
+        self.assertEqual(
+            r['event_url'], 'http://example.com/api/v1/events/junebug')
 
     @override_settings(MESSAGE_BACKEND_VOICE='junebug',
                        JUNEBUG_API_URL_VOICE='http://example.com/',
@@ -951,6 +976,8 @@ class TestJunebugAPISender(TestCase):
         self.assertEqual(
             r['channel_data']['voice']['speech_url'], 'http://test.mp3')
         self.assertEqual(r['channel_data']['voice']['wait_for'], '#')
+        self.assertEqual(
+            r['event_url'], 'http://example.com/api/v1/events/junebug')
 
     @override_settings(MESSAGE_BACKEND_VOICE='junebug')
     def test_fire_metric(self):
