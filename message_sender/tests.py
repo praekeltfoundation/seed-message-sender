@@ -356,6 +356,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         existing = self.make_outbound()
 
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         ack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -365,9 +367,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "sent_message_id": "external-id"
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(ack),
-                                    content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/events',
+                                        json.dumps(ack),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -381,6 +386,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_delivery_report(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         dr = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -390,9 +397,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:20:37.485612",
             "sent_message_id": "external-id"
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(dr),
-                                    content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/events',
+                                        json.dumps(dr),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -406,6 +416,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_nack_first(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         post_save.connect(fire_msg_action_if_new, sender=Outbound)
         nack = {
             "message_type": "event",
@@ -417,9 +429,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:20:37.485612",
             "sent_message_id": "external-id"
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(nack),
-                                    content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/events',
+                                        json.dumps(nack),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         c = Outbound.objects.get(pk=existing)
@@ -446,6 +461,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "metadata": {}
         }
         failed = Outbound.objects.create(**outbound_message)
+        failed.last_sent_time = failed.created_at
+        failed.save()
         post_save.connect(fire_msg_action_if_new, sender=Outbound)
         nack = {
             "message_type": "event",
@@ -457,9 +474,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:20:37.485612",
             "sent_message_id": "external-id"
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(nack),
-                                    content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/events',
+                                        json.dumps(nack),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", failed.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=failed.id)
@@ -512,6 +532,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         existing = self.make_outbound()
 
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         ack = {
             "event_type": "submitted",
             "message_id": d.vumi_message_id,
@@ -519,9 +541,13 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {},
         }
-        response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(ack),
-            content_type='application/json')
+
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(ack),
+                content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -538,6 +564,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         '''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         post_save.connect(fire_msg_action_if_new, sender=Outbound)
         nack = {
             "event_type": "rejected",
@@ -546,9 +574,12 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {"reason": "No answer"},
         }
-        response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(nack),
-            content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(nack),
+                content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         c = Outbound.objects.get(pk=existing)
@@ -564,6 +595,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         '''A successful delivery should update the message accordingly.'''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         dr = {
             "event_type": "delivery_succeeded",
             "message_id": d.vumi_message_id,
@@ -571,9 +604,12 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {},
         }
-        response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(dr),
-            content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(dr),
+                content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -590,6 +626,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         '''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
+        d.last_sent_time = d.created_at
+        d.save()
         dr = {
             "event_type": "delivery_failed",
             "message_id": d.vumi_message_id,
@@ -597,9 +635,12 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {},
         }
-        response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(dr),
-            content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(dr),
+                content_type='application/json')
+            mock_method.assert_called_once_with("text", d.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
