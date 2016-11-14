@@ -109,7 +109,7 @@ class ConcurrencyLimiter(object):
             cache.incr(key)
 
     @classmethod
-    def decr_message_count(cls, msg_time, msg_type):
+    def decr_message_count(cls, msg_type, msg_time):
         if msg_type == "voice":
             delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
         else:

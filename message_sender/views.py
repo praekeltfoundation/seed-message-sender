@@ -118,7 +118,7 @@ class EventListener(APIView):
                     outbound_type = "voice" if "voice_speech_url" in \
                         message.metadata else "text"
                     ConcurrencyLimiter.decr_message_count(
-                        message.last_sent_time, outbound_type)
+                        outbound_type, message.last_sent_time)
                     # Return
                     status = 200
                     accepted = {"accepted": True}
@@ -195,7 +195,7 @@ class JunebugEventListener(APIView):
         outbound_type = "voice" if "voice_speech_url" in \
             message.metadata else "text"
         ConcurrencyLimiter.decr_message_count(
-            message.last_sent_time, outbound_type)
+            outbound_type, message.last_sent_time)
 
         return Response({"accepted": True}, status=200)
 
