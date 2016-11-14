@@ -8,10 +8,14 @@ try:
 except ImportError:
     from urlparse import urlparse
 
+from celery.exceptions import Retry
+from datetime import datetime
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.conf import settings
+from mock import MagicMock
+from mock import patch
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -24,7 +28,7 @@ from .factory import (
     JunebugApiSenderException, FactoryException)
 from .models import (Inbound, Outbound, fire_msg_action_if_new,
                      fire_metrics_if_new)
-from .tasks import Send_Message, fire_metric
+from .tasks import Send_Message, send_message, fire_metric, ConcurrencyLimiter
 from . import tasks
 
 from seed_message_sender.utils import load_callable
@@ -54,6 +58,27 @@ class RecordingHandler(logging.Handler):
             self.logs = []
 
         self.logs.append(record)
+
+
+class MockCache(object):
+    def __init__(self):
+        self.cache_data = {}
+
+    def get(self, key):
+        return self.cache_data.get(key, None)
+
+    def set(self, key, value, expire=0):
+        self.cache_data[key] = value
+
+    def incr(self, key, value=1):
+        if key not in self.cache_data.keys():
+            self.cache_data[key] = 0
+        self.cache_data[key] += value
+
+    def decr(self, key, value=1):
+        if key not in self.cache_data.keys():
+            self.cache_data[key] = 0
+        self.cache_data[key] -= value
 
 
 class APITestCase(TestCase):
@@ -896,3 +921,155 @@ class TestJunebugAPISender(TestCase):
         self.assertRaises(
             JunebugApiSenderException, message_sender.fire_metric, 'foo.bar',
             3.0, agg='sum')
+
+
+class TestConcurrencyLimiter(AuthenticatedAPITestCase):
+    def make_outbound(self, to_addr):
+        self._replace_post_save_hooks_outbound()  # don't let fixtures fire
+        outbound_message = {
+            "to_addr": to_addr,
+            "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
+            "content": "Simple outbound message",
+            "delivered": False,
+            "metadata": {}
+        }
+        outbound = Outbound.objects.create(**outbound_message)
+        self._restore_post_save_hooks_outbound()  # let tests fire tasks
+        return outbound
+
+    def set_cache_entry(self, bucket, value):
+        key = "text_messages_at_%s" % bucket
+        self.fake_cache.cache_data[key] = value
+
+    def setUp(self):
+        super(TestConcurrencyLimiter, self).setUp()
+        self.fake_cache = MockCache()
+
+    @override_settings(CONCURRENT_TEXT_LIMIT=2, TEXT_MESSAGE_DELAY=10)
+    @patch('time.time', MagicMock(return_value=1479131658.000000))
+    @patch('django.core.cache.cache.get')
+    @patch('django.core.cache.cache.set')
+    @patch('django.core.cache.cache.incr')
+    def test_limiter_limit_not_reached(self, mock_incr, mock_set, mock_get):
+        """
+        Messages under the limit should get sent.
+        """
+        # Fake cache calls
+        mock_incr.side_effect = self.fake_cache.incr
+        mock_set.side_effect = self.fake_cache.set
+        mock_get.side_effect = self.fake_cache.get
+
+        outbound1 = self.make_outbound(to_addr="+27123")
+        outbound2 = self.make_outbound(to_addr="+27987")
+
+        send_message(outbound1.pk)
+        send_message(outbound2.pk)
+
+        self.assertTrue(self.check_logs(
+            "Message: '%s' sent to '%s' [session_event: new]" %
+            (outbound1.content, outbound1.to_addr)))
+        self.assertTrue(self.check_logs(
+            "Message: '%s' sent to '%s' [session_event: new]" %
+            (outbound2.content, outbound2.to_addr)))
+        outbound1.refresh_from_db()
+        self.assertIsNotNone(outbound1.last_sent_time)
+        outbound2.refresh_from_db()
+        self.assertIsNotNone(outbound2.last_sent_time)
+        self.assertEqual(len(self.fake_cache.cache_data), 1)
+        bucket = 1479131658 // 60  # time() // bucket_size
+        self.assertEqual(
+            self.fake_cache.cache_data["text_messages_at_%s" % bucket], 2)
+
+    @override_settings(CONCURRENT_TEXT_LIMIT=1, TEXT_MESSAGE_DELAY=10)
+    @patch('time.time', MagicMock(return_value=1479131658.000000))
+    @patch('django.core.cache.cache.get')
+    @patch('django.core.cache.cache.set')
+    @patch('django.core.cache.cache.incr')
+    @patch('message_sender.tasks.send_message.retry')
+    def test_limiter_limit_reached(self, mock_retry, mock_incr, mock_set,
+                                   mock_get):
+        """
+        Messages under the limit should get sent. Messages over the limit
+        should get retried
+        """
+        mock_retry.side_effect = Retry
+
+        # Fake cache calls
+        mock_incr.side_effect = self.fake_cache.incr
+        mock_set.side_effect = self.fake_cache.set
+        mock_get.side_effect = self.fake_cache.get
+
+        outbound1 = self.make_outbound(to_addr="+27123")
+        outbound2 = self.make_outbound(to_addr="+27987")
+
+        send_message(outbound1.pk)
+        with self.assertRaises(Retry):
+            send_message(outbound2.pk)
+        mock_retry.assert_called_with(countdown=10)
+
+        self.assertTrue(self.check_logs(
+            "Message: '%s' sent to '%s' [session_event: new]" %
+            (outbound1.content, outbound1.to_addr)))
+        self.assertFalse(self.check_logs(
+            "Message: '%s' sent to '%s' [session_event: new]" %
+            (outbound2.content, outbound2.to_addr)))
+        outbound1.refresh_from_db()
+        self.assertIsNotNone(outbound1.last_sent_time)
+        outbound2.refresh_from_db()
+        self.assertIsNone(outbound2.last_sent_time)
+        self.assertEqual(len(self.fake_cache.cache_data), 1)
+        bucket = 1479131658 // 60  # time() // bucket_size
+        self.assertEqual(
+            self.fake_cache.cache_data["text_messages_at_%s" % bucket], 1)
+
+    @override_settings(TEXT_MESSAGE_DELAY=120)
+    @patch('time.time', MagicMock(return_value=1479131640.000000))
+    @patch('django.core.cache.cache.get')
+    def test_limiter_buckets(self, mock_get):
+        """
+        The correct buckets should count towards the message count.
+        """
+
+        # Fake cache calls
+        mock_get.side_effect = self.fake_cache.get
+        now = 1479131640
+
+        self.set_cache_entry((now - 200) // 60, 1)  # Too old
+        self.set_cache_entry((now - 121) // 60, 10)  # Over delay
+        self.set_cache_entry((now - 120) // 60, 100)  # Within delay
+        self.set_cache_entry(now // 60, 1000)  # Now
+        self.set_cache_entry((now + 60) // 60, 10000)  # In future
+
+        count = ConcurrencyLimiter.get_current_message_count("text", 120)
+        self.assertEqual(count, 1100)
+
+    @override_settings(TEXT_MESSAGE_DELAY=120)
+    @patch('time.time', MagicMock(return_value=1479131658.000000))
+    @patch('django.core.cache.cache.get')
+    @patch('django.core.cache.cache.set')
+    @patch('django.core.cache.cache.decr')
+    def test_limiter_decr_count(self, mock_decr, mock_set, mock_get):
+        """
+        Events for messages should decrement the counter unless the message is
+        too old.
+        """
+
+        # Fake cache calls
+        mock_get.side_effect = self.fake_cache.get
+        mock_set.side_effect = self.fake_cache.set
+        mock_decr.side_effect = self.fake_cache.decr
+
+        self.set_cache_entry(1479131535 // 60, 1)  # Past delay
+        self.set_cache_entry(1479131588 // 60, 1)  # Within delay
+        self.set_cache_entry(1479131648 // 60, -0)  # Invalid value
+
+        ConcurrencyLimiter.decr_message_count(
+            "text", datetime.fromtimestamp(1479131535))
+        ConcurrencyLimiter.decr_message_count(
+            "text", datetime.fromtimestamp(1479131588))
+        ConcurrencyLimiter.decr_message_count(
+            "text", datetime.fromtimestamp(1479131608))
+
+        self.assertEqual(self.fake_cache.cache_data, {
+            "text_messages_at_24652192": 1, "text_messages_at_24652193": 0,
+            "text_messages_at_24652194": 0})
