@@ -113,7 +113,7 @@ class ConcurrencyLimiter(object):
         if msg_type == "voice":
             delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
         else:
-            delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
+            delay = getattr(settings, 'TEXT_MESSAGE_DELAY', 0)
 
         if not msg_time:
             return
