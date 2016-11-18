@@ -372,12 +372,46 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
 
+    def test_create_inbound_event_message(self):
+        existing_outbound = self.make_outbound()
+        out = Outbound.objects.get(pk=existing_outbound)
+        out.last_sent_time = out.created_at
+        out.save()
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "message_id": message_id,
+            "in_reply_to": out.vumi_message_id,
+            "to_addr": "+27123",
+            "from_addr": "020",
+            "content": "Call delivered",
+            "transport_name": "test_voice",
+            "transport_type": "voice",
+            "helper_metadata": {},
+            "event_type": "close"
+        }
+
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/inbound/',
+                                        json.dumps(post_inbound),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", out.created_at)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.from_addr, "020")
+        self.assertEqual(d.content, "Call delivered")
+        self.assertEqual(d.transport_name, "test_voice")
+        self.assertEqual(d.transport_type, "voice")
+        self.assertEqual(d.helper_metadata, {})
+
     def test_event_ack(self):
         existing = self.make_outbound()
 
         d = Outbound.objects.get(pk=existing)
-        d.last_sent_time = d.created_at
-        d.save()
         ack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -387,12 +421,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "sent_message_id": "external-id"
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/events',
-                                        json.dumps(ack),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with("text", d.created_at)
+        response = self.client.post('/api/v1/events',
+                                    json.dumps(ack),
+                                    content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -406,8 +437,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_delivery_report(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        d.last_sent_time = d.created_at
-        d.save()
         dr = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -417,12 +446,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:20:37.485612",
             "sent_message_id": "external-id"
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/events',
-                                        json.dumps(dr),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with("text", d.created_at)
+        response = self.client.post('/api/v1/events',
+                                    json.dumps(dr),
+                                    content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -436,8 +462,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_nack_first(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        d.last_sent_time = d.created_at
-        d.save()
         post_save.connect(fire_msg_action_if_new, sender=Outbound)
         nack = {
             "message_type": "event",
@@ -449,12 +473,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:20:37.485612",
             "sent_message_id": "external-id"
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/events',
-                                        json.dumps(nack),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with("text", d.created_at)
+        response = self.client.post('/api/v1/events',
+                                    json.dumps(nack),
+                                    content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         c = Outbound.objects.get(pk=existing)
@@ -494,12 +515,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:20:37.485612",
             "sent_message_id": "external-id"
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/events',
-                                        json.dumps(nack),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with("text", failed.created_at)
+        response = self.client.post('/api/v1/events',
+                                    json.dumps(nack),
+                                    content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=failed.id)
