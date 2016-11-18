@@ -70,17 +70,26 @@ class MockCache(object):
     def get(self, key):
         return self.cache_data.get(key, None)
 
-    def set(self, key, value, expire=0):
-        self.cache_data[key] = value
+    def get_or_set(self, key, value, expire=0):
+        if key not in self.cache_data:
+            self.cache_data[key] = value
+            return value
+        return self.cache_data[key]
+
+    def add(self, key, value, expire=0):
+        if key not in self.cache_data:
+            self.cache_data[key] = value
+            return True
+        return False
 
     def incr(self, key, value=1):
-        if key not in self.cache_data.keys():
-            self.cache_data[key] = 0
+        if key not in self.cache_data:
+            raise(ValueError)
         self.cache_data[key] += value
 
     def decr(self, key, value=1):
-        if key not in self.cache_data.keys():
-            self.cache_data[key] = 0
+        if key not in self.cache_data:
+            raise(ValueError)
         self.cache_data[key] -= value
 
 
@@ -1034,15 +1043,15 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
     @override_settings(CONCURRENT_TEXT_LIMIT=2, TEXT_MESSAGE_DELAY=10)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
-    @patch('django.core.cache.cache.set')
+    @patch('django.core.cache.cache.add')
     @patch('django.core.cache.cache.incr')
-    def test_limiter_limit_not_reached(self, mock_incr, mock_set, mock_get):
+    def test_limiter_limit_not_reached(self, mock_incr, mock_add, mock_get):
         """
         Messages under the limit should get sent.
         """
         # Fake cache calls
         mock_incr.side_effect = self.fake_cache.incr
-        mock_set.side_effect = self.fake_cache.set
+        mock_add.side_effect = self.fake_cache.add
         mock_get.side_effect = self.fake_cache.get
 
         outbound1 = self.make_outbound(to_addr="+27123")
@@ -1069,10 +1078,10 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
     @override_settings(CONCURRENT_TEXT_LIMIT=1, TEXT_MESSAGE_DELAY=10)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
-    @patch('django.core.cache.cache.set')
+    @patch('django.core.cache.cache.add')
     @patch('django.core.cache.cache.incr')
     @patch('message_sender.tasks.send_message.retry')
-    def test_limiter_limit_reached(self, mock_retry, mock_incr, mock_set,
+    def test_limiter_limit_reached(self, mock_retry, mock_incr, mock_add,
                                    mock_get):
         """
         Messages under the limit should get sent. Messages over the limit
@@ -1082,7 +1091,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
 
         # Fake cache calls
         mock_incr.side_effect = self.fake_cache.incr
-        mock_set.side_effect = self.fake_cache.set
+        mock_add.side_effect = self.fake_cache.add
         mock_get.side_effect = self.fake_cache.get
 
         outbound1 = self.make_outbound(to_addr="+27123")
@@ -1131,18 +1140,16 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
 
     @override_settings(TEXT_MESSAGE_DELAY=120)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
-    @patch('django.core.cache.cache.get')
-    @patch('django.core.cache.cache.set')
+    @patch('django.core.cache.cache.get_or_set')
     @patch('django.core.cache.cache.decr')
-    def test_limiter_decr_count(self, mock_decr, mock_set, mock_get):
+    def test_limiter_decr_count(self, mock_decr, mock_get_or_set):
         """
         Events for messages should decrement the counter unless the message is
         too old.
         """
 
         # Fake cache calls
-        mock_get.side_effect = self.fake_cache.get
-        mock_set.side_effect = self.fake_cache.set
+        mock_get_or_set.side_effect = self.fake_cache.get_or_set
         mock_decr.side_effect = self.fake_cache.decr
 
         self.set_cache_entry(1479131535 // 60, 1)  # Past delay
