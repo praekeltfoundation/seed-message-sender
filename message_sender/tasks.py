@@ -147,6 +147,7 @@ class Send_Message(Task):
     Task to load and contruct message and send them off
     """
     name = "messages.tasks.send_message"
+    max_retries = None
 
     class FailedEventRequest(Exception):
 
