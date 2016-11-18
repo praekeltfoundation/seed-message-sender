@@ -103,12 +103,10 @@ class ConcurrencyLimiter(object):
     def incr_message_count(cls, msg_type, delay):
         bucket = int(time.time() // cls.BUCKET_SIZE)
         key = cls.get_key(msg_type, bucket)
-        value = cache.get(key)
-        if value is None:
-            # Add the bucket size to the expiry time so messages that start at
-            # the end of the bucket still complete
-            cache.set(key, 1, delay + cls.BUCKET_SIZE)
-        else:
+
+        # Add the bucket size to the expiry time so messages that start at
+        # the end of the bucket still complete
+        if not cache.add(key, 1, delay + cls.BUCKET_SIZE):
             cache.incr(key)
 
     @classmethod
