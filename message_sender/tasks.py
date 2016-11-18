@@ -89,9 +89,8 @@ class ConcurrencyLimiter(object):
         total = 0
         number_of_buckets = delay // cls.BUCKET_SIZE + 1
         bucket = int(time.time() // cls.BUCKET_SIZE)
-        for i in range(0, number_of_buckets):
-            value = cache.get(msg_type+"_messages_at_%s" % bucket)
-            bucket = bucket - 1
+        for i in range(bucket, bucket - number_of_buckets, -1):
+            value = cache.get(msg_type+"_messages_at_%s" % i)
             if value:
                 total += int(value)
         return total
