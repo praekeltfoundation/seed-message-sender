@@ -270,5 +270,9 @@ CACHES = {
         'BACKEND': 'redis_cache.RedisCache',
         'LOCATION': ['%s:%s' % (os.environ.get("REDIS_HOST", "localhost"),
                                 os.environ.get("REDIS_PORT", 6379))],
+        'OPTIONS': {
+            'DB': os.environ.get("REDIS_DB", 0),
+            'PASSWORD': os.environ.get("REDIS_PASSWORD", "REPLACEME")
+        }
     },
 }
