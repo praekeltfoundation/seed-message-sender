@@ -85,7 +85,7 @@ class ConcurrencyLimiter(object):
 
     @classmethod
     def get_key(cls, msg_type, bucket):
-        return "%s_messages_at%s" % (msg_type, bucket)
+        return "%s_messages_at_%s" % (msg_type, bucket)
 
     @classmethod
     def get_current_message_count(cls, msg_type, delay):
@@ -131,7 +131,7 @@ class ConcurrencyLimiter(object):
         # Set the expiry time to the delay minus the time passed since
         # the message was sent.
         if int(cache.get_or_set(key, 0, delay - time_since)) > 0:
-                cache.decr(key)
+            cache.decr(key)
 
     @classmethod
     def manage_limit(cls, task, msg_type, limit, delay):
