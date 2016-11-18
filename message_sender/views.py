@@ -90,17 +90,17 @@ class InboundViewSet(viewsets.ModelViewSet):
                      'content', 'transport_name', 'transport_type',
                      'helper_metadata', 'created_at', 'updated_at',)
 
-    def post(self, request, *args, **kwargs):
-        expect = ["event_type"]
-        if set(expect).issubset(request.data.key()):
+    def create(self, request, *args, **kwargs):
+        expect = ["event_type", "in_reply_to"]
+        if set(expect).issubset(request.data.keys()):
             if request.data['event_type'] == "close":
                 message = Outbound.objects.get(
-                    vumi_message_id=request.data["user_message_id"])
+                    vumi_message_id=request.data["in_reply_to"])
                 outbound_type = "voice" if "voice_speech_url" in \
                     message.metadata else "text"
                 ConcurrencyLimiter.decr_message_count(
                     outbound_type, message.last_sent_time)
-        return super(InboundViewSet, self).post(request, *args, **kwargs)
+        return super(InboundViewSet, self).create(request, *args, **kwargs)
 
 
 class EventListener(APIView):
