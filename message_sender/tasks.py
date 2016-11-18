@@ -128,14 +128,9 @@ class ConcurrencyLimiter(object):
         bucket = int(msg_time // cls.BUCKET_SIZE)
 
         key = cls.get_key(msg_type, bucket)
-        value = cache.get(key)
-        # Don't allow negative values
-        if value:
-            if value < 0:
-                # Set the expiry time to the delay minus the time passed since
-                # the message was sent.
-                cache.set(key, 0, delay - time_since)
-            else:
+        # Set the expiry time to the delay minus the time passed since
+        # the message was sent.
+        if int(cache.get_or_set(key, 0, delay - time_since)) > 0:
                 cache.decr(key)
 
     @classmethod
