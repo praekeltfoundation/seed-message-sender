@@ -260,10 +260,10 @@ REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
 REDIS_DB = os.environ.get("REDIS_DB", 0)
 
-CONCURRENT_VOICE_LIMIT = 0
+CONCURRENT_VOICE_LIMIT = 0  # A value of 0 disables cuncurrency limiter
 VOICE_MESSAGE_DELAY = 0  # Seconds to wait before retrying a waiting message
 VOICE_MESSAGE_TIMEOUT = 0  # Seconds until we assume a message has finished
-CONCURRENT_TEXT_LIMIT = 0
+CONCURRENT_TEXT_LIMIT = 0  # A value of 0 disables cuncurrency limiter
 TEXT_MESSAGE_DELAY = 0  # Seconds to wait before retrying a waiting message
 
 CACHES = {
