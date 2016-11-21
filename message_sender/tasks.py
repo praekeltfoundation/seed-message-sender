@@ -111,9 +111,14 @@ class ConcurrencyLimiter(object):
 
     @classmethod
     def decr_message_count(cls, msg_type, msg_time):
+
         if msg_type == "voice":
+            if getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0) == 0:
+                return
             timeout = getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)
         else:
+            if getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0) == 0:
+                return
             timeout = getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)
 
         if not msg_time:
