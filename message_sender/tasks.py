@@ -88,10 +88,10 @@ class ConcurrencyLimiter(object):
         return "%s_messages_at_%s" % (msg_type, bucket)
 
     @classmethod
-    def get_current_message_count(cls, msg_type, delay):
+    def get_current_message_count(cls, msg_type, timeout):
         # Sum the values in all the buckets to get the total
         total = 0
-        number_of_buckets = delay // cls.BUCKET_SIZE + 1
+        number_of_buckets = timeout // cls.BUCKET_SIZE + 1
         bucket = int(time.time() // cls.BUCKET_SIZE)
         for i in range(bucket, bucket - number_of_buckets, -1):
             value = cache.get(cls.get_key(msg_type, i))
@@ -100,21 +100,21 @@ class ConcurrencyLimiter(object):
         return total
 
     @classmethod
-    def incr_message_count(cls, msg_type, delay):
+    def incr_message_count(cls, msg_type, timeout):
         bucket = int(time.time() // cls.BUCKET_SIZE)
         key = cls.get_key(msg_type, bucket)
 
         # Add the bucket size to the expiry time so messages that start at
         # the end of the bucket still complete
-        if not cache.add(key, 1, delay + cls.BUCKET_SIZE):
+        if not cache.add(key, 1, timeout + cls.BUCKET_SIZE):
             cache.incr(key)
 
     @classmethod
     def decr_message_count(cls, msg_type, msg_time):
         if msg_type == "voice":
-            delay = getattr(settings, 'VOICE_MESSAGE_DELAY', 0)
+            timeout = getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)
         else:
-            delay = getattr(settings, 'TEXT_MESSAGE_DELAY', 0)
+            timeout = getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)
 
         if not msg_time:
             return
@@ -123,22 +123,22 @@ class ConcurrencyLimiter(object):
         msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
 
         time_since = time.time() - msg_time
-        if time_since > delay:
+        if time_since > timeout:
             return
         bucket = int(msg_time // cls.BUCKET_SIZE)
 
         key = cls.get_key(msg_type, bucket)
-        # Set the expiry time to the delay minus the time passed since
+        # Set the expiry time to the timeout minus the time passed since
         # the message was sent.
-        if int(cache.get_or_set(key, 0, delay - time_since)) > 0:
+        if int(cache.get_or_set(key, 0, timeout - time_since)) > 0:
             cache.decr(key)
 
     @classmethod
-    def manage_limit(cls, task, msg_type, limit, delay):
+    def manage_limit(cls, task, msg_type, limit, timeout, delay):
         if limit > 0:
-            if cls.get_current_message_count(msg_type, delay) >= limit:
+            if cls.get_current_message_count(msg_type, timeout) >= limit:
                 task.retry(countdown=delay)
-            cls.incr_message_count(msg_type, delay)
+            cls.incr_message_count(msg_type, timeout)
 
 
 class Send_Message(Task):
@@ -187,6 +187,7 @@ class Send_Message(Task):
                         ConcurrencyLimiter.manage_limit(
                             self, "voice",
                             getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0),
+                            getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0),
                             getattr(settings, 'VOICE_MESSAGE_DELAY', 0))
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
@@ -201,6 +202,7 @@ class Send_Message(Task):
                         ConcurrencyLimiter.manage_limit(
                             self, "text",
                             getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0),
+                            getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0),
                             getattr(settings, 'TEXT_MESSAGE_DELAY', 0))
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(

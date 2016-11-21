@@ -1040,7 +1040,8 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         super(TestConcurrencyLimiter, self).setUp()
         self.fake_cache = MockCache()
 
-    @override_settings(CONCURRENT_VOICE_LIMIT=2, VOICE_MESSAGE_DELAY=10)
+    @override_settings(CONCURRENT_VOICE_LIMIT=2, VOICE_MESSAGE_DELAY=10,
+                       VOICE_MESSAGE_TIMEOUT=20)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
     @patch('django.core.cache.cache.add')
@@ -1077,7 +1078,8 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(
             self.fake_cache.cache_data["voice_messages_at_%s" % bucket], 2)
 
-    @override_settings(CONCURRENT_VOICE_LIMIT=1, VOICE_MESSAGE_DELAY=10)
+    @override_settings(CONCURRENT_VOICE_LIMIT=1, VOICE_MESSAGE_DELAY=10,
+                       VOICE_MESSAGE_TIMEOUT=20)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
     @patch('django.core.cache.cache.add')
@@ -1121,7 +1123,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(
             self.fake_cache.cache_data["voice_messages_at_%s" % bucket], 1)
 
-    @override_settings(VOICE_MESSAGE_DELAY=120)
+    @override_settings(VOICE_MESSAGE_DELAY=100, VOICE_MESSAGE_TIMEOUT=120)
     @patch('time.time', MagicMock(return_value=1479131640.000000))
     @patch('django.core.cache.cache.get')
     def test_limiter_buckets(self, mock_get):
@@ -1142,7 +1144,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         count = ConcurrencyLimiter.get_current_message_count("voice", 120)
         self.assertEqual(count, 1100)
 
-    @override_settings(VOICE_MESSAGE_DELAY=120)
+    @override_settings(VOICE_MESSAGE_DELAY=100, VOICE_MESSAGE_TIMEOUT=120)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get_or_set')
     @patch('django.core.cache.cache.decr')

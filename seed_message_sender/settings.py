@@ -261,9 +261,10 @@ REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
 REDIS_DB = os.environ.get("REDIS_DB", 0)
 
 CONCURRENT_VOICE_LIMIT = 0
-VOICE_MESSAGE_DELAY = 0  # seconds
+VOICE_MESSAGE_DELAY = 0  # Seconds to wait before retrying a waiting message
+VOICE_MESSAGE_TIMEOUT = 0  # Seconds until we assume a message has finished
 CONCURRENT_TEXT_LIMIT = 0
-TEXT_MESSAGE_DELAY = 0  # seconds
+TEXT_MESSAGE_DELAY = 0  # Seconds to wait before retrying a waiting message
 
 CACHES = {
     'default': {
