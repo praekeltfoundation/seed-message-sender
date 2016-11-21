@@ -1026,21 +1026,21 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
             "content": "Simple outbound message",
             "delivered": False,
-            "metadata": {}
+            "metadata": {"voice_speech_url": "http://test.com"}
         }
         outbound = Outbound.objects.create(**outbound_message)
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return outbound
 
-    def set_cache_entry(self, bucket, value):
-        key = "text_messages_at_%s" % bucket
+    def set_cache_entry(self, msg_type, bucket, value):
+        key = "%s_messages_at_%s" % (msg_type, bucket)
         self.fake_cache.cache_data[key] = value
 
     def setUp(self):
         super(TestConcurrencyLimiter, self).setUp()
         self.fake_cache = MockCache()
 
-    @override_settings(CONCURRENT_TEXT_LIMIT=2, TEXT_MESSAGE_DELAY=10)
+    @override_settings(CONCURRENT_VOICE_LIMIT=2, VOICE_MESSAGE_DELAY=10)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
     @patch('django.core.cache.cache.add')
@@ -1061,10 +1061,12 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         send_message(outbound2.pk)
 
         self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new]" %
+            "Message: '%s' sent to '%s' [session_event: new] [voice: "
+            "{'speech_url': 'http://test.com'}]" %
             (outbound1.content, outbound1.to_addr)))
         self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new]" %
+            "Message: '%s' sent to '%s' [session_event: new] [voice: "
+            "{'speech_url': 'http://test.com'}]" %
             (outbound2.content, outbound2.to_addr)))
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
@@ -1073,9 +1075,9 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(len(self.fake_cache.cache_data), 1)
         bucket = 1479131658 // 60  # time() // bucket_size
         self.assertEqual(
-            self.fake_cache.cache_data["text_messages_at_%s" % bucket], 2)
+            self.fake_cache.cache_data["voice_messages_at_%s" % bucket], 2)
 
-    @override_settings(CONCURRENT_TEXT_LIMIT=1, TEXT_MESSAGE_DELAY=10)
+    @override_settings(CONCURRENT_VOICE_LIMIT=1, VOICE_MESSAGE_DELAY=10)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
     @patch('django.core.cache.cache.add')
@@ -1103,10 +1105,12 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_retry.assert_called_with(countdown=10)
 
         self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new]" %
+            "Message: '%s' sent to '%s' [session_event: new] [voice: "
+            "{'speech_url': 'http://test.com'}]" %
             (outbound1.content, outbound1.to_addr)))
         self.assertFalse(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new]" %
+            "Message: '%s' sent to '%s' [session_event: new] "
+            "[voice: {'speech_url': 'http://test.com'}]" %
             (outbound2.content, outbound2.to_addr)))
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
@@ -1115,9 +1119,9 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(len(self.fake_cache.cache_data), 1)
         bucket = 1479131658 // 60  # time() // bucket_size
         self.assertEqual(
-            self.fake_cache.cache_data["text_messages_at_%s" % bucket], 1)
+            self.fake_cache.cache_data["voice_messages_at_%s" % bucket], 1)
 
-    @override_settings(TEXT_MESSAGE_DELAY=120)
+    @override_settings(VOICE_MESSAGE_DELAY=120)
     @patch('time.time', MagicMock(return_value=1479131640.000000))
     @patch('django.core.cache.cache.get')
     def test_limiter_buckets(self, mock_get):
@@ -1129,16 +1133,16 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_get.side_effect = self.fake_cache.get
         now = 1479131640
 
-        self.set_cache_entry((now - 200) // 60, 1)  # Too old
-        self.set_cache_entry((now - 121) // 60, 10)  # Over delay
-        self.set_cache_entry((now - 120) // 60, 100)  # Within delay
-        self.set_cache_entry(now // 60, 1000)  # Now
-        self.set_cache_entry((now + 60) // 60, 10000)  # In future
+        self.set_cache_entry("voice", (now - 200) // 60, 1)  # Too old
+        self.set_cache_entry("voice", (now - 121) // 60, 10)  # Over delay
+        self.set_cache_entry("voice", (now - 120) // 60, 100)  # Within delay
+        self.set_cache_entry("voice", now // 60, 1000)  # Now
+        self.set_cache_entry("voice", (now + 60) // 60, 10000)  # In future
 
-        count = ConcurrencyLimiter.get_current_message_count("text", 120)
+        count = ConcurrencyLimiter.get_current_message_count("voice", 120)
         self.assertEqual(count, 1100)
 
-    @override_settings(TEXT_MESSAGE_DELAY=120)
+    @override_settings(VOICE_MESSAGE_DELAY=120)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get_or_set')
     @patch('django.core.cache.cache.decr')
@@ -1152,17 +1156,17 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_get_or_set.side_effect = self.fake_cache.get_or_set
         mock_decr.side_effect = self.fake_cache.decr
 
-        self.set_cache_entry(1479131535 // 60, 1)  # Past delay
-        self.set_cache_entry(1479131588 // 60, 1)  # Within delay
-        self.set_cache_entry(1479131648 // 60, -0)  # Invalid value
+        self.set_cache_entry("voice", 1479131535 // 60, 1)  # Past delay
+        self.set_cache_entry("voice", 1479131588 // 60, 1)  # Within delay
+        self.set_cache_entry("voice", 1479131648 // 60, -0)  # Invalid value
 
         ConcurrencyLimiter.decr_message_count(
-            "text", datetime.fromtimestamp(1479131535))
+            "voice", datetime.fromtimestamp(1479131535))
         ConcurrencyLimiter.decr_message_count(
-            "text", datetime.fromtimestamp(1479131588))
+            "voice", datetime.fromtimestamp(1479131588))
         ConcurrencyLimiter.decr_message_count(
-            "text", datetime.fromtimestamp(1479131608))
+            "voice", datetime.fromtimestamp(1479131608))
 
         self.assertEqual(self.fake_cache.cache_data, {
-            "text_messages_at_24652192": 1, "text_messages_at_24652193": 0,
-            "text_messages_at_24652194": 0})
+            "voice_messages_at_24652192": 1, "voice_messages_at_24652193": 0,
+            "voice_messages_at_24652194": 0})
