@@ -1144,7 +1144,8 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         count = ConcurrencyLimiter.get_current_message_count("voice", 120)
         self.assertEqual(count, 1100)
 
-    @override_settings(VOICE_MESSAGE_DELAY=100, VOICE_MESSAGE_TIMEOUT=120)
+    @override_settings(CONCURRENT_VOICE_LIMIT=1,
+                       VOICE_MESSAGE_DELAY=100, VOICE_MESSAGE_TIMEOUT=120)
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get_or_set')
     @patch('django.core.cache.cache.decr')
