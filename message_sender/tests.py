@@ -633,6 +633,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.transport_type, None)
         self.assertEqual(d.helper_metadata, {})
 
+
 class TestMetricsAPI(AuthenticatedAPITestCase):
 
     def test_metrics_read(self):
