@@ -243,10 +243,6 @@ class JunebugEventListener(APIView):
                 "metric_name": 'vumimessage.obd.unsuccessful.sum',
                 "metric_value": 1.0
             })
-        outbound_type = "voice" if "voice_speech_url" in \
-            message.metadata else "text"
-        ConcurrencyLimiter.decr_message_count(
-            outbound_type, message.last_sent_time)
 
         return Response({"accepted": True}, status=200)
 
