@@ -48,7 +48,7 @@ class Inbound(models.Model):
     from_addr = models.CharField(null=False, blank=False, max_length=255)
     content = models.CharField(null=True, blank=True, max_length=1000)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
-    transport_type = models.CharField(null=False, blank=False, max_length=200)
+    transport_type = models.CharField(null=True, blank=True, max_length=200)
     helper_metadata = JSONField()
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)

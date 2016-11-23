@@ -21,6 +21,31 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
             'from_addr', 'content', 'transport_name', 'transport_type',
             'helper_metadata', 'created_at', 'updated_at')
 
+    def to_internal_value(self, data):
+        if "channel_data" in data:  # This message is from Junebug
+            errors = {}
+            if "reply_to" not in data:
+                errors["reply_to"] = 'This field is required.'
+            else:
+                data['in_reply_to'] = data["reply_to"]
+            if "to" not in data:
+                errors['to'] = 'This field is required.'
+            else:
+                data['to_addr'] = data['to']
+            if "from" not in data:
+                errors['from'] = 'This field is required.'
+            else:
+                data['from_addr'] = data['from']
+            if "channel_id" not in data:
+                errors['channel_id'] = 'This field is required.'
+            else:
+                data['transport_name'] = data['channel_id']
+            data['helper_metadata'] = data['channel_data']
+            if errors:
+                raise serializers.ValidationError(errors)
+
+        return super(InboundSerializer, self).to_internal_value(data)
+
 
 class HookSerializer(serializers.ModelSerializer):
 
