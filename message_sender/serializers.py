@@ -21,30 +21,35 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
             'from_addr', 'content', 'transport_name', 'transport_type',
             'helper_metadata', 'created_at', 'updated_at')
 
-    def to_internal_value(self, data):
-        if "channel_data" in data:  # This message is from Junebug
-            errors = {}
-            if "reply_to" not in data:
-                errors["reply_to"] = 'This field is required.'
-            else:
-                data['in_reply_to'] = data["reply_to"]
-            if "to" not in data:
-                errors['to'] = 'This field is required.'
-            else:
-                data['to_addr'] = data['to']
-            if "from" not in data:
-                errors['from'] = 'This field is required.'
-            else:
-                data['from_addr'] = data['from']
-            if "channel_id" not in data:
-                errors['channel_id'] = 'This field is required.'
-            else:
-                data['transport_name'] = data['channel_id']
-            data['helper_metadata'] = data['channel_data']
-            if errors:
-                raise serializers.ValidationError(errors)
 
-        return super(InboundSerializer, self).to_internal_value(data)
+class JunebugInboundSerializer(serializers.HyperlinkedModelSerializer):
+    """
+    Maps fields from Junebug onto fields expected by the Inbound model.
+    """
+    reply_to = serializers.CharField(source='in_reply_to')
+    to = serializers.CharField(source='to_addr')
+    channel_id = serializers.CharField(source='transport_name')
+    channel_data = serializers.JSONField(source='helper_metadata')
+
+    class Meta:
+        model = Inbound
+        fields = (
+            'url', 'id', 'message_id', 'reply_to', 'to', 'from_addr',
+            'content', 'channel_id', 'channel_data', 'created_at',
+            'updated_at')
+
+    def to_internal_value(self, data):
+        """
+        Maps Junebug 'from' field to 'from_addr' expected by serializer since
+        'from' is a python keyword.
+        """
+        if "from" not in data:
+            raise serializers.ValidationError({
+                'from': 'This field is required.'
+            })
+        else:
+            data['from_addr'] = data['from']
+        return super(JunebugInboundSerializer, self).to_internal_value(data)
 
 
 class HookSerializer(serializers.ModelSerializer):
