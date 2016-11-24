@@ -19,7 +19,8 @@ class Outbound(models.Model):
     to_addr = models.CharField(null=False, blank=False, max_length=500)
     version = models.IntegerField(default=1)
     content = models.CharField(null=True, blank=True, max_length=1000)
-    vumi_message_id = models.CharField(null=True, blank=True, max_length=36)
+    vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
+                                       db_index=True)
     delivered = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
