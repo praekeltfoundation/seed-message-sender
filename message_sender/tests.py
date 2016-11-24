@@ -605,7 +605,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
 
-    def test_create_inbound_data(self):
+    def test_create_inbound_junebug_data(self):
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
         message_id = str(uuid.uuid4())
