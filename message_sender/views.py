@@ -9,8 +9,8 @@ from rest_framework.authtoken.models import Token
 from .models import Outbound, Inbound
 from django.contrib.auth.models import User
 from .serializers import (OutboundSerializer, InboundSerializer,
-                          HookSerializer, CreateUserSerializer)
-
+                          JunebugInboundSerializer, HookSerializer,
+                          CreateUserSerializer)
 from .tasks import send_message, fire_metric, ConcurrencyLimiter
 from seed_message_sender.utils import get_available_metrics
 import django_filters
@@ -85,10 +85,15 @@ class InboundViewSet(viewsets.ModelViewSet):
     """
     permission_classes = (IsAuthenticated,)
     queryset = Inbound.objects.all()
-    serializer_class = InboundSerializer
     filter_fields = ('message_id', 'in_reply_to', 'to_addr', 'from_addr',
                      'content', 'transport_name', 'transport_type',
                      'helper_metadata', 'created_at', 'updated_at',)
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            if "channel_data" in self.request.data:
+                return JunebugInboundSerializer
+        return InboundSerializer
 
     def create(self, request, *args, **kwargs):
         expect = ["event_type", "in_reply_to"]

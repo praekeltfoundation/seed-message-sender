@@ -330,7 +330,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
-            "helper_metadata": {}
+            "helper_metadata": {},
+            "session_event": "close"
         }
         response = self.client.post('/api/v1/inbound/',
                                     json.dumps(post_inbound),
@@ -345,7 +346,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
-        self.assertEqual(d.helper_metadata, {})
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
     def test_update_inbound_data(self):
         existing_outbound = self.make_outbound()
@@ -677,6 +678,34 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["delivery_failed_reason"], {})
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
+
+    def test_create_inbound_junebug_data(self):
+        existing_outbound = self.make_outbound()
+        out = Outbound.objects.get(pk=existing_outbound)
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "message_id": message_id,
+            "reply_to": out.vumi_message_id,
+            "to": "+27123",
+            "from": "020",
+            "content": "Call delivered",
+            "channel_id": "test_voice",
+            "channel_data": {"session_event": "close"}
+        }
+        response = self.client.post('/api/v1/inbound/',
+                                    json.dumps(post_inbound),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.from_addr, "020")
+        self.assertEqual(d.content, "Call delivered")
+        self.assertEqual(d.transport_name, "test_voice")
+        self.assertEqual(d.transport_type, None)
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
 
 class TestMetricsAPI(AuthenticatedAPITestCase):

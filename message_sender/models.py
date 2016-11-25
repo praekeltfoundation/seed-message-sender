@@ -19,7 +19,8 @@ class Outbound(models.Model):
     to_addr = models.CharField(null=False, blank=False, max_length=500)
     version = models.IntegerField(default=1)
     content = models.CharField(null=True, blank=True, max_length=1000)
-    vumi_message_id = models.CharField(null=True, blank=True, max_length=36)
+    vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
+                                       db_index=True)
     delivered = models.BooleanField(default=False)
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
@@ -49,7 +50,7 @@ class Inbound(models.Model):
     from_addr = models.CharField(null=False, blank=False, max_length=255)
     content = models.CharField(null=True, blank=True, max_length=1000)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
-    transport_type = models.CharField(null=False, blank=False, max_length=200)
+    transport_type = models.CharField(null=True, blank=True, max_length=200)
     helper_metadata = JSONField()
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)
