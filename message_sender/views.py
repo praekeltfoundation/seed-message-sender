@@ -96,15 +96,32 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
-        expect = ["event_type", "in_reply_to"]
-        if set(expect).issubset(request.data.keys()):
-            if request.data['event_type'] == "close":
+        close_event = False
+        if "channel_data" in request.data:  # Handle message from Junebug
+            if "session_event" in request.data["channel_data"]:
+                if request.data["channel_data"]["session_event"] == "close":
+                    close_event = True
+                    reply_field = "reply_to"
+                    from_field = "from"
+        elif "session_event" in request.data:  # Handle message from Vumi
+            if request.data["session_event"] == "close":
+                close_event = True
+                reply_field = "in_reply_to"
+                from_field = "from_addr"
+
+        if close_event:
+            try:
                 message = Outbound.objects.get(
-                    vumi_message_id=request.data["in_reply_to"])
+                    vumi_message_id=request.data[reply_field])
+            except ObjectDoesNotExist:
+                message = Outbound.objects.filter(
+                    to_addr=request.data[from_field]).last()
+            if message:
                 outbound_type = "voice" if "voice_speech_url" in \
                     message.metadata else "text"
                 ConcurrencyLimiter.decr_message_count(
                     outbound_type, message.last_sent_time)
+
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 
 

@@ -330,12 +330,14 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
-            "helper_metadata": {},
-            "session_event": "close"
+            "helper_metadata": {}
         }
-        response = self.client.post('/api/v1/inbound/',
-                                    json.dumps(post_inbound),
-                                    content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/inbound/',
+                                        json.dumps(post_inbound),
+                                        content_type='application/json')
+            mock_method.assert_not_called()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Inbound.objects.last()
@@ -346,7 +348,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
-        self.assertEqual(d.helper_metadata, {"session_event": "close"})
+        self.assertEqual(d.helper_metadata, {})
 
     def test_update_inbound_data(self):
         existing_outbound = self.make_outbound()
@@ -391,13 +393,13 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_inbound = {
             "message_id": message_id,
             "in_reply_to": out.vumi_message_id,
-            "to_addr": "+27123",
+            "to_addr": "0.0.0.0:9001",
             "from_addr": "020",
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
             "helper_metadata": {},
-            "event_type": "close"
+            "session_event": "close"
         }
 
         with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
@@ -411,12 +413,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.to_addr, "0.0.0.0:9001")
         self.assertEqual(d.from_addr, "020")
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
-        self.assertEqual(d.helper_metadata, {})
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
     def test_event_ack(self):
         existing = self.make_outbound()
@@ -679,29 +681,34 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
 
-    def test_create_inbound_junebug_data(self):
+    def test_create_inbound_junebug_message(self):
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
+        out.last_sent_time = out.created_at
+        out.save()
         message_id = str(uuid.uuid4())
         post_inbound = {
             "message_id": message_id,
-            "reply_to": out.vumi_message_id,
-            "to": "+27123",
-            "from": "020",
+            "reply_to": "test_id",
+            "to": "0.0.0.0:9001",
+            "from": out.to_addr,
             "content": "Call delivered",
             "channel_id": "test_voice",
             "channel_data": {"session_event": "close"}
         }
-        response = self.client.post('/api/v1/inbound/',
-                                    json.dumps(post_inbound),
-                                    content_type='application/json')
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/inbound/',
+                                        json.dumps(post_inbound),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", out.created_at)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "+27123")
-        self.assertEqual(d.from_addr, "020")
+        self.assertEqual(d.to_addr, "0.0.0.0:9001")
+        self.assertEqual(d.from_addr, "+27123")
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, None)
