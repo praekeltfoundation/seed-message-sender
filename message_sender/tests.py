@@ -296,7 +296,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
-            "helper_metadata": {}
+            "helper_metadata": {},
+            "session_event": "close"
         }
         response = self.client.post('/api/v1/inbound/',
                                     json.dumps(post_inbound),
@@ -311,7 +312,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
-        self.assertEqual(d.helper_metadata, {})
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
     def test_update_inbound_data(self):
         existing_outbound = self.make_outbound()
@@ -616,7 +617,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "from": "020",
             "content": "Call delivered",
             "channel_id": "test_voice",
-            "channel_data": {}
+            "channel_data": {"session_event": "close"}
         }
         response = self.client.post('/api/v1/inbound/',
                                     json.dumps(post_inbound),
@@ -631,7 +632,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, None)
-        self.assertEqual(d.helper_metadata, {})
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
 
 class TestMetricsAPI(AuthenticatedAPITestCase):

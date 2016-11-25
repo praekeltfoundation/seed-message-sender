@@ -21,6 +21,14 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
             'from_addr', 'content', 'transport_name', 'transport_type',
             'helper_metadata', 'created_at', 'updated_at')
 
+    def to_internal_value(self, data):
+        """
+        Adds extra data to the helper_metadata field.
+        """
+        if "session_event" in data:
+            data['helper_metadata']['session_event'] = data['session_event']
+        return super(InboundSerializer, self).to_internal_value(data)
+
 
 class JunebugInboundSerializer(serializers.HyperlinkedModelSerializer):
     """
