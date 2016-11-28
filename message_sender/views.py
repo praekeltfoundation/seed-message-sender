@@ -115,7 +115,8 @@ class InboundViewSet(viewsets.ModelViewSet):
                     vumi_message_id=request.data[reply_field])
             except ObjectDoesNotExist:
                 message = Outbound.objects.filter(
-                    to_addr=request.data[from_field]).last()
+                    to_addr=request.data[from_field]).order_by(
+                    '-created_at').last()
             if message:
                 outbound_type = "voice" if "voice_speech_url" in \
                     message.metadata else "text"
