@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
                           CreateUserSerializer)
-from .tasks import send_message, fire_metric
+from .tasks import send_message, fire_metric, ConcurrencyLimiter
 from seed_message_sender.utils import get_available_metrics
 import django_filters
 
@@ -95,6 +95,36 @@ class InboundViewSet(viewsets.ModelViewSet):
                 return JunebugInboundSerializer
         return InboundSerializer
 
+    def create(self, request, *args, **kwargs):
+        close_event = False
+        if "channel_data" in request.data:  # Handle message from Junebug
+            if "session_event" in request.data["channel_data"]:
+                if request.data["channel_data"]["session_event"] == "close":
+                    close_event = True
+                    reply_field = "reply_to"
+                    from_field = "from"
+        elif "session_event" in request.data:  # Handle message from Vumi
+            if request.data["session_event"] == "close":
+                close_event = True
+                reply_field = "in_reply_to"
+                from_field = "from_addr"
+
+        if close_event:
+            try:
+                message = Outbound.objects.get(
+                    vumi_message_id=request.data[reply_field])
+            except ObjectDoesNotExist:
+                message = Outbound.objects.filter(
+                    to_addr=request.data[from_field]).order_by(
+                    '-created_at').last()
+            if message:
+                outbound_type = "voice" if "voice_speech_url" in \
+                    message.metadata else "text"
+                ConcurrencyLimiter.decr_message_count(
+                    outbound_type, message.last_sent_time)
+
+        return super(InboundViewSet, self).create(request, *args, **kwargs)
+
 
 class EventListener(APIView):
 
@@ -143,13 +173,13 @@ class EventListener(APIView):
                                 request.data["nack_reason"]
                             message.save()
                         send_message.delay(str(message.id))
-
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
                                 "metric_name":
                                     'vumimessage.obd.unsuccessful.sum',
                                 "metric_value": 1.0
                             })
+
                     # Return
                     status = 200
                     accepted = {"accepted": True}

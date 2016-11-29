@@ -1,11 +1,14 @@
 import json
 import requests
+import time
 
 from celery.task import Task
 from celery.utils.log import get_task_logger
 from celery.exceptions import SoftTimeLimitExceeded
 
+from datetime import datetime
 from django.conf import settings
+from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 
 from go_http.metrics import MetricsApiClient
@@ -77,12 +80,79 @@ class FireMetric(Task):
 fire_metric = FireMetric()
 
 
+class ConcurrencyLimiter(object):
+    BUCKET_SIZE = 60
+
+    @classmethod
+    def get_key(cls, msg_type, bucket):
+        return "%s_messages_at_%s" % (msg_type, bucket)
+
+    @classmethod
+    def get_current_message_count(cls, msg_type, timeout):
+        # Sum the values in all the buckets to get the total
+        total = 0
+        number_of_buckets = timeout // cls.BUCKET_SIZE + 1
+        bucket = int(time.time() // cls.BUCKET_SIZE)
+        for i in range(bucket, bucket - number_of_buckets, -1):
+            value = cache.get(cls.get_key(msg_type, i))
+            if value:
+                total += int(value)
+        return total
+
+    @classmethod
+    def incr_message_count(cls, msg_type, timeout):
+        bucket = int(time.time() // cls.BUCKET_SIZE)
+        key = cls.get_key(msg_type, bucket)
+
+        # Add the bucket size to the expiry time so messages that start at
+        # the end of the bucket still complete
+        if not cache.add(key, 1, timeout + cls.BUCKET_SIZE):
+            cache.incr(key)
+
+    @classmethod
+    def decr_message_count(cls, msg_type, msg_time):
+
+        if msg_type == "voice":
+            if getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0) == 0:
+                return
+            timeout = getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)
+        else:
+            if getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0) == 0:
+                return
+            timeout = getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)
+
+        if not msg_time:
+            return
+
+        # Convert from datetime to seconds since epoch
+        msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
+
+        time_since = time.time() - msg_time
+        if time_since > timeout:
+            return
+        bucket = int(msg_time // cls.BUCKET_SIZE)
+
+        key = cls.get_key(msg_type, bucket)
+        # Set the expiry time to the timeout minus the time passed since
+        # the message was sent.
+        if int(cache.get_or_set(key, 0, timeout - time_since)) > 0:
+            cache.decr(key)
+
+    @classmethod
+    def manage_limit(cls, task, msg_type, limit, timeout, delay):
+        if limit > 0:
+            if cls.get_current_message_count(msg_type, timeout) >= limit:
+                task.retry(countdown=delay)
+            cls.incr_message_count(msg_type, timeout)
+
+
 class Send_Message(Task):
 
     """
     Task to load and contruct message and send them off
     """
     name = "messages.tasks.send_message"
+    max_retries = None
 
     class FailedEventRequest(Exception):
 
@@ -119,6 +189,11 @@ class Send_Message(Task):
                         })
 
                         # Voice message
+                        ConcurrencyLimiter.manage_limit(
+                            self, "voice",
+                            getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0),
+                            getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0),
+                            getattr(settings, 'VOICE_MESSAGE_DELAY', 0))
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
@@ -129,12 +204,18 @@ class Send_Message(Task):
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
+                        ConcurrencyLimiter.manage_limit(
+                            self, "text",
+                            getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0),
+                            getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0),
+                            getattr(settings, 'TEXT_MESSAGE_DELAY', 0))
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
                             message.content,
                             session_event="new")
                         l.info("Sent text message to <%s>" % message.to_addr)
+                    message.last_sent_time = datetime.now()
                     message.attempts += 1
                     message.vumi_message_id = vumiresponse["message_id"]
                     message.save()

@@ -25,6 +25,7 @@ setup(
         'django-rest-hooks==1.3.1',
         'go_http==0.3.0',
         'drfdocs==0.0.11',
+        'django-redis-cache==1.7.1',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
