@@ -113,13 +113,13 @@ class ConcurrencyLimiter(object):
     def decr_message_count(cls, msg_type, msg_time):
 
         if msg_type == "voice":
-            if getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0) == 0:
+            if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
                 return
-            timeout = getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)
+            timeout = int(getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0))
         else:
-            if getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0) == 0:
+            if int(getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0)) == 0:
                 return
-            timeout = getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)
+            timeout = int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0))
 
         if not msg_time:
             return
@@ -191,9 +191,10 @@ class Send_Message(Task):
                         # Voice message
                         ConcurrencyLimiter.manage_limit(
                             self, "voice",
-                            getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0),
-                            getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0),
-                            getattr(settings, 'VOICE_MESSAGE_DELAY', 0))
+                            int(getattr(settings,
+                                        'CONCURRENT_VOICE_LIMIT', 0)),
+                            int(getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)),
+                            int(getattr(settings, 'VOICE_MESSAGE_DELAY', 0)))
                         sender = self.get_voice_client()
                         speech_url = message.metadata["voice_speech_url"]
                         vumiresponse = sender.send_voice(
@@ -206,9 +207,9 @@ class Send_Message(Task):
                         # Plain content
                         ConcurrencyLimiter.manage_limit(
                             self, "text",
-                            getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0),
-                            getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0),
-                            getattr(settings, 'TEXT_MESSAGE_DELAY', 0))
+                            int(getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0)),
+                            int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)),
+                            int(getattr(settings, 'TEXT_MESSAGE_DELAY', 0)))
                         sender = self.get_text_client()
                         vumiresponse = sender.send_text(
                             text_to_addr_formatter(message.to_addr),
