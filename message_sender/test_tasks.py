@@ -5,19 +5,27 @@ from message_sender.factory import MessageClientFactory
 from message_sender.tasks import send_message
 from message_sender.tests import AuthenticatedAPITestCase
 
-MessageClientFactory.create = staticmethod(
-    lambda _: LoggingSender('go_http.test'))
-
 
 class TestSendMessage(AuthenticatedAPITestCase):
     """
     Tests related to the send_message task.
     """
+    def replace_message_client_factory(self):
+        self._patched_message_client_factory_create = (
+            MessageClientFactory.create)
+        MessageClientFactory.create = staticmethod(
+            lambda _: LoggingSender('go_http.test'))
+
+    def restore_message_client_factory(self):
+        MessageClientFactory.create = (
+            self._patched_message_client_factory_create)
+
     def test_call_start_end(self):
         """
         An outbound call should start with us dialling the number, and when
         the person picks up, playing the content and then terminating the call.
         """
+        self.replace_message_client_factory()
         outbound = self.make_voice_outbound()
         send_message(outbound.pk)
         outbound.refresh_from_db()
@@ -41,3 +49,4 @@ class TestSendMessage(AuthenticatedAPITestCase):
             "[session_event: close] "
             "[voice: {'speech_url': 'http://test.com'}]" % (
                 outbound.to_addr)))
+        self.restore_message_client_factory()
