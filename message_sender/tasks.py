@@ -195,12 +195,11 @@ class Send_Message(Task):
                             getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0),
                             getattr(settings, 'VOICE_MESSAGE_DELAY', 0))
                         sender = self.get_voice_client()
-                        speech_url = message.metadata["voice_speech_url"]
+                        # Start call. We send the voice message on the ack.
                         vumiresponse = sender.send_voice(
                             voice_to_addr_formatter(message.to_addr),
-                            message.content,
-                            speech_url=speech_url,
-                            session_event="new")
+                            None, session_event="new")
+                        message.call_answered = False
                         l.info("Sent voice message to <%s>" % message.to_addr)
                     else:
                         # Plain content
