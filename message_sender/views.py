@@ -160,7 +160,6 @@ class EventListener(APIView):
                     voice_to_addr_formatter(message.to_addr), message.content,
                     speech_url=speech_url, session_event="close")
             except HTTPError:
-                print 'http error'
                 message.save(update_fields=['metadata'])
                 send_message.delay(message_id=str(message.id))
                 return
@@ -241,7 +240,7 @@ class EventListener(APIView):
     #     serializer.save(updated_by=self.request.user)
 
 
-class JunebugEventListener(APIView):
+class JunebugEventListener(EventListener):
 
     """
     Triggers updates to outbound messages based on event data from Junebug
@@ -270,16 +269,10 @@ class JunebugEventListener(APIView):
 
         event_type = request.data["event_type"]
         if event_type == "submitted":
-            message.delivered = True
-            message.metadata["ack_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['metadata', 'delivered'])
-
-            # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
-                fire_metric.apply_async(kwargs={
-                    "metric_name": 'vumimessage.obd.successful.sum',
-                    "metric_value": 1.0
-                })
+                self._handle_voice_ack(message, request.data["timestamp"])
+            else:
+                self._handle_text_ack(message, request.data["timestamp"])
         elif event_type == "rejected":
             message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
