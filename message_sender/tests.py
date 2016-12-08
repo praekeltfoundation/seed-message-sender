@@ -117,6 +117,19 @@ class AuthenticatedAPITestCase(APITestCase):
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return str(outbound.id)
 
+    def make_voice_outbound(self):
+        self._replace_post_save_hooks_outbound()  # don't let fixtures fire
+        outbound_message = {
+            "to_addr": "+27123",
+            "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
+            "content": "Simple outbound message",
+            "delivered": False,
+            "metadata": {"voice_speech_url": "http://test.com"}
+        }
+        outbound = Outbound.objects.create(**outbound_message)
+        self._restore_post_save_hooks_outbound()  # let tests fire tasks
+        return outbound
+
     def make_inbound(self, in_reply_to):
         inbound_message = {
             "message_id": str(uuid.uuid4()),
@@ -1078,13 +1091,11 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         send_message(outbound2.pk)
 
         self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] [voice: "
-            "{'speech_url': 'http://test.com'}]" %
-            (outbound1.content, outbound1.to_addr)))
+            "Message: None sent to '%s' [session_event: new]" % (
+                outbound1.to_addr)))
         self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] [voice: "
-            "{'speech_url': 'http://test.com'}]" %
-            (outbound2.content, outbound2.to_addr)))
+            "Message: None sent to '%s' [session_event: new]" % (
+                outbound2.to_addr)))
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()
@@ -1123,13 +1134,11 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_retry.assert_called_with(countdown=10)
 
         self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] [voice: "
-            "{'speech_url': 'http://test.com'}]" %
-            (outbound1.content, outbound1.to_addr)))
+            "Message: None sent to '%s' [session_event: new]" % (
+                outbound1.to_addr)))
         self.assertFalse(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] "
-            "[voice: {'speech_url': 'http://test.com'}]" %
-            (outbound2.content, outbound2.to_addr)))
+            "Message: None sent to '%s' [session_event: new]" % (
+                outbound2.to_addr)))
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()

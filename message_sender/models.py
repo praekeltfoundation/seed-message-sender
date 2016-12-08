@@ -22,6 +22,9 @@ class Outbound(models.Model):
     vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
                                        db_index=True)
     delivered = models.BooleanField(default=False)
+    call_answered = models.NullBooleanField(
+        default=None, null=True, blank=True, help_text="True if the call has "
+        "been answered. Not used for text messages")
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
     updated_at = models.DateTimeField(auto_now=True)
