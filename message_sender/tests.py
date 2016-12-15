@@ -745,6 +745,8 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
                 'vumimessage.obd.tries.sum',
                 'vumimessage.obd.successful.sum',
                 'vumimessage.obd.unsuccessful.sum',
+                'message.failures.sum',
+                'message.sent.sum',
             ]
         )
 
