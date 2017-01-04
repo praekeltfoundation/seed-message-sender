@@ -230,14 +230,31 @@ class Send_Message(Task):
                     if 500 < e.response.status_code < 599:
                         raise self.retry(exc=e)
                     else:
+                        # Count permanent failures.
+                        fire_metric.apply_async(kwargs={
+                            "metric_name": 'message.failures.sum',
+                            "metric_value": 1.0
+                        })
                         raise e
+                # If we've gotten this far the message send was successful.
+                fire_metric.apply_async(kwargs={
+                    "metric_name": 'message.sent.sum',
+                    "metric_value": 1.0
+                })
                 return vumiresponse
+
             else:
                 l.info("Message <%s> at max retries." % str(message_id))
                 fire_metric.apply_async(kwargs={
                     "metric_name": 'vumimessage.maxretries.sum',
                     "metric_value": 1.0
                 })
+                # Count failures on exhausted tries.
+                fire_metric.apply_async(kwargs={
+                    "metric_name": 'message.failures.sum',
+                    "metric_value": 1.0
+                })
+
         except ObjectDoesNotExist:
             logger.error('Missing Outbound message', exc_info=True)
 
@@ -246,5 +263,6 @@ class Send_Message(Task):
                 'Soft time limit exceed processing message send search \
                  via Celery.',
                 exc_info=True)
+
 
 send_message = Send_Message()
