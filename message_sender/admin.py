@@ -16,5 +16,6 @@ class InboundAdmin(admin.ModelAdmin):
     list_filter = ('in_reply_to', 'from_addr', 'created_at', 'updated_at', )
     search_fields = ['to_addr']
 
+
 admin.site.register(Outbound, OutboundAdmin)
 admin.site.register(Inbound, InboundAdmin)

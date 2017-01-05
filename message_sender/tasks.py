@@ -77,6 +77,7 @@ class FireMetric(Task):
         return "Fired metric <%s> with value <%s>" % (
             metric_name, metric_value)
 
+
 fire_metric = FireMetric()
 
 
