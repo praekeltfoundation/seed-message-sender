@@ -13,3 +13,11 @@ install:
 script:
   - flake8
   - py.test
+deploy:
+  provider: pypi
+  user: praekelt.org
+  password:
+    secure: iVrXchNM+0TcARxt2h99sq+s7i4Qu6wXDwFHgKLh+Xdit7Pd2KH3HK+IyXnT/mtIpo7z4BkvXYakSrI/92iHJVVGSGAtkIQb4ZEOwK5xXaB9K54sz2ADNOKFzyguOfZwpVuUrXlyJUewqcxiQHBiO2wcjBrnfWwwNf9h0/S7DvUw8xSt3pf8RGNkbP7YJwUVxl5Ds0ZSiiVFMaX4ipUSOdljMA11W5vuU0zPkENG6XQ2zkf6uTuD4YCn+xoEVN8g0YGIMxe8LSILXglu+0hmyImbIPR/1l2baIZrGHQIGbtoM1EaF8pnhqvSGWBjYVwyAhCfrkKOqBFvnkCKo6xGvAJ+HbZ1Fq03xVXyttza9fPKDmXPxaa+wHC4BdT1p9+G+l2ARNH1nBdlar+fiV9yjm8Q0+ZH2MwLFAbBlshKIxk7XsdESbe2IXawQFUYFWeCtGLv8JJL/CRAxILIk38fyKjRVFO7wNn9LVYjxCNM2otcBbzX0qqpG2WrKPY8/lXrQzwA0qblvMmv54u6oeo1IQ+Ero+xIU0OBoEPgKT9eBW1h/RDf4ausBVKTCL8hvzdMWBZCiNnStKwuRh5XrcruGb/nAt8daO+GsWHvfNZbm/KHrnXn+s1rLQZSpBv61EEB/be7TIXwZbZCw9sqdiqUfpzVudJlO4giLXO+zV9+yk=
+  distributions: sdist bdist_wheel
+  on:
+    tags: true
