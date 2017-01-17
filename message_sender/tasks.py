@@ -65,7 +65,7 @@ class FireMetric(Task):
 
     """ Fires a metric using the MetricsApiClient
     """
-    name = "seed_identity_store.identities.tasks.fire_metric"
+    name = "message_sender.tasks.fire_metric"
 
     def run(self, metric_name, metric_value, session=None, **kwargs):
         metric_value = float(metric_value)
@@ -152,7 +152,7 @@ class Send_Message(Task):
     """
     Task to load and contruct message and send them off
     """
-    name = "messages.tasks.send_message"
+    name = "message_sender.tasks.send_message"
     max_retries = None
 
     class FailedEventRequest(Exception):
