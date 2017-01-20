@@ -67,6 +67,7 @@ MIDDLEWARE_CLASSES = (
     'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'seed_papertrail.middleware.RequestTimingMiddleware',
 )
 
 ROOT_URLCONF = 'seed_message_sender.urls'
@@ -127,6 +128,16 @@ TEMPLATES = [
         },
     },
 ]
+
+PAPERTRAIL = os.environ.get('PAPERTRAIL')
+if PAPERTRAIL:
+    import seed_papertrail  # noqa
+    PAPERTRAIL_HOST, _, PAPERTRAIL_PORT = PAPERTRAIL.partition(':')
+    LOGGING = seed_papertrail.auto_configure(
+        host=PAPERTRAIL_HOST,
+        port=int(PAPERTRAIL_PORT),
+        system=os.environ.get('MARATHON_APP_DOCKER_IMAGE', 'seed'),
+        program=os.environ.get('MESOS_TASK_ID', 'message_sender'))
 
 # Sentry configuration
 RAVEN_CONFIG = {
