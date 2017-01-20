@@ -138,6 +138,17 @@ if PAPERTRAIL:
         port=int(PAPERTRAIL_PORT),
         system=os.environ.get('MARATHON_APP_DOCKER_IMAGE', 'seed'),
         program=os.environ.get('MESOS_TASK_ID', 'message_sender'))
+    LOGGING['loggers']['celery.task'] = {
+        'handlers': ['papertrail'],
+        'level': 'DEBUG',
+        'propagate': True,
+    }
+    LOGGING['loggers']['message_sender.tasks'] = {
+        'handlers': ['papertrail'],
+        'level': 'DEBUG',
+        'propagate': True,
+    }
+
 
 # Sentry configuration
 RAVEN_CONFIG = {
