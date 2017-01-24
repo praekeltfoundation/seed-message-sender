@@ -214,13 +214,12 @@ class Send_Message(Task):
                             int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)),
                             int(getattr(settings, 'TEXT_MESSAGE_DELAY', 0)))
                         sender = self.get_text_client()
-                        with papertrail.timer('send_text API call'):
-                            vumiresponse = sender.send_text(
-                                text_to_addr_formatter(message.to_addr),
-                                message.content,
-                                session_event="new")
-                            l.info("Sent text message to <%s>" % (
-                                message.to_addr,))
+                        vumiresponse = sender.send_text(
+                            text_to_addr_formatter(message.to_addr),
+                            message.content,
+                            session_event="new")
+                        l.info("Sent text message to <%s>" % (
+                            message.to_addr,))
                     message.last_sent_time = datetime.now()
                     message.attempts += 1
                     message.vumi_message_id = vumiresponse["message_id"]
