@@ -152,7 +152,9 @@ RAVEN_CONFIG = {
 
 # REST Framework conf defaults
 REST_FRAMEWORK = {
-    'PAGINATE_BY': 1000,
+    'PAGE_SIZE': 1000,
+    'DEFAULT_PAGINATION_CLASS':
+        'rest_framework.pagination.LimitOffsetPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework.authentication.TokenAuthentication',

@@ -320,8 +320,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'before': (existing.created_at + timedelta(days=1)).isoformat(),
             'after': (existing.created_at - timedelta(days=1)).isoformat(),
         })))
-        [record] = response.data
-        self.assertEqual(record['id'], str(existing.id))
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], str(existing.id))
 
     def test_created_at_filter_outbound_not_exists(self):
         existing = Outbound.objects.get(pk=self.make_outbound())
@@ -329,7 +330,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'before': (existing.created_at - timedelta(days=1)).isoformat(),
             'after': (existing.created_at + timedelta(days=1)).isoformat(),
         })))
-        self.assertEqual(response.data, [])
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 0)
 
     def test_create_inbound_data(self):
         existing_outbound = self.make_outbound()
