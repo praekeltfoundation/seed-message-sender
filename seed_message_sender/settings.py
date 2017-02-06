@@ -128,6 +128,22 @@ TEMPLATES = [
     },
 ]
 
+PAPERTRAIL = os.environ.get('PAPERTRAIL')
+if PAPERTRAIL:
+    import seed_papertrail  # noqa
+    PAPERTRAIL_HOST, _, PAPERTRAIL_PORT = PAPERTRAIL.partition(':')
+    LOGGING = seed_papertrail.auto_configure(
+        host=PAPERTRAIL_HOST,
+        port=int(PAPERTRAIL_PORT),
+        system=os.environ.get('MARATHON_APP_DOCKER_IMAGE', 'seed'),
+        program=os.environ.get('MESOS_TASK_ID', 'message_sender'))
+    LOGGING['loggers']['celery.app'] = {
+        'handlers': ['papertrail'],
+        'level': 'DEBUG',
+        'propagate': True,
+    }
+
+
 # Sentry configuration
 RAVEN_CONFIG = {
     # DevOps will supply you with this.
@@ -136,7 +152,9 @@ RAVEN_CONFIG = {
 
 # REST Framework conf defaults
 REST_FRAMEWORK = {
-    'PAGINATE_BY': 1000,
+    'PAGE_SIZE': 1000,
+    'DEFAULT_PAGINATION_CLASS':
+        'rest_framework.pagination.LimitOffsetPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework.authentication.TokenAuthentication',
@@ -212,6 +230,7 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_IGNORE_RESULT = True
+CELERYD_MAX_TASKS_PER_CHILD = 50
 
 djcelery.setup_loader()
 

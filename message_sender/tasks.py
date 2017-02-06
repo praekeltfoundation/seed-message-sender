@@ -19,6 +19,7 @@ from .factory import MessageClientFactory
 
 from .models import Outbound
 from seed_message_sender.utils import load_callable
+from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
 
@@ -67,6 +68,7 @@ class FireMetric(Task):
     """
     name = "message_sender.tasks.fire_metric"
 
+    @papertrail.debug(name, sample=0.1)
     def run(self, metric_name, metric_value, session=None, **kwargs):
         metric_value = float(metric_value)
         metric = {
@@ -168,6 +170,7 @@ class Send_Message(Task):
     def get_voice_client(self):
         return MessageClientFactory.create('voice')
 
+    @papertrail.debug(name, sample=0.1)
     def run(self, message_id, **kwargs):
         """
         Load and contruct message and send them off
@@ -215,7 +218,8 @@ class Send_Message(Task):
                             text_to_addr_formatter(message.to_addr),
                             message.content,
                             session_event="new")
-                        l.info("Sent text message to <%s>" % message.to_addr)
+                        l.info("Sent text message to <%s>" % (
+                            message.to_addr,))
                     message.last_sent_time = datetime.now()
                     message.attempts += 1
                     message.vumi_message_id = vumiresponse["message_id"]

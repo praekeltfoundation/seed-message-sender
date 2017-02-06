@@ -28,7 +28,7 @@ class Outbound(models.Model):
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
     updated_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     last_sent_time = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(User, related_name='outbounds_created',
                                    null=True)
