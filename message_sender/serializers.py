@@ -1,4 +1,4 @@
-from .models import Inbound, Outbound
+from .models import Inbound, Outbound, OutboundSendFailure
 from rest_hooks.models import Hook
 from rest_framework import serializers
 
@@ -69,3 +69,10 @@ class HookSerializer(serializers.ModelSerializer):
 
 class CreateUserSerializer(serializers.Serializer):
     email = serializers.EmailField()
+
+
+class OutboundSendFailureSerializer(serializers.HyperlinkedModelSerializer):
+
+    class Meta:
+        model = OutboundSendFailure
+        fields = ('url', 'id', 'outbound', 'task_id', 'initiated_at', 'reason')
