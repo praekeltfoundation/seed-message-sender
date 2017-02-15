@@ -205,7 +205,6 @@ class Send_Message(Task):
             # send or resend
             try:
                 if "voice_speech_url" in message.metadata:
-
                     # OBD number of tries metric
                     fire_metric.apply_async(kwargs={
                         "metric_name": 'vumimessage.obd.tries.sum',
