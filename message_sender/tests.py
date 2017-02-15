@@ -1243,3 +1243,34 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         outbound2.refresh_from_db()
         self.assertIsNone(outbound2.last_sent_time)
         self.assertEqual(OutboundSendFailure.objects.all().count(), 0)
+
+
+class TestFailedTaskAPI(AuthenticatedAPITestCase):
+
+    def make_outbound(self, to_addr):
+        self._replace_post_save_hooks_outbound()  # don't let fixtures fire
+        outbound_message = {
+            "to_addr": to_addr,
+            "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
+            "content": "Simple outbound message",
+            "delivered": False,
+            "metadata": {"voice_speech_url": "http://test.com"}
+        }
+        outbound = Outbound.objects.create(**outbound_message)
+        self._restore_post_save_hooks_outbound()  # let tests fire tasks
+        return outbound
+
+    @responses.activate
+    def test_failed_tasks_requeue(self):
+        outbound1 = self.make_outbound(to_addr="+27123")
+        OutboundSendFailure.objects.create(
+            outbound=outbound1,
+            task_id=uuid.uuid4(),
+            initiated_at=timezone.now(),
+            reason='Error')
+
+        response = self.client.post('/api/v1/failed-tasks/',
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data["requeued_failed_tasks"], True)
+        self.assertEqual(OutboundSendFailure.objects.all().count(), 0)
