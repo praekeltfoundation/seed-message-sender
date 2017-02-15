@@ -17,6 +17,7 @@ from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.conf import settings
+from django.utils import timezone
 from mock import MagicMock
 from mock import patch
 from rest_framework import status
@@ -29,9 +30,10 @@ from go_http.send import LoggingSender
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
     JunebugApiSenderException, FactoryException)
-from .models import Inbound, Outbound
+from .models import Inbound, Outbound, OutboundSendFailure
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
-from .tasks import SendMessage, send_message, fire_metric, ConcurrencyLimiter
+from .tasks import (SendMessage, send_message, fire_metric,
+                    ConcurrencyLimiter, requeue_failed_tasks)
 from . import tasks
 
 from seed_message_sender.utils import load_callable
@@ -1209,3 +1211,36 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(self.fake_cache.cache_data, {
             "voice_messages_at_24652192": 1, "voice_messages_at_24652193": 0,
             "voice_messages_at_24652194": 0})
+
+
+class TestRequeueFailedTasks(AuthenticatedAPITestCase):
+    def make_outbound(self, to_addr):
+        self._replace_post_save_hooks_outbound()  # don't let fixtures fire
+        outbound_message = {
+            "to_addr": to_addr,
+            "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
+            "content": "Simple outbound message",
+            "delivered": False,
+            "metadata": {"voice_speech_url": "http://test.com"}
+        }
+        outbound = Outbound.objects.create(**outbound_message)
+        self._restore_post_save_hooks_outbound()  # let tests fire tasks
+        return outbound
+
+    def test_requeue(self):
+        outbound1 = self.make_outbound(to_addr="+27123")
+        outbound2 = self.make_outbound(to_addr="+27987")
+        OutboundSendFailure.objects.create(
+            outbound=outbound1,
+            task_id=uuid.uuid4(),
+            initiated_at=timezone.now(),
+            reason='Error')
+
+        requeue_failed_tasks()
+
+
+        outbound1.refresh_from_db()
+        self.assertIsNotNone(outbound1.last_sent_time)
+        outbound2.refresh_from_db()
+        self.assertIsNone(outbound2.last_sent_time)
+        self.assertEqual(OutboundSendFailure.objects.all().count(), 0)

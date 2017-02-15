@@ -305,3 +305,25 @@ class SendMessage(Task):
 
 
 send_message = SendMessage()
+
+
+class RequeueFailedTasks(Task):
+
+    """
+    Task to requeue failed Outbounds.
+    """
+    name = "message_sender.tasks.requeue_failed_tasks"
+
+    def run(self, **kwargs):
+        l = self.get_logger(**kwargs)
+        failures = OutboundSendFailure.objects.all()
+        l.info("Attempting to requeue <%s> failed Outbound sends" %
+               failures.count())
+        for failure in failures:
+            outbound_id = str(failure.outbound_id)
+            # Cleanup the failure before requeueing it.
+            failure.delete()
+            send_message.delay(outbound_id)
+
+
+requeue_failed_tasks = RequeueFailedTasks()
