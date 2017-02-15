@@ -17,7 +17,7 @@ from requests import exceptions as requests_exceptions
 from .factory import MessageClientFactory
 
 
-from .models import Outbound
+from .models import Outbound, OutboundSendFailure
 from seed_message_sender.utils import load_callable
 from seed_papertrail.decorators import papertrail
 
@@ -160,7 +160,7 @@ class ConcurrencyLimiter(object):
             cls.incr_message_count(msg_type, timeout)
 
 
-class Send_Message(Task):
+class SendMessage(Task):
 
     """
     Task to load and contruct message and send them off
@@ -294,5 +294,16 @@ class Send_Message(Task):
                 "metric_value": 1.0
             })
 
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        if self.request.retries == self.max_retries:
+            OutboundSendFailure.objects.create(
+                subscription_id=args[0],
+                initiated_at=self.request.eta,
+                reason=einfo.exception.message,
+                task_id=task_id
+            )
+        super(SendMessage, self).on_failure(exc, task_id, args,
+                                            kwargs, einfo)
 
-send_message = Send_Message()
+
+send_message = SendMessage()

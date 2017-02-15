@@ -4,8 +4,6 @@ from django.contrib.postgres.fields import JSONField
 from django.contrib.auth.models import User
 from django.db import models
 from django.utils.encoding import python_2_unicode_compatible
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 
 @python_2_unicode_compatible
@@ -66,22 +64,13 @@ class Inbound(models.Model):
     def __str__(self):  # __unicode__ on Python 2
         return str(self.id)
 
-# Make sure new messages are sent
 
-from .tasks import send_message  # noqa
+@python_2_unicode_compatible
+class OutboundSendFailure(models.Model):
+    outbound = models.ForeignKey(Outbound, on_delete=models.CASCADE)
+    task_id = models.UUIDField()
+    initiated_at = models.DateTimeField()
+    reason = models.TextField()
 
-
-@receiver(post_save, sender=Outbound)
-def fire_msg_action_if_new(sender, instance, created, **kwargs):
-    if created:
-        send_message.apply_async(kwargs={"message_id": str(instance.id)})
-
-
-@receiver(post_save, sender=Inbound)
-def fire_metrics_if_new(sender, instance, created, **kwargs):
-    from .tasks import fire_metric
-    if created:
-        fire_metric.apply_async(kwargs={
-            "metric_name": 'inbounds.created.sum',
-            "metric_value": 1.0
-        })
+    def __str__(self):  # __unicode__ on Python 2
+        return str(self.id)

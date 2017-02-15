@@ -29,15 +29,15 @@ from go_http.send import LoggingSender
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
     JunebugApiSenderException, FactoryException)
-from .models import (Inbound, Outbound, fire_msg_action_if_new,
-                     fire_metrics_if_new)
-from .tasks import Send_Message, send_message, fire_metric, ConcurrencyLimiter
+from .models import Inbound, Outbound
+from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
+from .tasks import SendMessage, send_message, fire_metric, ConcurrencyLimiter
 from . import tasks
 
 from seed_message_sender.utils import load_callable
 
-Send_Message.get_text_client = lambda x: LoggingSender('go_http.test')
-Send_Message.get_voice_client = lambda x: LoggingSender('go_http.test')
+SendMessage.get_text_client = lambda x: LoggingSender('go_http.test')
+SendMessage.get_voice_client = lambda x: LoggingSender('go_http.test')
 
 
 class RecordingAdapter(TestAdapter):
@@ -157,16 +157,16 @@ class AuthenticatedAPITestCase(APITestCase):
             session=session)
 
     def _replace_post_save_hooks_outbound(self):
-        post_save.disconnect(fire_msg_action_if_new, sender=Outbound)
+        post_save.disconnect(psh_fire_msg_action_if_new, sender=Outbound)
 
     def _replace_post_save_hooks_inbound(self):
-        post_save.disconnect(fire_msg_action_if_new, sender=Inbound)
+        post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
 
     def _restore_post_save_hooks_outbound(self):
-        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
 
     def _restore_post_save_hooks_inbound(self):
-        post_save.connect(fire_msg_action_if_new, sender=Inbound)
+        post_save.connect(psh_fire_metrics_if_new, sender=Inbound)
 
     def check_request(
             self, request, method, params=None, data=None, headers=None):
@@ -489,7 +489,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_nack_first(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
         nack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -531,7 +531,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         failed = Outbound.objects.create(**outbound_message)
         failed.last_sent_time = failed.created_at
         failed.save()
-        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
         nack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -624,7 +624,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         '''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        post_save.connect(fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
         nack = {
             "event_type": "rejected",
             "message_id": d.vumi_message_id,
@@ -792,7 +792,7 @@ class TestMetrics(AuthenticatedAPITestCase):
         # Setup
         adapter = self._mount_session()
         # reconnect metric post_save hook
-        post_save.connect(fire_metrics_if_new, sender=Inbound)
+        post_save.connect(psh_fire_metrics_if_new, sender=Inbound)
         # make outbound
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -806,7 +806,7 @@ class TestMetrics(AuthenticatedAPITestCase):
             data={"inbounds.created.sum": 1.0}
         )
         # remove post_save hooks to prevent teardown errors
-        post_save.disconnect(fire_metrics_if_new, sender=Inbound)
+        post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
 
 
 class TestHealthcheckAPI(AuthenticatedAPITestCase):
