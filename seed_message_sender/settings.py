@@ -209,6 +209,9 @@ CELERY_ROUTES = {
     'message_sender.tasks.fire_metric': {
         'queue': 'metrics',
     },
+    'message_sender.tasks.requeue_failed_tasks': {
+        'queue': 'mediumpriority',
+    },
 }
 
 METRICS_REALTIME = [
@@ -220,6 +223,13 @@ METRICS_REALTIME = [
     'vumimessage.obd.unsuccessful.sum',
     'message.failures.sum',
     'message.sent.sum',
+    'sender.send_message.connection_error.sum',
+    'sender.send_message.http_error.400.sum',
+    'sender.send_message.http_error.401.sum',
+    'sender.send_message.http_error.403.sum',
+    'sender.send_message.http_error.404.sum',
+    'sender.send_message.http_error.500.sum',
+    'sender.send_message.timeout.sum',
 ]
 METRICS_SCHEDULED = [
 ]
