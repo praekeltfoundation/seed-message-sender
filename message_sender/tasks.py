@@ -316,10 +316,10 @@ class RequeueFailedTasks(Task):
 
     def run(self, **kwargs):
         l = self.get_logger(**kwargs)
-        failures = OutboundSendFailure.objects.all()
+        failures = OutboundSendFailure.objects
         l.info("Attempting to requeue <%s> failed Outbound sends" %
-               failures.count())
-        for failure in failures:
+               failures.all().count())
+        for failure in failures.iterator():
             outbound_id = str(failure.outbound_id)
             # Cleanup the failure before requeueing it.
             failure.delete()
