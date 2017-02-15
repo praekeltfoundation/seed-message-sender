@@ -265,15 +265,8 @@ class SendMessage(Task):
                 metric_name = ('sender.send_message.http_error.%s.sum' %
                                exc.response.status_code)
                 fire_metric.delay(metric_name, 1)
-                if 500 < exc.response.status_code < 599:
-                    self.retry(exc=exc, countdown=retry_delay)
-                else:
-                    # Count permanent failures.
-                    fire_metric.apply_async(kwargs={
-                        "metric_name": 'message.failures.sum',
-                        "metric_value": 1.0
-                    })
-                    raise exc
+                self.retry(exc=exc, countdown=retry_delay)
+
             # If we've gotten this far the message send was successful.
             fire_metric.apply_async(kwargs={
                 "metric_name": 'message.sent.sum',
@@ -302,6 +295,11 @@ class SendMessage(Task):
                 reason=einfo.exception.message,
                 task_id=task_id
             )
+            # Count permanent failures.
+            fire_metric.apply_async(kwargs={
+                "metric_name": 'message.failures.sum',
+                "metric_value": 1.0
+            })
         super(SendMessage, self).on_failure(exc, task_id, args,
                                             kwargs, einfo)
 
