@@ -1238,7 +1238,6 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
 
         requeue_failed_tasks()
 
-
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()
