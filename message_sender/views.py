@@ -1,5 +1,4 @@
 from django.core.exceptions import ObjectDoesNotExist
-from django.conf import settings
 from django.contrib.auth.models import User
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, filters, mixins
@@ -7,20 +6,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
-from requests.exceptions import HTTPError
 
 from .models import Outbound, Inbound, OutboundSendFailure
-from .factory import MessageClientFactory
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
 from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
                     requeue_failed_tasks)
-from seed_message_sender.utils import get_available_metrics, load_callable
+from seed_message_sender.utils import get_available_metrics
 import django_filters
-
-
-voice_to_addr_formatter = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
@@ -140,40 +134,6 @@ class EventListener(APIView):
     """
     permission_classes = (AllowAny,)
 
-    def _handle_voice_ack(self, message, timestamp):
-        if message.call_answered:
-            message.delivered = True
-            message.metadata["ack_timestamp"] = timestamp
-            message.save(update_fields=['delivered', 'metadata'])
-            fire_metric.apply_async(kwargs={
-                "metric_name":
-                    'vumimessage.obd.successful.sum',
-                "metric_value": 1.0
-            })
-        else:
-            message.call_answered = True
-            message.metadata["call_answered_timestamp"] = timestamp
-
-            client = MessageClientFactory.create('voice')
-            speech_url = message.metadata['voice_speech_url']
-            try:
-                vumiresponse = client.send_voice(
-                    voice_to_addr_formatter(message.to_addr), message.content,
-                    speech_url=speech_url, session_event="close")
-            except HTTPError:
-                message.save(update_fields=['metadata'])
-                send_message.delay(message_id=str(message.id))
-                return
-
-            message.vumi_message_id = vumiresponse["message_id"]
-            message.save(update_fields=[
-                'call_answered', 'metadata', 'vumi_message_id'])
-
-    def _handle_text_ack(self, message, timestamp):
-        message.delivered = True
-        message.metadata["ack_timestamp"] = timestamp
-        message.save(update_fields=['delivered', 'metadata'])
-
     def post(self, request, *args, **kwargs):
         """
         Checks for expect event types before continuing
@@ -191,12 +151,18 @@ class EventListener(APIView):
                     event = request.data["event_type"]
                     # expecting ack, nack, delivery_report
                     if event == "ack":
+                        message.delivered = True
+                        message.metadata["ack_timestamp"] = \
+                            request.data["timestamp"]
+                        message.save()
+
+                        # OBD number of successful tries metric
                         if "voice_speech_url" in message.metadata:
-                            self._handle_voice_ack(
-                                message, request.data['timestamp'])
-                        else:
-                            self._handle_text_ack(
-                                message, request.data['timestamp'])
+                            fire_metric.apply_async(kwargs={
+                                "metric_name":
+                                    'vumimessage.obd.successful.sum',
+                                "metric_value": 1.0
+                            })
                     elif event == "delivery_report":
                         message.delivered = True
                         message.metadata["delivery_timestamp"] = \
@@ -241,7 +207,7 @@ class EventListener(APIView):
     #     serializer.save(updated_by=self.request.user)
 
 
-class JunebugEventListener(EventListener):
+class JunebugEventListener(APIView):
 
     """
     Triggers updates to outbound messages based on event data from Junebug
@@ -270,10 +236,16 @@ class JunebugEventListener(EventListener):
 
         event_type = request.data["event_type"]
         if event_type == "submitted":
+            message.delivered = True
+            message.metadata["ack_timestamp"] = request.data["timestamp"]
+            message.save(update_fields=['metadata', 'delivered'])
+
+            # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
-                self._handle_voice_ack(message, request.data["timestamp"])
-            else:
-                self._handle_text_ack(message, request.data["timestamp"])
+                fire_metric.apply_async(kwargs={
+                    "metric_name": 'vumimessage.obd.successful.sum',
+                    "metric_value": 1.0
+                })
         elif event_type == "rejected":
             message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
