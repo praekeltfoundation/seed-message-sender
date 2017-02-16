@@ -1,10 +1,10 @@
 import json
+import random
 import requests
 import time
 
 from celery.task import Task
 from celery.utils.log import get_task_logger
-from celery.exceptions import SoftTimeLimitExceeded
 
 from datetime import datetime
 from django.conf import settings
@@ -12,12 +12,12 @@ from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 
 from go_http.metrics import MetricsApiClient
-from requests.exceptions import HTTPError
+from requests import exceptions as requests_exceptions
 
 from .factory import MessageClientFactory
 
 
-from .models import Outbound
+from .models import Outbound, OutboundSendFailure
 from seed_message_sender.utils import load_callable
 from seed_papertrail.decorators import papertrail
 
@@ -25,6 +25,17 @@ logger = get_task_logger(__name__)
 
 voice_to_addr_formatter = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
 text_to_addr_formatter = load_callable(settings.TEXT_TO_ADDR_FORMATTER)
+
+
+def calculate_retry_delay(attempt, max_delay=300):
+    """Calculates an exponential backoff for retry attempts with a small
+    amount of jitter."""
+    delay = int(random.uniform(2, 4) ** attempt)
+    if delay > max_delay:
+        # After reaching the max delay, stop using expontential growth
+        # and keep the delay nearby the max.
+        delay = int(random.uniform(max_delay - 20, max_delay + 20))
+    return delay
 
 
 class DeliverHook(Task):
@@ -149,13 +160,14 @@ class ConcurrencyLimiter(object):
             cls.incr_message_count(msg_type, timeout)
 
 
-class Send_Message(Task):
+class SendMessage(Task):
 
     """
     Task to load and contruct message and send them off
     """
     name = "message_sender.tasks.send_message"
-    max_retries = None
+    default_retry_delay = 5
+    max_retries = 5
 
     class FailedEventRequest(Exception):
 
@@ -180,94 +192,138 @@ class Send_Message(Task):
         l.info("Loading Outbound Message <%s>" % message_id)
         try:
             message = Outbound.objects.get(id=message_id)
-            if message.attempts < settings.MESSAGE_SENDER_MAX_RETRIES:
-                l.info("Attempts: %s" % message.attempts)
-                # send or resend
-                try:
-                    if "voice_speech_url" in message.metadata:
+        except ObjectDoesNotExist:
+            logger.error('Missing Outbound message', exc_info=True)
+            return
 
-                        # OBD number of tries metric
-                        fire_metric.apply_async(kwargs={
-                            "metric_name": 'vumimessage.obd.tries.sum',
-                            "metric_value": 1.0
-                        })
-
-                        # Voice message
-                        ConcurrencyLimiter.manage_limit(
-                            self, "voice",
-                            int(getattr(settings,
-                                        'CONCURRENT_VOICE_LIMIT', 0)),
-                            int(getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)),
-                            int(getattr(settings, 'VOICE_MESSAGE_DELAY', 0)))
-                        sender = self.get_voice_client()
-                        # Start call. We send the voice message on the ack.
-                        vumiresponse = sender.send_voice(
-                            voice_to_addr_formatter(message.to_addr),
-                            None, session_event="new")
-                        message.call_answered = False
-                        l.info("Sent voice message to <%s>" % message.to_addr)
-                    else:
-                        # Plain content
-                        ConcurrencyLimiter.manage_limit(
-                            self, "text",
-                            int(getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0)),
-                            int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)),
-                            int(getattr(settings, 'TEXT_MESSAGE_DELAY', 0)))
-                        sender = self.get_text_client()
-                        vumiresponse = sender.send_text(
-                            text_to_addr_formatter(message.to_addr),
-                            message.content,
-                            session_event="new")
-                        l.info("Sent text message to <%s>" % (
-                            message.to_addr,))
-                    message.last_sent_time = datetime.now()
-                    message.attempts += 1
-                    message.vumi_message_id = vumiresponse["message_id"]
-                    message.save()
+        if message.attempts < settings.MESSAGE_SENDER_MAX_RETRIES:
+            if self.request.retries > 0:
+                retry_delay = calculate_retry_delay(self.request.retries)
+            else:
+                retry_delay = self.default_retry_delay
+            l.info("Attempts: %s" % message.attempts)
+            # send or resend
+            try:
+                if "voice_speech_url" in message.metadata:
+                    # OBD number of tries metric
                     fire_metric.apply_async(kwargs={
-                        "metric_name": 'vumimessage.tries.sum',
+                        "metric_name": 'vumimessage.obd.tries.sum',
                         "metric_value": 1.0
                     })
 
-                except HTTPError as e:
-                    # retry message sending if in 500 range (3 default
-                    # retries)
-                    if 500 < e.response.status_code < 599:
-                        raise self.retry(exc=e)
-                    else:
-                        # Count permanent failures.
-                        fire_metric.apply_async(kwargs={
-                            "metric_name": 'message.failures.sum',
-                            "metric_value": 1.0
-                        })
-                        raise e
-                # If we've gotten this far the message send was successful.
+                    # Voice message
+                    ConcurrencyLimiter.manage_limit(
+                        self, "voice",
+                        int(getattr(settings,
+                                    'CONCURRENT_VOICE_LIMIT', 0)),
+                        int(getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)),
+                        int(getattr(settings, 'VOICE_MESSAGE_DELAY', 0)))
+                    sender = self.get_voice_client()
+                    # Start call. We send the voice message on the ack.
+                    vumiresponse = sender.send_voice(
+                        voice_to_addr_formatter(message.to_addr),
+                        None, session_event="new")
+                    message.call_answered = False
+                    l.info("Sent voice message to <%s>" % message.to_addr)
+                else:
+                    # Plain content
+                    ConcurrencyLimiter.manage_limit(
+                        self, "text",
+                        int(getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0)),
+                        int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)),
+                        int(getattr(settings, 'TEXT_MESSAGE_DELAY', 0)))
+                    sender = self.get_text_client()
+                    vumiresponse = sender.send_text(
+                        text_to_addr_formatter(message.to_addr),
+                        message.content,
+                        session_event="new")
+                    l.info("Sent text message to <%s>" % (
+                        message.to_addr,))
+
+                message.last_sent_time = datetime.now()
+                message.attempts += 1
+                message.vumi_message_id = vumiresponse["message_id"]
+                message.save()
                 fire_metric.apply_async(kwargs={
-                    "metric_name": 'message.sent.sum',
+                    "metric_name": 'vumimessage.tries.sum',
                     "metric_value": 1.0
                 })
-                return vumiresponse
+            except requests_exceptions.ConnectionError as exc:
+                l.info('Connection Error sending message')
+                fire_metric.delay(
+                    'sender.send_message.connection_error.sum', 1)
+                self.retry(exc=exc, countdown=retry_delay)
+            except requests_exceptions.Timeout as exc:
+                l.info('Sending message failed due to timeout')
+                fire_metric.delay('sender.send_message.timeout.sum', 1)
+                self.retry(exc=exc, countdown=retry_delay)
+            except requests_exceptions.HTTPError as exc:
+                # retry message sending if in 500 range (3 default
+                # retries)
+                l.info('Sending message failed due to status: %s' %
+                       exc.response.status_code)
+                metric_name = ('sender.send_message.http_error.%s.sum' %
+                               exc.response.status_code)
+                fire_metric.delay(metric_name, 1)
+                self.retry(exc=exc, countdown=retry_delay)
 
-            else:
-                l.info("Message <%s> at max retries." % str(message_id))
-                fire_metric.apply_async(kwargs={
-                    "metric_name": 'vumimessage.maxretries.sum',
-                    "metric_value": 1.0
-                })
-                # Count failures on exhausted tries.
-                fire_metric.apply_async(kwargs={
-                    "metric_name": 'message.failures.sum',
-                    "metric_value": 1.0
-                })
+            # If we've gotten this far the message send was successful.
+            fire_metric.apply_async(kwargs={
+                "metric_name": 'message.sent.sum',
+                "metric_value": 1.0
+            })
+            return vumiresponse
 
-        except ObjectDoesNotExist:
-            logger.error('Missing Outbound message', exc_info=True)
+        else:
+            # This is for retries based on async nacks from the transport.
+            l.info("Message <%s> at max retries." % str(message_id))
+            fire_metric.apply_async(kwargs={
+                "metric_name": 'vumimessage.maxretries.sum',
+                "metric_value": 1.0
+            })
+            # Count failures on exhausted tries.
+            fire_metric.apply_async(kwargs={
+                "metric_name": 'message.failures.sum',
+                "metric_value": 1.0
+            })
 
-        except SoftTimeLimitExceeded:
-            logger.error(
-                'Soft time limit exceed processing message send search \
-                 via Celery.',
-                exc_info=True)
+    def on_failure(self, exc, task_id, args, kwargs, einfo):
+        if self.request.retries == self.max_retries:
+            OutboundSendFailure.objects.create(
+                subscription_id=args[0],
+                initiated_at=self.request.eta,
+                reason=einfo.exception.message,
+                task_id=task_id
+            )
+            # Count permanent failures.
+            fire_metric.apply_async(kwargs={
+                "metric_name": 'message.failures.sum',
+                "metric_value": 1.0
+            })
+        super(SendMessage, self).on_failure(exc, task_id, args,
+                                            kwargs, einfo)
 
 
-send_message = Send_Message()
+send_message = SendMessage()
+
+
+class RequeueFailedTasks(Task):
+
+    """
+    Task to requeue failed Outbounds.
+    """
+    name = "message_sender.tasks.requeue_failed_tasks"
+
+    def run(self, **kwargs):
+        l = self.get_logger(**kwargs)
+        failures = OutboundSendFailure.objects
+        l.info("Attempting to requeue <%s> failed Outbound sends" %
+               failures.all().count())
+        for failure in failures.iterator():
+            outbound_id = str(failure.outbound_id)
+            # Cleanup the failure before requeueing it.
+            failure.delete()
+            send_message.delay(outbound_id)
+
+
+requeue_failed_tasks = RequeueFailedTasks()

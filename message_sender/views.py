@@ -1,20 +1,21 @@
 from django.core.exceptions import ObjectDoesNotExist
 from django.conf import settings
+from django.contrib.auth.models import User
 from rest_hooks.models import Hook
-from rest_framework import viewsets, status, filters
+from rest_framework import viewsets, status, filters, mixins
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 from requests.exceptions import HTTPError
 
-from .models import Outbound, Inbound
-from django.contrib.auth.models import User
+from .models import Outbound, Inbound, OutboundSendFailure
 from .factory import MessageClientFactory
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
-                          CreateUserSerializer)
-from .tasks import send_message, fire_metric, ConcurrencyLimiter
+                          CreateUserSerializer, OutboundSendFailureSerializer)
+from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
+                    requeue_failed_tasks)
 from seed_message_sender.utils import get_available_metrics, load_callable
 import django_filters
 
@@ -344,4 +345,18 @@ class HealthcheckView(APIView):
                 }
             }
         }
+        return Response(resp, status=status)
+
+
+class FailedTaskViewSet(mixins.ListModelMixin,
+                        mixins.RetrieveModelMixin,
+                        viewsets.GenericViewSet):
+    permission_classes = (IsAuthenticated,)
+    queryset = OutboundSendFailure.objects.all()
+    serializer_class = OutboundSendFailureSerializer
+
+    def create(self, request):
+        status = 201
+        resp = {'requeued_failed_tasks': True}
+        requeue_failed_tasks.delay()
         return Response(resp, status=status)

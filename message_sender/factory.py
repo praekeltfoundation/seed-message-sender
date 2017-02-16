@@ -61,7 +61,8 @@ class JunebugApiSender(HttpApiSender):
 
         data = json.dumps(data)
         r = self.session.post(self.api_url, auth=self.auth,
-                              data=data, headers=headers)
+                              data=data, headers=headers,
+                              timeout=settings.DEFAULT_REQUEST_TIMEOUT)
         r.raise_for_status()
         res = r.json()
         return res.get('result', {})
