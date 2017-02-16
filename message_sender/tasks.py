@@ -289,8 +289,12 @@ class SendMessage(Task):
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
         if self.request.retries == self.max_retries:
+            if 'message_id' in kwargs:
+                message_id = kwargs['message_id']
+            else:
+                message_id = args[0]
             OutboundSendFailure.objects.create(
-                subscription_id=args[0],
+                outbound_id=message_id,
                 initiated_at=self.request.eta,
                 reason=einfo.exception.message,
                 task_id=task_id
