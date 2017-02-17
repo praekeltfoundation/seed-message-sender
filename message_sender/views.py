@@ -1,3 +1,5 @@
+import sys
+import json
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from rest_hooks.models import Hook
@@ -97,7 +99,7 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
-        print request.data
+        sys.stdout.write(json.dumps(request.data))
         close_event = False
         if "channel_data" in request.data:  # Handle message from Junebug
             if "session_event" in request.data["channel_data"]:
