@@ -146,16 +146,32 @@ class AuthenticatedAPITestCase(APITestCase):
             session=session)
 
     def _replace_post_save_hooks_outbound(self):
-        post_save.disconnect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.disconnect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
 
     def _replace_post_save_hooks_inbound(self):
-        post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
+        post_save.disconnect(
+            psh_fire_metrics_if_new,
+            sender=Inbound,
+            dispatch_uid='psh_fire_metrics_if_new'
+        )
 
     def _restore_post_save_hooks_outbound(self):
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
 
     def _restore_post_save_hooks_inbound(self):
-        post_save.connect(psh_fire_metrics_if_new, sender=Inbound)
+        post_save.connect(
+            psh_fire_metrics_if_new,
+            sender=Inbound,
+            dispatch_uid='psh_fire_metrics_if_new'
+        )
 
     def check_request(
             self, request, method, params=None, data=None, headers=None):
@@ -478,7 +494,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_nack_first(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
         nack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -520,7 +540,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         failed = Outbound.objects.create(**outbound_message)
         failed.last_sent_time = failed.created_at
         failed.save()
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
         nack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -613,7 +637,11 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         '''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
         nack = {
             "event_type": "rejected",
             "message_id": d.vumi_message_id,
@@ -788,7 +816,11 @@ class TestMetrics(AuthenticatedAPITestCase):
         # Setup
         adapter = self._mount_session()
         # reconnect metric post_save hook
-        post_save.connect(psh_fire_metrics_if_new, sender=Inbound)
+        post_save.connect(
+            psh_fire_metrics_if_new,
+            sender=Inbound,
+            dispatch_uid='psh_fire_metrics_if_new'
+        )
         # make outbound
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
