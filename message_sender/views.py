@@ -99,7 +99,7 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
-        sys.stdout.write(json.dumps(request.data))
+        sys.stderr.write(json.dumps(request.data))
         close_event = False
         if "channel_data" in request.data:  # Handle message from Junebug
             if "session_event" in request.data["channel_data"]:
