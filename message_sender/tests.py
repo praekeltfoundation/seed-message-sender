@@ -119,19 +119,6 @@ class AuthenticatedAPITestCase(APITestCase):
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return str(outbound.id)
 
-    def make_voice_outbound(self):
-        self._replace_post_save_hooks_outbound()  # don't let fixtures fire
-        outbound_message = {
-            "to_addr": "+27123",
-            "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
-            "content": "Simple outbound message",
-            "delivered": False,
-            "metadata": {"voice_speech_url": "http://test.com"}
-        }
-        outbound = Outbound.objects.create(**outbound_message)
-        self._restore_post_save_hooks_outbound()  # let tests fire tasks
-        return outbound
-
     def make_inbound(self, in_reply_to):
         inbound_message = {
             "message_id": str(uuid.uuid4()),
@@ -159,16 +146,32 @@ class AuthenticatedAPITestCase(APITestCase):
             session=session)
 
     def _replace_post_save_hooks_outbound(self):
-        post_save.disconnect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.disconnect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
 
     def _replace_post_save_hooks_inbound(self):
-        post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
+        post_save.disconnect(
+            psh_fire_metrics_if_new,
+            sender=Inbound,
+            dispatch_uid='psh_fire_metrics_if_new'
+        )
 
     def _restore_post_save_hooks_outbound(self):
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
 
     def _restore_post_save_hooks_inbound(self):
-        post_save.connect(psh_fire_metrics_if_new, sender=Inbound)
+        post_save.connect(
+            psh_fire_metrics_if_new,
+            sender=Inbound,
+            dispatch_uid='psh_fire_metrics_if_new'
+        )
 
     def check_request(
             self, request, method, params=None, data=None, headers=None):
@@ -491,7 +494,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_event_nack_first(self):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
         nack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -533,7 +540,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         failed = Outbound.objects.create(**outbound_message)
         failed.last_sent_time = failed.created_at
         failed.save()
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
         nack = {
             "message_type": "event",
             "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
@@ -626,7 +637,11 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         '''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
-        post_save.connect(psh_fire_msg_action_if_new, sender=Outbound)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
         nack = {
             "event_type": "rejected",
             "message_id": d.vumi_message_id,
@@ -801,7 +816,11 @@ class TestMetrics(AuthenticatedAPITestCase):
         # Setup
         adapter = self._mount_session()
         # reconnect metric post_save hook
-        post_save.connect(psh_fire_metrics_if_new, sender=Inbound)
+        post_save.connect(
+            psh_fire_metrics_if_new,
+            sender=Inbound,
+            dispatch_uid='psh_fire_metrics_if_new'
+        )
         # make outbound
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1104,11 +1123,13 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         send_message(outbound2.pk)
 
         self.assertTrue(self.check_logs(
-            "Message: None sent to '%s' [session_event: new]" % (
-                outbound1.to_addr)))
+            "Message: '%s' sent to '%s' [session_event: new] [voice: "
+            "{'speech_url': 'http://test.com'}]" %
+            (outbound1.content, outbound1.to_addr)))
         self.assertTrue(self.check_logs(
-            "Message: None sent to '%s' [session_event: new]" % (
-                outbound2.to_addr)))
+            "Message: '%s' sent to '%s' [session_event: new] [voice: "
+            "{'speech_url': 'http://test.com'}]" %
+            (outbound2.content, outbound2.to_addr)))
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()
@@ -1147,11 +1168,13 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_retry.assert_called_with(countdown=10)
 
         self.assertTrue(self.check_logs(
-            "Message: None sent to '%s' [session_event: new]" % (
-                outbound1.to_addr)))
+            "Message: '%s' sent to '%s' [session_event: new] [voice: "
+            "{'speech_url': 'http://test.com'}]" %
+            (outbound1.content, outbound1.to_addr)))
         self.assertFalse(self.check_logs(
-            "Message: None sent to '%s' [session_event: new]" % (
-                outbound2.to_addr)))
+            "Message: '%s' sent to '%s' [session_event: new] "
+            "[voice: {'speech_url': 'http://test.com'}]" %
+            (outbound2.content, outbound2.to_addr)))
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()
