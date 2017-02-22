@@ -1,3 +1,5 @@
+import sys
+import json
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
@@ -101,6 +103,7 @@ class InboundViewSet(viewsets.ModelViewSet):
         if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
+        sys.stderr.write(json.dumps(request.data))
         close_event = False
         if "channel_data" in request.data:  # Handle message from Junebug
             if request.data["channel_data"].get("session_event", None) == \
