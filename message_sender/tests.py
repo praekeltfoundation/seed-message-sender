@@ -404,6 +404,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
 
+    @override_settings(CONCURRENT_VOICE_LIMIT=1)
     def test_create_inbound_event_message(self):
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -728,12 +729,9 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "channel_id": "test_voice",
             "channel_data": {"session_event": "close"}
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with("text", out.created_at)
+        response = self.client.post('/api/v1/inbound/',
+                                    json.dumps(post_inbound),
+                                    content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Inbound.objects.last()
