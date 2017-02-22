@@ -103,11 +103,11 @@ class InboundViewSet(viewsets.ModelViewSet):
 
         close_event = False
         if "channel_data" in request.data:  # Handle message from Junebug
-            if "session_event" in request.data["channel_data"]:
-                if request.data["channel_data"]["session_event"] == "close":
-                    close_event = True
-                    reply_field = "reply_to"
-                    from_field = "from"
+            if request.data["channel_data"].get("session_event", None) == \
+                    "close":
+                close_event = True
+                reply_field = "reply_to"
+                from_field = "from"
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
