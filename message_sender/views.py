@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.contrib.auth.models import User
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, filters, mixins
@@ -115,10 +115,14 @@ class InboundViewSet(viewsets.ModelViewSet):
                 msisdn = request.data["from_addr"]
 
         if close_event:
-            try:
-                message = Outbound.objects.get(
-                    vumi_message_id=related_outbound)
-            except ObjectDoesNotExist:
+            if related_outbound is not None:
+                try:
+                    message = Outbound.objects.get(
+                        vumi_message_id=related_outbound)
+                except (ObjectDoesNotExist, MultipleObjectsReturned):
+                    message = Outbound.objects.filter(
+                        to_addr=msisdn).order_by('-created_at').last()
+            else:
                 message = Outbound.objects.filter(
                     to_addr=msisdn).order_by('-created_at').last()
             if message:
