@@ -102,12 +102,12 @@ class InboundViewSet(viewsets.ModelViewSet):
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
         close_event = False
-        if "channel_data" in request.data:  # Handle message from Junebug
-            if request.data["channel_data"].get("session_event", None) == \
-                    "close":
-                close_event = True
-                related_outbound = request.data["reply_to"]
-                msisdn = request.data["from"]
+        # Handle message from Junebug
+        if request.data.get("channel_data", {}).get("session_event", None) == \
+                "close":
+            close_event = True
+            related_outbound = request.data["reply_to"]
+            msisdn = request.data["from"]
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
