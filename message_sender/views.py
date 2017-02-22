@@ -1,5 +1,4 @@
-import sys
-import json
+from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist
 from django.contrib.auth.models import User
 from rest_hooks.models import Hook
@@ -99,14 +98,16 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
-        sys.stderr.write(json.dumps(request.data))
+        if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
+            return super(InboundViewSet, self).create(request, *args, **kwargs)
+
         close_event = False
         if "channel_data" in request.data:  # Handle message from Junebug
-            if "session_event" in request.data["channel_data"]:
-                if request.data["channel_data"]["session_event"] == "close":
-                    close_event = True
-                    reply_field = "reply_to"
-                    from_field = "from"
+            if request.data["channel_data"].get("session_event", None) == \
+                    "close":
+                close_event = True
+                reply_field = "reply_to"
+                from_field = "from"
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
