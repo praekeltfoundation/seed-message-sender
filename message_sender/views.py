@@ -1,5 +1,5 @@
 from django.conf import settings
-from django.core.exceptions import ObjectDoesNotExist
+from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.contrib.auth.models import User
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, filters, mixins
@@ -102,26 +102,29 @@ class InboundViewSet(viewsets.ModelViewSet):
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
         close_event = False
-        if "channel_data" in request.data:  # Handle message from Junebug
-            if request.data["channel_data"].get("session_event", None) == \
-                    "close":
-                close_event = True
-                reply_field = "reply_to"
-                from_field = "from"
+        # Handle message from Junebug
+        if request.data.get("channel_data", {}).get("session_event", None) == \
+                "close":
+            close_event = True
+            related_outbound = request.data["reply_to"]
+            msisdn = request.data["from"]
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
-                reply_field = "in_reply_to"
-                from_field = "from_addr"
+                related_outbound = request.data["in_reply_to"]
+                msisdn = request.data["from_addr"]
 
         if close_event:
-            try:
-                message = Outbound.objects.get(
-                    vumi_message_id=request.data[reply_field])
-            except ObjectDoesNotExist:
+            if related_outbound is not None:
+                try:
+                    message = Outbound.objects.get(
+                        vumi_message_id=related_outbound)
+                except (ObjectDoesNotExist, MultipleObjectsReturned):
+                    message = Outbound.objects.filter(
+                        to_addr=msisdn).order_by('-created_at').last()
+            else:
                 message = Outbound.objects.filter(
-                    to_addr=request.data[from_field]).order_by(
-                    '-created_at').last()
+                    to_addr=msisdn).order_by('-created_at').last()
             if message:
                 outbound_type = "voice" if "voice_speech_url" in \
                     message.metadata else "text"
