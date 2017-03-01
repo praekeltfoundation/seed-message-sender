@@ -338,7 +338,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 0)
 
-    def test_create_inbound_data(self):
+    def test_create_inbound_data_no_limit(self):
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
         message_id = str(uuid.uuid4())
@@ -369,6 +369,78 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
         self.assertEqual(d.helper_metadata, {})
+
+    @override_settings(CONCURRENT_VOICE_LIMIT=1)
+    def test_create_inbound_data_with_concurrency_limiter(self):
+        existing_outbound = self.make_outbound()
+        out = Outbound.objects.get(pk=existing_outbound)
+        out.last_sent_time = out.created_at
+        out.save()
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "message_id": message_id,
+            "in_reply_to": out.vumi_message_id,
+            "to_addr": "+27123",
+            "from_addr": "020",
+            "content": "Call delivered",
+            "transport_name": "test_voice",
+            "transport_type": "voice",
+            "helper_metadata": {},
+            "session_event": "close"
+        }
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/inbound/',
+                                        json.dumps(post_inbound),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", out.created_at)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.from_addr, "020")
+        self.assertEqual(d.content, "Call delivered")
+        self.assertEqual(d.transport_name, "test_voice")
+        self.assertEqual(d.transport_type, "voice")
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
+
+    @override_settings(CONCURRENT_VOICE_LIMIT=1)
+    def test_create_inbound_without_vumi_id_with_concurrency_limiter(self):
+        existing_outbound = self.make_outbound()
+        out = Outbound.objects.get(pk=existing_outbound)
+        out.last_sent_time = out.created_at
+        out.save()
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "message_id": message_id,
+            "in_reply_to": None,
+            "to_addr": "020",
+            "from_addr": "+27123",
+            "content": "Call delivered",
+            "transport_name": "test_voice",
+            "transport_type": "voice",
+            "helper_metadata": {},
+            "session_event": "close"
+        }
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/inbound/',
+                                        json.dumps(post_inbound),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with("text", out.created_at)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.to_addr, "020")
+        self.assertEqual(d.from_addr, "+27123")
+        self.assertEqual(d.content, "Call delivered")
+        self.assertEqual(d.transport_name, "test_voice")
+        self.assertEqual(d.transport_type, "voice")
+        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
     def test_update_inbound_data(self):
         existing_outbound = self.make_outbound()
