@@ -15,6 +15,7 @@ from celery.exceptions import Retry
 from datetime import datetime
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
+from django.core.urlresolvers import reverse
 from django.db.models.signals import post_save
 from django.conf import settings
 from django.utils import timezone
@@ -1367,3 +1368,46 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["requeued_failed_tasks"], True)
         self.assertEqual(OutboundSendFailure.objects.all().count(), 0)
+
+
+class TestOutboundAdmin(AuthenticatedAPITestCase):
+    def setUp(self):
+        super(TestOutboundAdmin, self).setUp()
+        self.adminclient.login(username='testsu',
+                               password='dummypwd')
+
+    @patch("message_sender.tasks.send_message.apply_async")
+    def test_resend_outbound_only_selected(self, mock_send_message):
+        outbound_id = self.make_outbound()
+        self.make_outbound()
+        data = {'action': 'resend_outbound',
+                '_selected_action': [outbound_id]}
+
+        response = self.adminclient.post(
+            reverse('admin:message_sender_outbound_changelist'), data,
+            follow=True)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "Attempting to resend 1 message.")
+
+        mock_send_message.assert_called_once_with(kwargs={
+            "message_id": outbound_id})
+
+    @patch("message_sender.tasks.send_message.apply_async")
+    def test_resend_outbound_multiple(self, mock_send_message):
+        outbound_id_1 = self.make_outbound()
+        outbound_id_2 = self.make_outbound()
+        data = {'action': 'resend_outbound',
+                '_selected_action': [outbound_id_1, outbound_id_2]}
+
+        response = self.adminclient.post(
+            reverse('admin:message_sender_outbound_changelist'), data,
+            follow=True)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertContains(response, "Attempting to resend 2 messages.")
+
+        mock_send_message.assert_any_call(kwargs={
+            "message_id": outbound_id_1})
+        mock_send_message.assert_any_call(kwargs={
+            "message_id": outbound_id_2})
