@@ -221,6 +221,7 @@ METRICS_REALTIME = [
     'vumimessage.obd.tries.sum',
     'vumimessage.obd.successful.sum',
     'vumimessage.obd.unsuccessful.sum',
+    'vumimessage.obd.registration.length',
     'message.failures.sum',
     'message.sent.sum',
     'sender.send_message.connection_error.sum',

@@ -835,6 +835,7 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
                 'vumimessage.obd.tries.sum',
                 'vumimessage.obd.successful.sum',
                 'vumimessage.obd.unsuccessful.sum',
+                'vumimessage.obd.registration.length',
                 'message.failures.sum',
                 'message.sent.sum',
                 'sender.send_message.connection_error.sum',
@@ -906,6 +907,32 @@ class TestMetrics(AuthenticatedAPITestCase):
         )
         # remove post_save hooks to prevent teardown errors
         post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
+
+    @responses.activate
+    def test_inbound_duration_metric(self):
+        self.session = None
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "message_id": message_id,
+            "to_addr": "+27123",
+            "from_addr": "020",
+            "transport_name": "test_voice",
+            "helper_metadata": {"voice": {"duration": 123432}}
+        }
+
+        responses.add(
+            responses.POST, "http://metrics-url/metrics/",
+            json={"foo": "bar"}, status=200,
+            content_type='application/json')
+
+        response = self.client.post('/api/v1/inbound/',
+                                    json.dumps(post_inbound),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertEqual(json.loads(responses.calls[0].request.body), {
+            "vumimessage.obd.registration.length": 123432.0
+        })
 
 
 class TestHealthcheckAPI(AuthenticatedAPITestCase):

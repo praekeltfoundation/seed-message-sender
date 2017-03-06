@@ -98,6 +98,14 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
+        if ("duration" in
+                request.data.get("helper_metadata", {}).get("voice", {})):
+            fire_metric.apply_async(kwargs={
+                "metric_name": "vumimessage.obd.registration.length",
+                "metric_value":
+                    request.data["helper_metadata"]["voice"]["duration"]
+            })
+
         if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
