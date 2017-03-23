@@ -48,7 +48,8 @@ class Inbound(models.Model):
     message_id = models.CharField(null=False, blank=False, max_length=36)
     in_reply_to = models.CharField(null=True, blank=True, max_length=36)
     to_addr = models.CharField(null=False, blank=False, max_length=255)
-    from_addr = models.CharField(null=False, blank=False, max_length=255)
+    from_addr = models.CharField(
+        null=False, blank=False, max_length=255, db_index=True)
     content = models.CharField(null=True, blank=True, max_length=1000)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
     transport_type = models.CharField(null=True, blank=True, max_length=200)
