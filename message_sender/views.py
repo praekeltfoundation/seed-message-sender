@@ -57,30 +57,6 @@ class HookViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
-class OutboundFilter(filters.FilterSet):
-    before = django_filters.IsoDateTimeFilter(name="created_at",
-                                              lookup_type='lte')
-    after = django_filters.IsoDateTimeFilter(name="created_at",
-                                             lookup_type='gte')
-
-    class Meta:
-        model = Outbound
-        fields = ('version', 'to_addr', 'vumi_message_id',
-                  'delivered', 'attempts', 'metadata',
-                  'created_at', 'updated_at',
-                  'before', 'after')
-
-
-class OutboundViewSet(viewsets.ModelViewSet):
-    """
-    API endpoint that allows Outbound models to be viewed or edited.
-    """
-    permission_classes = (IsAuthenticated,)
-    queryset = Outbound.objects.all()
-    serializer_class = OutboundSerializer
-    filter_class = OutboundFilter
-
-
 class MultipleField(forms.Field):
     widget = forms.MultipleHiddenInput
 
@@ -96,6 +72,31 @@ class MultipleFilter(django_filters.Filter):
     def __init__(self, *args, **kwargs):
         kwargs.setdefault('lookup_type', 'in')
         super(MultipleFilter, self).__init__(*args, **kwargs)
+
+
+class OutboundFilter(filters.FilterSet):
+    before = django_filters.IsoDateTimeFilter(name="created_at",
+                                              lookup_type='lte')
+    after = django_filters.IsoDateTimeFilter(name="created_at",
+                                             lookup_type='gte')
+    to_addr = MultipleFilter(name='to_addr')
+
+    class Meta:
+        model = Outbound
+        fields = ('version', 'vumi_message_id',
+                  'delivered', 'attempts', 'metadata',
+                  'created_at', 'updated_at',
+                  'before', 'after')
+
+
+class OutboundViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint that allows Outbound models to be viewed or edited.
+    """
+    permission_classes = (IsAuthenticated,)
+    queryset = Outbound.objects.all()
+    serializer_class = OutboundSerializer
+    filter_class = OutboundFilter
 
 
 class InboundFilter(filters.FilterSet):

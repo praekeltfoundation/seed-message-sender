@@ -106,10 +106,10 @@ class APITestCase(TestCase):
 
 class AuthenticatedAPITestCase(APITestCase):
 
-    def make_outbound(self):
+    def make_outbound(self, to_addr='+27123'):
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
-            "to_addr": "+27123",
+            "to_addr": to_addr,
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
             "content": "Simple outbound message",
             "delivered": False,
@@ -338,6 +338,39 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         })))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["count"], 0)
+
+    def test_to_addr_filter_outbound(self):
+        """
+        When filtering on to_addr, only the outbound with the specified to
+        address should be returned.
+        """
+        self.make_outbound(to_addr='+1234')
+        self.make_outbound(to_addr='+4321')
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode({
+            'to_addr': '+1234'}))
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_to_addr_filter_outbound_multiple(self):
+        """
+        When filtering on to_addr, if multiple values are presented for the
+        to address, we should return all outbound messages that match one of
+        the to addresses.
+        """
+        self.make_outbound(to_addr='+1234')
+        self.make_outbound(to_addr='+4321')
+        self.make_outbound(to_addr='+1111')
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
+            ('to_addr', '+1234'),
+            ('to_addr', '+4321'))))
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
 
     def test_from_addr_filter_inbound(self):
         """
