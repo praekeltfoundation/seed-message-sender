@@ -87,6 +87,7 @@ class OutboundFilter(filters.FilterSet):
                   'delivered', 'attempts', 'metadata',
                   'created_at', 'updated_at',
                   'before', 'after')
+        ordering_fields = ('created_at',)
 
 
 class OutboundViewSet(viewsets.ModelViewSet):
@@ -107,6 +108,7 @@ class InboundFilter(filters.FilterSet):
         fields = (
             'message_id', 'in_reply_to', 'to_addr', 'content',
             'transport_name', 'transport_type', 'created_at', 'updated_at',)
+        ordering_fields = ('created_at',)
 
 
 class InboundViewSet(viewsets.ModelViewSet):
