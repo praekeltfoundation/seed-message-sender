@@ -55,7 +55,7 @@ class Inbound(models.Model):
     transport_type = models.CharField(null=True, blank=True, max_length=200)
     helper_metadata = JSONField()
     updated_at = models.DateTimeField(auto_now=True)
-    created_at = models.DateTimeField(auto_now_add=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     created_by = models.ForeignKey(User, related_name='inbounds_created',
                                    null=True)
     updated_by = models.ForeignKey(User, related_name='inbounds_updated',

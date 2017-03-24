@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.contrib.auth.models import User
+from django import forms
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, filters, mixins
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -56,18 +57,37 @@ class HookViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+class MultipleField(forms.Field):
+    widget = forms.MultipleHiddenInput
+
+    def clean(self, value):
+        if value is None:
+            return None
+        return [super(MultipleField, self).clean(v) for v in value]
+
+
+class MultipleFilter(django_filters.Filter):
+    field_class = MultipleField
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('lookup_type', 'in')
+        super(MultipleFilter, self).__init__(*args, **kwargs)
+
+
 class OutboundFilter(filters.FilterSet):
     before = django_filters.IsoDateTimeFilter(name="created_at",
                                               lookup_type='lte')
     after = django_filters.IsoDateTimeFilter(name="created_at",
                                              lookup_type='gte')
+    to_addr = MultipleFilter(name='to_addr')
 
     class Meta:
         model = Outbound
-        fields = ('version', 'to_addr', 'vumi_message_id',
+        fields = ('version', 'vumi_message_id',
                   'delivered', 'attempts', 'metadata',
                   'created_at', 'updated_at',
                   'before', 'after')
+        ordering_fields = ('created_at',)
 
 
 class OutboundViewSet(viewsets.ModelViewSet):
@@ -80,6 +100,17 @@ class OutboundViewSet(viewsets.ModelViewSet):
     filter_class = OutboundFilter
 
 
+class InboundFilter(filters.FilterSet):
+    from_addr = MultipleFilter(name='from_addr')
+
+    class Meta:
+        model = Inbound
+        fields = (
+            'message_id', 'in_reply_to', 'to_addr', 'content',
+            'transport_name', 'transport_type', 'created_at', 'updated_at',)
+        ordering_fields = ('created_at',)
+
+
 class InboundViewSet(viewsets.ModelViewSet):
 
     """
@@ -87,9 +118,7 @@ class InboundViewSet(viewsets.ModelViewSet):
     """
     permission_classes = (IsAuthenticated,)
     queryset = Inbound.objects.all()
-    filter_fields = ('message_id', 'in_reply_to', 'to_addr', 'from_addr',
-                     'content', 'transport_name', 'transport_type',
-                     'helper_metadata', 'created_at', 'updated_at',)
+    filter_class = InboundFilter
 
     def get_serializer_class(self):
         if self.action == 'create':
