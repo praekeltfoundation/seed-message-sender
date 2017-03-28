@@ -16,6 +16,7 @@ from .serializers import (OutboundSerializer, InboundSerializer,
 from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
                     requeue_failed_tasks)
 from seed_message_sender.utils import get_available_metrics
+from seed_papertrail.decorators import papertrail
 import django_filters
 
 # Uncomment line below if scheduled metrics are added
@@ -98,6 +99,10 @@ class OutboundViewSet(viewsets.ModelViewSet):
     queryset = Outbound.objects.all()
     serializer_class = OutboundSerializer
     filter_class = OutboundFilter
+
+    @papertrail.debug('api_outbound_create', sample=0.1)
+    def create(self, *args, **kwargs):
+        return super(OutboundViewSet, self).create(*args, **kwargs)
 
 
 class InboundFilter(filters.FilterSet):
