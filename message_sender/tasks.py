@@ -3,6 +3,7 @@ import random
 import requests
 import time
 
+from celery.exceptions import MaxRetriesExceededError
 from celery.task import Task
 from celery.utils.log import get_task_logger
 
@@ -168,6 +169,8 @@ class SendMessage(Task):
     name = "message_sender.tasks.send_message"
     default_retry_delay = 5
     max_retries = None
+    max_error_retries = 5
+    error_retry_count = 0
 
     class FailedEventRequest(Exception):
 
@@ -189,6 +192,9 @@ class SendMessage(Task):
         """
         l = self.get_logger(**kwargs)
 
+        if self.error_retry_count >= self.max_error_retries:
+            raise MaxRetriesExceededError()
+
         l.info("Loading Outbound Message <%s>" % message_id)
         try:
             message = Outbound.objects.get(id=message_id)
@@ -197,8 +203,8 @@ class SendMessage(Task):
             return
 
         if message.attempts < settings.MESSAGE_SENDER_MAX_RETRIES:
-            if self.request.retries > 0:
-                retry_delay = calculate_retry_delay(self.request.retries)
+            if self.error_retry_count > 0:
+                retry_delay = calculate_retry_delay(self.error_retry_count)
             else:
                 retry_delay = self.default_retry_delay
             l.info("Attempts: %s" % message.attempts)
@@ -253,10 +259,12 @@ class SendMessage(Task):
                 l.info('Connection Error sending message')
                 fire_metric.delay(
                     'sender.send_message.connection_error.sum', 1)
+                self.error_retry_count += 1
                 self.retry(exc=exc, countdown=retry_delay)
             except requests_exceptions.Timeout as exc:
                 l.info('Sending message failed due to timeout')
                 fire_metric.delay('sender.send_message.timeout.sum', 1)
+                self.error_retry_count += 1
                 self.retry(exc=exc, countdown=retry_delay)
             except requests_exceptions.HTTPError as exc:
                 # retry message sending if in 500 range (3 default
@@ -266,6 +274,7 @@ class SendMessage(Task):
                 metric_name = ('sender.send_message.http_error.%s.sum' %
                                exc.response.status_code)
                 fire_metric.delay(metric_name, 1)
+                self.error_retry_count += 1
                 self.retry(exc=exc, countdown=retry_delay)
 
             # If we've gotten this far the message send was successful.
@@ -289,7 +298,7 @@ class SendMessage(Task):
             })
 
     def on_failure(self, exc, task_id, args, kwargs, einfo):
-        if self.request.retries == self.max_retries:
+        if self.error_retry_count == self.max_error_retries:
             if 'message_id' in kwargs:
                 message_id = kwargs['message_id']
             else:
