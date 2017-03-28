@@ -167,7 +167,7 @@ class SendMessage(Task):
     """
     name = "message_sender.tasks.send_message"
     default_retry_delay = 5
-    max_retries = 5
+    max_retries = None
 
     class FailedEventRequest(Exception):
 
