@@ -88,7 +88,6 @@ class OutboundFilter(filters.FilterSet):
                   'delivered', 'attempts', 'metadata',
                   'created_at', 'updated_at',
                   'before', 'after')
-        ordering_fields = ('created_at',)
 
 
 class OutboundViewSet(viewsets.ModelViewSet):
@@ -99,6 +98,8 @@ class OutboundViewSet(viewsets.ModelViewSet):
     queryset = Outbound.objects.all()
     serializer_class = OutboundSerializer
     filter_class = OutboundFilter
+    filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
+    ordering_fields = ('created_at',)
 
     @papertrail.debug('api_outbound_create', sample=0.1)
     def create(self, *args, **kwargs):
@@ -113,7 +114,6 @@ class InboundFilter(filters.FilterSet):
         fields = (
             'message_id', 'in_reply_to', 'to_addr', 'content',
             'transport_name', 'transport_type', 'created_at', 'updated_at',)
-        ordering_fields = ('created_at',)
 
 
 class InboundViewSet(viewsets.ModelViewSet):
@@ -124,6 +124,8 @@ class InboundViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
     queryset = Inbound.objects.all()
     filter_class = InboundFilter
+    filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
+    ordering_fields = ('created_at',)
 
     def get_serializer_class(self):
         if self.action == 'create':
