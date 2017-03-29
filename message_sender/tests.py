@@ -372,6 +372,30 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
 
+    def test_created_at_ordering_filter_outbound(self):
+        """
+        We should be able to order the results of the Outbound list endpoint
+        by the created_at timestamp.
+        """
+        out1 = self.make_outbound()
+        out2 = self.make_outbound()
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode({
+            'ordering': 'created_at'}))
+        )
+        self.assertEqual(
+            [o['id'] for o in response.data["results"]],
+            [out1, out2]
+        )
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode({
+            'ordering': '-created_at'}))
+        )
+        self.assertEqual(
+            [o['id'] for o in response.data["results"]],
+            [out2, out1]
+        )
+
     def test_from_addr_filter_inbound(self):
         """
         When filtering on from_addr, only the inbounds with the specified from
@@ -404,6 +428,30 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
+
+    def test_created_at_ordering_filter_inbound(self):
+        """
+        We should be able to order the results of the Inbound list endpoint
+        by the created_at timestamp.
+        """
+        in1 = self.make_inbound('1234')
+        in2 = self.make_inbound('1234')
+
+        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
+            'ordering': 'created_at'}))
+        )
+        self.assertEqual(
+            [i['id'] for i in response.data["results"]],
+            [in1, in2]
+        )
+
+        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
+            'ordering': '-created_at'}))
+        )
+        self.assertEqual(
+            [i['id'] for i in response.data["results"]],
+            [in2, in1]
+        )
 
     def test_create_inbound_data_no_limit(self):
         existing_outbound = self.make_outbound()
