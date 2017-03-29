@@ -262,12 +262,14 @@ class SendMessage(Task):
                 fire_metric.delay(
                     'sender.send_message.connection_error.sum', 1)
                 kwargs['error_retry_count'] = error_retry_count + 1
-                self.retry(exc=exc, countdown=retry_delay, args=(message_id,), kwargs=kwargs)
+                self.retry(exc=exc, countdown=retry_delay, args=(message_id,),
+                           kwargs=kwargs)
             except requests_exceptions.Timeout as exc:
                 l.info('Sending message failed due to timeout')
                 fire_metric.delay('sender.send_message.timeout.sum', 1)
                 kwargs['error_retry_count'] = error_retry_count + 1
-                self.retry(exc=exc, countdown=retry_delay, args=(message_id,), kwargs=kwargs)
+                self.retry(exc=exc, countdown=retry_delay, args=(message_id,),
+                           kwargs=kwargs)
             except requests_exceptions.HTTPError as exc:
                 # retry message sending if in 500 range (3 default
                 # retries)
@@ -277,7 +279,8 @@ class SendMessage(Task):
                                exc.response.status_code)
                 fire_metric.delay(metric_name, 1)
                 kwargs['error_retry_count'] = error_retry_count + 1
-                self.retry(exc=exc, countdown=retry_delay, args=(message_id,), kwargs=kwargs)
+                self.retry(exc=exc, countdown=retry_delay, args=(message_id,),
+                           kwargs=kwargs)
 
             # If we've gotten this far the message send was successful.
             fire_metric.apply_async(kwargs={
