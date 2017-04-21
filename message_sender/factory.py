@@ -31,7 +31,7 @@ class JunebugApiSender(HttpApiSender):
             None
         """
         self.api_url = url
-        self.auth = auth
+        self.auth = tuple(auth) if isinstance(auth, list) else auth
         self.from_addr = from_addr
         if session is None:
             session = requests.Session()
@@ -88,7 +88,7 @@ class MessageClientFactory(object):
     def create_junebug_client(cls, channel):
         return JunebugApiSender(
             channel.configuration.get("JUNEBUG_API_URL"),
-            tuple(channel.configuration.get("JUNEBUG_API_AUTH")),
+            channel.configuration.get("JUNEBUG_API_AUTH"),
             channel.configuration.get("JUNEBUG_API_FROM")
         )
 
