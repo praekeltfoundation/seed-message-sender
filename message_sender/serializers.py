@@ -9,7 +9,8 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
         model = Outbound
         fields = (
             'url', 'id', 'version', 'to_addr', 'vumi_message_id', 'content',
-            'delivered', 'attempts', 'metadata', 'created_at', 'updated_at')
+            'delivered', 'attempts', 'metadata', 'created_at', 'updated_at',
+            'channel')
 
 
 class InboundSerializer(serializers.HyperlinkedModelSerializer):

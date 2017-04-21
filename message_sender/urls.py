@@ -18,5 +18,7 @@ urlpatterns = [
         name='junebug-events'),
     url(r'^api/v1/user/token/$', views.UserView.as_view(),
         name='create-user-token'),
+    url(r'^api/v1/inbound/(?P<channel_id>\w+)/$',
+        views.InboundViewSet.as_view({'post': 'create'})),
     url(r'^api/v1/', include(router.urls)),
 ]

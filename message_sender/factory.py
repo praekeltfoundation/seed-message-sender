@@ -8,19 +8,11 @@ import requests
 from go_http.send import HttpApiSender
 
 from .utils import make_absolute_url
+from .models import Channel
 
 
 class FactoryException(Exception):
     pass
-
-
-def get_backend_type(client_type):
-    backend_type = getattr(
-        settings, 'MESSAGE_BACKEND_%s' % client_type.upper(), None)
-    if not backend_type:
-        raise FactoryException(
-            'Undefined message backend: %r' % (backend_type,))
-    return backend_type.lower()
 
 
 class JunebugApiSenderException(Exception):
@@ -75,32 +67,36 @@ class JunebugApiSender(HttpApiSender):
 class MessageClientFactory(object):
 
     @classmethod
-    def create(cls, client_type):
-        backend_type = get_backend_type(client_type)
+    def create(cls, channel=None):
+        try:
+            if not channel:
+                channel = Channel.objects.get(default=True)
+        except Channel.DoesNotExist:
+            raise FactoryException(
+                'Unknown backend type: %r' % (channel,))
+
+        backend_type = channel.channel_type
         handler = getattr(cls,
                           'create_%s_client' % (backend_type,), None)
         if not handler:
             raise FactoryException(
                 'Unknown backend type: %r' % (backend_type,))
 
-        return handler(client_type)
+        return handler(channel)
 
     @classmethod
-    def create_junebug_client(cls, client_type):
+    def create_junebug_client(cls, channel):
         return JunebugApiSender(
-            getattr(settings, 'JUNEBUG_API_URL_%s' % (client_type.upper(),)),
-            getattr(settings, 'JUNEBUG_API_AUTH_%s' % (client_type.upper(),)),
-            getattr(settings, 'JUNEBUG_API_FROM_%s' % (client_type.upper())))
+            channel.configuration.get("JUNEBUG_API_URL"),
+            tuple(channel.configuration.get("JUNEBUG_API_AUTH")),
+            channel.configuration.get("JUNEBUG_API_FROM")
+        )
 
     @classmethod
-    def create_vumi_client(cls, client_type):
+    def create_vumi_client(cls, channel):
         return HttpApiSender(
-            getattr(settings,
-                    'VUMI_ACCOUNT_KEY_%s' % (client_type.upper(),)),
-            getattr(settings,
-                    'VUMI_CONVERSATION_KEY_%s' % (client_type.upper(),)),
-            getattr(settings,
-                    'VUMI_ACCOUNT_TOKEN_%s' % (client_type.upper(),)),
-            api_url=getattr(settings,
-                            'VUMI_API_URL_%s' % (client_type.upper(),)),
+            channel.configuration.get("VUMI_ACCOUNT_KEY"),
+            channel.configuration.get("VUMI_CONVERSATION_KEY"),
+            channel.configuration.get("VUMI_ACCOUNT_TOKEN"),
+            api_url=channel.configuration.get("VUMI_API_URL")
         )

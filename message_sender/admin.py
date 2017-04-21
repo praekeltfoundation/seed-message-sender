@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Outbound, Inbound
+from .models import Outbound, Inbound, Channel
 from .tasks import send_message
 
 
@@ -34,5 +34,12 @@ class InboundAdmin(admin.ModelAdmin):
     search_fields = ['to_addr']
 
 
+class ChannelAdmin(admin.ModelAdmin):
+    list_display = ('channel_id', 'channel_type', 'concurrency_limit',
+                    'default')
+    list_filter = ('channel_type', 'default')
+    search_fields = []
+
 admin.site.register(Outbound, OutboundAdmin)
 admin.site.register(Inbound, InboundAdmin)
+admin.site.register(Channel, ChannelAdmin)

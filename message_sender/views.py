@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.contrib.auth.models import User
 from django import forms
@@ -9,7 +8,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
-from .models import Outbound, Inbound, OutboundSendFailure
+from .models import Outbound, Inbound, OutboundSendFailure, Channel
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
@@ -134,7 +133,12 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
-        if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
+        if not kwargs.get('channel_id'):
+            channel = Channel.objects.get(default=True)
+        else:
+            channel = Channel.objects.get(channel_id=kwargs.get('channel_id'))
+
+        if channel.concurrency_limit == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
         close_event = False
@@ -162,10 +166,8 @@ class InboundViewSet(viewsets.ModelViewSet):
                 message = Outbound.objects.filter(
                     to_addr=msisdn).order_by('-created_at').last()
             if message:
-                outbound_type = "voice" if "voice_speech_url" in \
-                    message.metadata else "text"
                 ConcurrencyLimiter.decr_message_count(
-                    outbound_type, message.last_sent_time)
+                    channel, message.last_sent_time)
 
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 

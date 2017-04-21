@@ -18,7 +18,7 @@ from requests import exceptions as requests_exceptions
 from .factory import MessageClientFactory
 
 
-from .models import Outbound, OutboundSendFailure
+from .models import Outbound, OutboundSendFailure, Channel
 from seed_message_sender.utils import load_callable
 from seed_papertrail.decorators import papertrail
 
@@ -99,25 +99,25 @@ class ConcurrencyLimiter(object):
     BUCKET_SIZE = 60
 
     @classmethod
-    def get_key(cls, msg_type, bucket):
-        return "%s_messages_at_%s" % (msg_type, bucket)
+    def get_key(cls, channel_id, bucket):
+        return "%s_messages_at_%s" % (channel_id, bucket)
 
     @classmethod
-    def get_current_message_count(cls, msg_type, timeout):
+    def get_current_message_count(cls, channel_id, timeout):
         # Sum the values in all the buckets to get the total
         total = 0
         number_of_buckets = timeout // cls.BUCKET_SIZE + 1
         bucket = int(time.time() // cls.BUCKET_SIZE)
         for i in range(bucket, bucket - number_of_buckets, -1):
-            value = cache.get(cls.get_key(msg_type, i))
+            value = cache.get(cls.get_key(channel_id, i))
             if value:
                 total += int(value)
         return total
 
     @classmethod
-    def incr_message_count(cls, msg_type, timeout):
+    def incr_message_count(cls, channel_id, timeout):
         bucket = int(time.time() // cls.BUCKET_SIZE)
-        key = cls.get_key(msg_type, bucket)
+        key = cls.get_key(channel_id, bucket)
 
         # Add the bucket size to the expiry time so messages that start at
         # the end of the bucket still complete
@@ -125,16 +125,11 @@ class ConcurrencyLimiter(object):
             cache.incr(key)
 
     @classmethod
-    def decr_message_count(cls, msg_type, msg_time):
+    def decr_message_count(cls, channel, msg_time):
 
-        if msg_type == "voice":
-            if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
-                return
-            timeout = int(getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0))
-        else:
-            if int(getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0)) == 0:
-                return
-            timeout = int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0))
+        if channel.concurrency_limit == 0:
+            return
+        timeout = channel.message_timeout
 
         if not msg_time:
             return
@@ -147,18 +142,23 @@ class ConcurrencyLimiter(object):
             return
         bucket = int(msg_time // cls.BUCKET_SIZE)
 
-        key = cls.get_key(msg_type, bucket)
+        key = cls.get_key(channel.channel_id, bucket)
         # Set the expiry time to the timeout minus the time passed since
         # the message was sent.
         if int(cache.get_or_set(key, 0, timeout - time_since)) > 0:
             cache.decr(key)
 
     @classmethod
-    def manage_limit(cls, task, msg_type, limit, timeout, delay):
+    def manage_limit(cls, task, channel):
+        limit = channel.concurrency_limit
+        timeout = channel.message_timeout
+        delay = channel.message_delay
+
         if limit > 0:
-            if cls.get_current_message_count(msg_type, timeout) >= limit:
+            if cls.get_current_message_count(
+                    channel.channel_id, timeout) >= limit:
                 task.retry(countdown=delay)
-            cls.incr_message_count(msg_type, timeout)
+            cls.incr_message_count(channel.channel_id, timeout)
 
 
 class SendMessage(Task):
@@ -178,11 +178,8 @@ class SendMessage(Task):
         code.
         """
 
-    def get_text_client(self):
-        return MessageClientFactory.create('text')
-
-    def get_voice_client(self):
-        return MessageClientFactory.create('voice')
+    def get_client(self, channel=None):
+        return MessageClientFactory.create(channel)
 
     @papertrail.debug(name, sample=0.1)
     def run(self, message_id, **kwargs):
@@ -212,6 +209,13 @@ class SendMessage(Task):
             l.info("Attempts: %s" % message.attempts)
             # send or resend
             try:
+                if not message.channel:
+                    channel = Channel.objects.get(default=True)
+                else:
+                    channel = Channel.objects.get(channel_id=message.channel)
+
+                sender = self.get_client(channel)
+                ConcurrencyLimiter.manage_limit(self, channel)
                 if "voice_speech_url" in message.metadata:
                     # OBD number of tries metric
                     fire_metric.apply_async(kwargs={
@@ -220,13 +224,6 @@ class SendMessage(Task):
                     })
 
                     # Voice message
-                    ConcurrencyLimiter.manage_limit(
-                        self, "voice",
-                        int(getattr(settings,
-                                    'CONCURRENT_VOICE_LIMIT', 0)),
-                        int(getattr(settings, 'VOICE_MESSAGE_TIMEOUT', 0)),
-                        int(getattr(settings, 'VOICE_MESSAGE_DELAY', 0)))
-                    sender = self.get_voice_client()
                     speech_url = message.metadata["voice_speech_url"]
                     vumiresponse = sender.send_voice(
                         voice_to_addr_formatter(message.to_addr),
@@ -236,12 +233,6 @@ class SendMessage(Task):
                     l.info("Sent voice message to <%s>" % message.to_addr)
                 else:
                     # Plain content
-                    ConcurrencyLimiter.manage_limit(
-                        self, "text",
-                        int(getattr(settings, 'CONCURRENT_TEXT_LIMIT', 0)),
-                        int(getattr(settings, 'TEXT_MESSAGE_TIMEOUT', 0)),
-                        int(getattr(settings, 'TEXT_MESSAGE_DELAY', 0)))
-                    sender = self.get_text_client()
                     vumiresponse = sender.send_text(
                         text_to_addr_formatter(message.to_addr),
                         message.content,
