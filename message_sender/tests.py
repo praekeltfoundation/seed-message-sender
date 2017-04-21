@@ -45,7 +45,7 @@ SendMessage.get_client = lambda x, y: LoggingSender('go_http.test')
 def make_channels():
     vumi_channel = {
         'channel_id': 'VUMI_TEXT',
-        'channel_type': 'vumi',
+        'channel_type': Channel.VUMI_TYPE,
         'default': False,
         'configuration': {
             'VUMI_CONVERSATION_KEY': 'conv-key',
@@ -61,7 +61,7 @@ def make_channels():
 
     vumi_channel2 = {
         'channel_id': 'VUMI_VOICE',
-        'channel_type': 'vumi',
+        'channel_type': Channel.VUMI_TYPE,
         'default': False,
         'configuration': {
             'VUMI_CONVERSATION_KEY': 'conv-key',
@@ -77,7 +77,7 @@ def make_channels():
 
     june_channel = {
         'channel_id': 'JUNE_VOICE',
-        'channel_type': 'junebug',
+        'channel_type': Channel.JUNEBUG_TYPE,
         'default': False,
         'configuration': {
             'JUNEBUG_API_URL': 'http://example.com/',
@@ -92,7 +92,7 @@ def make_channels():
 
     june_channel2 = {
         'channel_id': 'JUNE_TEXT',
-        'channel_type': 'junebug',
+        'channel_type': Channel.JUNEBUG_TYPE,
         'default': True,
         'configuration': {
             'JUNEBUG_API_URL': 'http://example.com/',
@@ -107,7 +107,7 @@ def make_channels():
 
     june_channel2 = {
         'channel_id': 'JUNE_VOICE2',
-        'channel_type': 'junebug',
+        'channel_type': Channel.JUNEBUG_TYPE,
         'default': False,
         'configuration': {
             'JUNEBUG_API_URL': 'http://example.com/',

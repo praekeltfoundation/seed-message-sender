@@ -82,15 +82,18 @@ class OutboundSendFailure(models.Model):
 @python_2_unicode_compatible
 class Channel(models.Model):
 
+    VUMI_TYPE = 'vumi'
+    JUNEBUG_TYPE = 'junebug'
+
     CHANNEL_TYPES = (
-        ("junebug", 'Junebug'),
-        ("vumi", 'Vumi')
+        (JUNEBUG_TYPE, 'Junebug'),
+        (VUMI_TYPE, 'Vumi')
     )
 
     channel_id = models.CharField(unique=True, null=False, blank=False,
                                   max_length=64)
     channel_type = models.CharField(choices=CHANNEL_TYPES, max_length=20,
-                                    default='junebug')
+                                    default=JUNEBUG_TYPE)
     concurrency_limit = models.IntegerField(null=False, blank=False, default=0)
     message_delay = models.IntegerField(null=False, blank=False, default=0)
     message_timeout = models.IntegerField(null=False, blank=False, default=0)
