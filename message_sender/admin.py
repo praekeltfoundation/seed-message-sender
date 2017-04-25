@@ -46,7 +46,7 @@ class ChannelAdminForm(forms.ModelForm):
         if channel_type == Channel.JUNEBUG_TYPE:
             keys = ('JUNEBUG_API_URL', 'JUNEBUG_API_AUTH', 'JUNEBUG_API_FROM')
 
-        elif channel_type == Channel.JUNEBUG_TYPE:
+        elif channel_type == Channel.VUMI_TYPE:
             keys = ('VUMI_CONVERSATION_KEY', 'VUMI_ACCOUNT_KEY',
                     'VUMI_ACCOUNT_TOKEN', 'VUMI_API_URL')
 
