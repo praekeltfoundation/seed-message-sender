@@ -1,4 +1,6 @@
 from django.contrib import admin
+from django import forms
+from django.core.exceptions import ValidationError
 
 from .models import Outbound, Inbound, Channel
 from .tasks import send_message
@@ -34,11 +36,36 @@ class InboundAdmin(admin.ModelAdmin):
     search_fields = ['to_addr']
 
 
+class ChannelAdminForm(forms.ModelForm):
+    def clean(self):
+        channel_type = self.cleaned_data['channel_type']
+        config = self.cleaned_data['configuration']
+
+        missing = []
+        if channel_type == Channel.JUNEBUG_TYPE:
+            keys = ('JUNEBUG_API_URL', 'JUNEBUG_API_AUTH', 'JUNEBUG_API_FROM')
+
+        elif channel_type == Channel.JUNEBUG_TYPE:
+            keys = ('VUMI_CONVERSATION_KEY', 'VUMI_ACCOUNT_KEY',
+                    'VUMI_ACCOUNT_TOKEN', 'VUMI_API_URL')
+
+        for key in keys:
+            if key not in config.keys():
+                missing.append(key)
+
+        if missing:
+            raise ValidationError(
+                "Configuration keys missing: {}".format(', '.join(missing)))
+
+        return self.cleaned_data
+
+
 class ChannelAdmin(admin.ModelAdmin):
     list_display = ('channel_id', 'channel_type', 'concurrency_limit',
                     'default')
     list_filter = ('channel_type', 'default')
-    search_fields = []
+    search_fields = ['channel_id']
+    form = ChannelAdminForm
 
 admin.site.register(Outbound, OutboundAdmin)
 admin.site.register(Inbound, InboundAdmin)

@@ -103,13 +103,13 @@ class ConcurrencyLimiter(object):
         return "%s_messages_at_%s" % (channel_id, bucket)
 
     @classmethod
-    def get_current_message_count(cls, channel_id, timeout):
+    def get_current_message_count(cls, channel):
         # Sum the values in all the buckets to get the total
         total = 0
-        number_of_buckets = timeout // cls.BUCKET_SIZE + 1
+        number_of_buckets = channel.message_timeout // cls.BUCKET_SIZE + 1
         bucket = int(time.time() // cls.BUCKET_SIZE)
         for i in range(bucket, bucket - number_of_buckets, -1):
-            value = cache.get(cls.get_key(channel_id, i))
+            value = cache.get(cls.get_key(channel.channel_id, i))
             if value:
                 total += int(value)
         return total
@@ -155,8 +155,7 @@ class ConcurrencyLimiter(object):
         delay = channel.message_delay
 
         if limit > 0:
-            if cls.get_current_message_count(
-                    channel.channel_id, timeout) >= limit:
+            if cls.get_current_message_count(channel) >= limit:
                 task.retry(countdown=delay)
             cls.incr_message_count(channel.channel_id, timeout)
 
@@ -196,7 +195,8 @@ class SendMessage(Task):
 
         l.info("Loading Outbound Message <%s>" % message_id)
         try:
-            message = Outbound.objects.get(id=message_id)
+            message = Outbound.objects.select_related('channel').get(
+                id=message_id)
         except ObjectDoesNotExist:
             logger.error('Missing Outbound message', exc_info=True)
             return
@@ -212,7 +212,7 @@ class SendMessage(Task):
                 if not message.channel:
                     channel = Channel.objects.get(default=True)
                 else:
-                    channel = Channel.objects.get(channel_id=message.channel)
+                    channel = message.channel
 
                 sender = self.get_client(channel)
                 ConcurrencyLimiter.manage_limit(self, channel)

@@ -7,6 +7,31 @@ from django.utils.encoding import python_2_unicode_compatible
 
 
 @python_2_unicode_compatible
+class Channel(models.Model):
+
+    VUMI_TYPE = 'vumi'
+    JUNEBUG_TYPE = 'junebug'
+
+    CHANNEL_TYPES = (
+        (JUNEBUG_TYPE, 'Junebug'),
+        (VUMI_TYPE, 'Vumi')
+    )
+
+    channel_id = models.CharField(primary_key=True, editable=True,
+                                  max_length=64)
+    channel_type = models.CharField(choices=CHANNEL_TYPES, max_length=20,
+                                    default=JUNEBUG_TYPE)
+    concurrency_limit = models.IntegerField(null=False, blank=False, default=0)
+    message_delay = models.IntegerField(null=False, blank=False, default=0)
+    message_timeout = models.IntegerField(null=False, blank=False, default=0)
+    default = models.BooleanField(default=False)
+    configuration = JSONField()
+
+    def __str__(self):  # __unicode__ on Python 2
+        return str(self.channel_id)
+
+
+@python_2_unicode_compatible
 class Outbound(models.Model):
 
     """
@@ -26,7 +51,7 @@ class Outbound(models.Model):
         "been answered. Not used for text messages")
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
-    channel = models.CharField(null=True, blank=True, max_length=64)
+    channel = models.ForeignKey(Channel, null=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     last_sent_time = models.DateTimeField(null=True, blank=True)
@@ -77,28 +102,3 @@ class OutboundSendFailure(models.Model):
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.id)
-
-
-@python_2_unicode_compatible
-class Channel(models.Model):
-
-    VUMI_TYPE = 'vumi'
-    JUNEBUG_TYPE = 'junebug'
-
-    CHANNEL_TYPES = (
-        (JUNEBUG_TYPE, 'Junebug'),
-        (VUMI_TYPE, 'Vumi')
-    )
-
-    channel_id = models.CharField(unique=True, null=False, blank=False,
-                                  max_length=64)
-    channel_type = models.CharField(choices=CHANNEL_TYPES, max_length=20,
-                                    default=JUNEBUG_TYPE)
-    concurrency_limit = models.IntegerField(null=False, blank=False, default=0)
-    message_delay = models.IntegerField(null=False, blank=False, default=0)
-    message_timeout = models.IntegerField(null=False, blank=False, default=0)
-    default = models.BooleanField(default=False)
-    configuration = JSONField()
-
-    def __str__(self):  # __unicode__ on Python 2
-        return str(self.channel_id)

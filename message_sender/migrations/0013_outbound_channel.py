@@ -15,6 +15,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='outbound',
             name='channel',
-            field=models.CharField(blank=True, max_length=64, null=True),
+            field=models.ForeignKey(null=True, on_delete=models.deletion.CASCADE, to='message_sender.Channel'),
         ),
     ]

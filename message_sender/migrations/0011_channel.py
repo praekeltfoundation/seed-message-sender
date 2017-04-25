@@ -16,8 +16,7 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='Channel',
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('channel_id', models.CharField(max_length=64, unique=True)),
+                ('channel_id', models.CharField(editable=True, max_length=64, primary_key=True, serialize=False)),
                 ('channel_type', models.CharField(choices=[(b'junebug', b'Junebug'), (b'vumi', b'Vumi')], default=b'junebug', max_length=20)),
                 ('concurrency_limit', models.IntegerField(default=0)),
                 ('message_delay', models.IntegerField(default=0)),

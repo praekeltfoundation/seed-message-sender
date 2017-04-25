@@ -185,6 +185,10 @@ class APITestCase(TestCase):
 class AuthenticatedAPITestCase(APITestCase):
 
     def make_outbound(self, to_addr='+27123', channel=None):
+
+        if channel:
+            channel = Channel.objects.get(channel_id=channel)
+
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
@@ -373,6 +377,46 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata, {
             "voice_speech_url": "https://foo.com/file.mp3"
         })
+
+    def test_create_outbound_data_with_channel(self):
+
+        post_outbound = {
+            "to_addr": "+27123",
+            "delivered": "false",
+            "metadata": {
+                "voice_speech_url": "https://foo.com/file.mp3"
+            },
+            "channel": "JUNE_VOICE"
+        }
+        response = self.client.post('/api/v1/outbound/',
+                                    json.dumps(post_outbound),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Outbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.version, 1)
+        self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata, {
+            "voice_speech_url": "https://foo.com/file.mp3"
+        })
+
+    def test_create_outbound_data_with_channel_unknown(self):
+
+        post_outbound = {
+            "to_addr": "+27123",
+            "delivered": "false",
+            "metadata": {
+                "voice_speech_url": "https://foo.com/file.mp3"
+            },
+            "channel": "JUNE_VOICE_TEST"
+        }
+        response = self.client.post('/api/v1/outbound/',
+                                    json.dumps(post_outbound),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_update_outbound_data(self):
         existing = self.make_outbound()
@@ -1368,6 +1412,10 @@ class TestJunebugAPISender(TestCase):
 
 class TestConcurrencyLimiter(AuthenticatedAPITestCase):
     def make_outbound(self, to_addr, channel=None):
+
+        if channel:
+            channel = Channel.objects.get(channel_id=channel)
+
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
@@ -1481,13 +1529,14 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_get.side_effect = self.fake_cache.get
         now = 1479131640
 
-        self.set_cache_entry("voice", (now - 200) // 60, 1)  # Too old
-        self.set_cache_entry("voice", (now - 121) // 60, 10)  # Over delay
-        self.set_cache_entry("voice", (now - 120) // 60, 100)  # Within delay
-        self.set_cache_entry("voice", now // 60, 1000)  # Now
-        self.set_cache_entry("voice", (now + 60) // 60, 10000)  # In future
+        self.set_cache_entry("JUNE_VOICE", (now - 200) // 60, 1)  # Too old
+        self.set_cache_entry("JUNE_VOICE", (now - 121) // 60, 10)  # Over delay
+        self.set_cache_entry("JUNE_VOICE", (now - 120) // 60, 100)  # Within delay # noqa
+        self.set_cache_entry("JUNE_VOICE", now // 60, 1000)  # Now
+        self.set_cache_entry("JUNE_VOICE", (now + 60) // 60, 10000)  # In future # noqa
 
-        count = ConcurrencyLimiter.get_current_message_count("voice", 120)
+        channel = Channel.objects.get(channel_id="JUNE_VOICE")
+        count = ConcurrencyLimiter.get_current_message_count(channel)
         self.assertEqual(count, 1100)
 
     @patch('time.time', MagicMock(return_value=1479131658.000000))
@@ -1523,6 +1572,10 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
 
 class TestRequeueFailedTasks(AuthenticatedAPITestCase):
     def make_outbound(self, to_addr, channel=None):
+
+        if channel:
+            channel = Channel.objects.get(channel_id=channel)
+
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
@@ -1557,6 +1610,10 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
 class TestFailedTaskAPI(AuthenticatedAPITestCase):
 
     def make_outbound(self, to_addr, channel=None):
+
+        if channel:
+            channel = Channel.objects.get(channel_id=channel)
+
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
@@ -1627,3 +1684,32 @@ class TestOutboundAdmin(AuthenticatedAPITestCase):
             "message_id": outbound_id_1})
         mock_send_message.assert_any_call(kwargs={
             "message_id": outbound_id_2})
+
+
+class TestChannels(AuthenticatedAPITestCase):
+
+    def test_channel_default_post_save(self):
+
+        new_channel = {
+            'channel_id': 'NEW_DEFAULT',
+            'channel_type': Channel.JUNEBUG_TYPE,
+            'default': True,
+            'configuration': {
+                'JUNEBUG_API_URL': 'http://example.com/',
+                'JUNEBUG_API_AUTH': ('username', 'password'),
+                'JUNEBUG_API_FROM': '+4321'
+            },
+            'concurrency_limit': 0,
+            'message_timeout': 0,
+            'message_delay': 0
+        }
+
+        Channel.objects.create(**new_channel)
+
+        self.assertEqual(Channel.objects.filter(default=True).count(), 1)
+
+        channel = Channel.objects.get(channel_id="JUNE_VOICE")
+        channel.default = True
+        channel.save()
+
+        self.assertEqual(Channel.objects.filter(default=True).count(), 1)
