@@ -38,6 +38,7 @@ class InboundAdmin(admin.ModelAdmin):
 
 class ChannelAdminForm(forms.ModelForm):
     def clean(self):
+        channel_id = self.cleaned_data['channel_id']
         channel_type = self.cleaned_data['channel_type']
         config = self.cleaned_data['configuration']
 
@@ -56,6 +57,12 @@ class ChannelAdminForm(forms.ModelForm):
         if missing:
             raise ValidationError(
                 "Configuration keys missing: {}".format(', '.join(missing)))
+
+        if not self.cleaned_data['default']:
+            if not Channel.objects.filter(default=True).exclude(
+                    channel_id=channel_id).exists():
+                raise ValidationError(
+                    "Please make sure there is a default channel.")
 
         return self.cleaned_data
 
