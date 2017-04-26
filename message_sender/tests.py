@@ -377,6 +377,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata, {
             "voice_speech_url": "https://foo.com/file.mp3"
         })
+        self.assertEqual(d.channel, None)
 
     def test_create_outbound_data_with_channel(self):
 
@@ -386,7 +387,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "metadata": {
                 "voice_speech_url": "https://foo.com/file.mp3"
             },
-            "channel": "JUNE_VOICE"
+            "channel": "JUNE_TEXT"
         }
         response = self.client.post('/api/v1/outbound/',
                                     json.dumps(post_outbound),
@@ -402,6 +403,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata, {
             "voice_speech_url": "https://foo.com/file.mp3"
         })
+        self.assertEqual(d.channel.channel_id, "JUNE_TEXT")
 
     def test_create_outbound_data_with_channel_unknown(self):
 

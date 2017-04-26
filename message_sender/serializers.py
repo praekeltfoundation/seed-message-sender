@@ -1,16 +1,12 @@
 from .models import Inbound, Outbound, OutboundSendFailure, Channel
 from rest_hooks.models import Hook
 from rest_framework import serializers
-from rest_framework.exceptions import APIException
-
-
-class IncorrectChannel(APIException):
-    status_code = 400
-    default_detail = 'The channel supplied is not configured.'
-    default_code = 'incorrect_channels'
 
 
 class OutboundSerializer(serializers.HyperlinkedModelSerializer):
+
+    channel = serializers.PrimaryKeyRelatedField(
+        queryset=Channel.objects.all(), required=False)
 
     class Meta:
         model = Outbound
@@ -18,16 +14,6 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
             'url', 'id', 'version', 'to_addr', 'vumi_message_id', 'content',
             'delivered', 'attempts', 'metadata', 'created_at', 'updated_at',
             'channel')
-
-    def to_internal_value(self, data):
-        if data.get('channel'):
-            channel_id = data.pop('channel')
-            data['channel_channel_id'] = channel_id
-
-            if not Channel.objects.filter(channel_id=channel_id).exists():
-                raise IncorrectChannel()
-
-        return super(OutboundSerializer, self).to_internal_value(data)
 
 
 class InboundSerializer(serializers.HyperlinkedModelSerializer):
