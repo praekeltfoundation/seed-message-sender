@@ -21,9 +21,10 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
 
     def to_internal_value(self, data):
         if data.get('channel'):
-            channel_id = data.pop('channel')
-            data['channel_channel_id'] = channel_id
+            self.fields['channel'] = serializers.PrimaryKeyRelatedField(
+                 queryset=Channel.objects.all())
 
+            channel_id = data.get('channel')
             if not Channel.objects.filter(channel_id=channel_id).exists():
                 raise IncorrectChannel()
 
