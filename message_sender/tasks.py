@@ -6,6 +6,7 @@ import time
 from celery.exceptions import MaxRetriesExceededError
 from celery.task import Task
 from celery.utils.log import get_task_logger
+from seed_services_client.identity_store import IdentityStoreApiClient
 
 from datetime import datetime
 from django.conf import settings
@@ -26,6 +27,11 @@ logger = get_task_logger(__name__)
 
 voice_to_addr_formatter = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
 text_to_addr_formatter = load_callable(settings.TEXT_TO_ADDR_FORMATTER)
+
+is_client = IdentityStoreApiClient(
+    api_url=settings.IDENTITY_STORE_URL,
+    auth_token=settings.IDENTITY_STORE_TOKEN
+)
 
 
 def calculate_retry_delay(attempt, max_delay=300):
@@ -180,6 +186,16 @@ class SendMessage(Task):
     def get_client(self, channel=None):
         return MessageClientFactory.create(channel)
 
+    def get_identity_msisdn(self, identity):
+        identity = is_client.get_identity(identity)
+        if identity:
+            msisdns = \
+                identity['details'].get('addresses', {}).get('msisdn', {})
+
+            for key in msisdns:
+                if not msisdns[key].get('optedout', False):
+                    return key
+
     @papertrail.debug(name, sample=0.1)
     def run(self, message_id, **kwargs):
         """
@@ -216,6 +232,11 @@ class SendMessage(Task):
 
                 sender = self.get_client(channel)
                 ConcurrencyLimiter.manage_limit(self, channel)
+
+                if not message.to_addr and message.to_identity:
+                    message.to_addr = self.get_identity_msisdn(
+                        message.to_identity)
+
                 if "voice_speech_url" in message.metadata:
                     # OBD number of tries metric
                     fire_metric.apply_async(kwargs={
@@ -283,6 +304,8 @@ class SendMessage(Task):
         else:
             # This is for retries based on async nacks from the transport.
             l.info("Message <%s> at max retries." % str(message_id))
+            message.to_addr = None
+            message.save()
             fire_metric.apply_async(kwargs={
                 "metric_name": 'vumimessage.maxretries.sum',
                 "metric_value": 1.0

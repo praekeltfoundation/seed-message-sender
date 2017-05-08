@@ -197,6 +197,7 @@ class EventListener(APIView):
                     # expecting ack, nack, delivery_report
                     if event == "ack":
                         message.delivered = True
+                        message.to_addr = None
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
@@ -210,6 +211,7 @@ class EventListener(APIView):
                             })
                     elif event == "delivery_report":
                         message.delivered = True
+                        message.to_addr = None
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
@@ -282,6 +284,7 @@ class JunebugEventListener(APIView):
         event_type = request.data["event_type"]
         if event_type == "submitted":
             message.delivered = True
+            message.to_addr = None
             message.metadata["ack_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['metadata', 'delivered'])
 
@@ -298,6 +301,7 @@ class JunebugEventListener(APIView):
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
+            message.to_addr = None
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['delivered', 'metadata'])
         elif event_type == "delivery_failed":
