@@ -184,7 +184,8 @@ class APITestCase(TestCase):
 
 class AuthenticatedAPITestCase(APITestCase):
 
-    def make_outbound(self, to_addr='+27123', channel=None):
+    def make_outbound(self, to_addr='+27123', to_identity='0c03d360',
+                      channel=None):
 
         if channel:
             channel = Channel.objects.get(channel_id=channel)
@@ -192,6 +193,7 @@ class AuthenticatedAPITestCase(APITestCase):
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
+            "to_identity": to_identity,
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
             "content": "Simple outbound message",
             "delivered": False,

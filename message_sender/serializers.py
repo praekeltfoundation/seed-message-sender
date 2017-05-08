@@ -1,14 +1,6 @@
 from .models import Inbound, Outbound, OutboundSendFailure, Channel
 from rest_hooks.models import Hook
 from rest_framework import serializers
-from seed_services_client.identity_store import IdentityStoreApiClient
-
-from django.conf import settings
-
-is_client = IdentityStoreApiClient(
-    api_url=settings.IDENTITY_STORE_URL,
-    auth_token=settings.IDENTITY_STORE_TOKEN
-)
 
 
 class OneFieldRequiredValidator:
@@ -28,7 +20,7 @@ class OneFieldRequiredValidator:
 
             if not valid:
                 raise serializers.ValidationError(
-                    "to_addr or to_identity must be populated")
+                    "One of these fields must be populated: %s" % self.fields)
 
 
 class OutboundSerializer(serializers.HyperlinkedModelSerializer):
@@ -53,6 +45,8 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
             'url', 'id', 'message_id', 'in_reply_to', 'to_addr',
             'from_addr', 'content', 'transport_name', 'transport_type',
             'helper_metadata', 'created_at', 'updated_at', 'from_identity')
+        validators = \
+            [OneFieldRequiredValidator(['from_addr', 'from_identity'])]
 
     def to_internal_value(self, data):
         """
@@ -60,18 +54,6 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
         """
         if "session_event" in data:
             data['helper_metadata']['session_event'] = data['session_event']
-
-        if "from_addr" in data:
-            result = is_client.get_identity_by_address("msisdn",
-                                                       data['from_addr'])
-
-            if 'results' in result and result['results']:
-                data['from_identity'] = result['results'][0]['id']
-            else:
-                identity = is_client.create_identity(data['from_addr'])
-                data['from_identity'] = identity['id']
-
-            del data['from_addr']
 
         return super(InboundSerializer, self).to_internal_value(data)
 
@@ -91,28 +73,8 @@ class JunebugInboundSerializer(serializers.HyperlinkedModelSerializer):
             'url', 'id', 'message_id', 'reply_to', 'to', 'from_addr',
             'content', 'channel_id', 'channel_data', 'created_at',
             'updated_at', 'from_identity')
-
-    def to_internal_value(self, data):
-        """
-        Maps Junebug 'from' field to 'from_addr' expected by serializer since
-        'from' is a python keyword.
-        """
-        if "from" not in data:
-            raise serializers.ValidationError({
-                'from': 'This field is required.'
-            })
-        else:
-            result = is_client.get_identity_by_address("msisdn", data['from'])
-
-            if 'results' in result and result['results']:
-                data['from_identity'] = result['results'][0]['id']
-            else:
-                identity = is_client.create_identity(data['from'])
-                data['from_identity'] = identity['id']
-
-            del data['from']
-
-        return super(JunebugInboundSerializer, self).to_internal_value(data)
+        validators = \
+            [OneFieldRequiredValidator(['from', 'from_identity'])]
 
 
 class HookSerializer(serializers.ModelSerializer):

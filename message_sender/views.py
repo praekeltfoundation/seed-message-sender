@@ -17,6 +17,14 @@ from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
 from seed_message_sender.utils import get_available_metrics
 from seed_papertrail.decorators import papertrail
 import django_filters
+from seed_services_client.identity_store import IdentityStoreApiClient
+
+from django.conf import settings
+
+is_client = IdentityStoreApiClient(
+    api_url=settings.IDENTITY_STORE_URL,
+    auth_token=settings.IDENTITY_STORE_TOKEN
+)
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
@@ -138,6 +146,22 @@ class InboundViewSet(viewsets.ModelViewSet):
         else:
             channel = Channel.objects.get(channel_id=kwargs.get('channel_id'))
 
+        if request.data.get("channel_data", {}).get("session_event", None) == \
+                "close":
+            msisdn = request.data.pop("from")
+        else:
+            msisdn = request.data.pop("from_addr")
+
+        result = is_client.get_identity_by_address("msisdn", msisdn)
+
+        if 'results' in result and result['results']:
+            identity_id = result['results'][0]['id']
+        else:
+            identity = is_client.create_identity(msisdn)
+            identity_id = identity['id']
+
+        request.data['from_identity'] = identity_id
+
         if channel.concurrency_limit == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
@@ -147,12 +171,10 @@ class InboundViewSet(viewsets.ModelViewSet):
                 "close":
             close_event = True
             related_outbound = request.data["reply_to"]
-            msisdn = request.data["from"]
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
                 related_outbound = request.data["in_reply_to"]
-                msisdn = request.data["from_addr"]
 
         if close_event:
             if related_outbound is not None:
@@ -161,10 +183,10 @@ class InboundViewSet(viewsets.ModelViewSet):
                         vumi_message_id=related_outbound)
                 except (ObjectDoesNotExist, MultipleObjectsReturned):
                     message = Outbound.objects.filter(
-                        to_addr=msisdn).order_by('-created_at').last()
+                        to_identity=identity_id).order_by('-created_at').last()
             else:
                 message = Outbound.objects.filter(
-                    to_addr=msisdn).order_by('-created_at').last()
+                    to_identity=identity_id).order_by('-created_at').last()
             if message:
                 ConcurrencyLimiter.decr_message_count(
                     channel, message.last_sent_time)
