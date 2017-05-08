@@ -20,7 +20,8 @@ class OneFieldRequiredValidator:
 
             if not valid:
                 raise serializers.ValidationError(
-                    "One of these fields must be populated: %s" % self.fields)
+                    "One of these fields must be populated: %s" %
+                    (', '.join(self.fields)))
 
 
 class OutboundSerializer(serializers.HyperlinkedModelSerializer):
