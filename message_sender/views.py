@@ -146,10 +146,9 @@ class InboundViewSet(viewsets.ModelViewSet):
         else:
             channel = Channel.objects.get(channel_id=kwargs.get('channel_id'))
 
-        if request.data.get("channel_data", {}).get("session_event", None) == \
-                "close":
+        if "from" in request.data:
             msisdn = request.data.pop("from")
-        else:
+        elif "from_addr" in request.data:
             msisdn = request.data.pop("from_addr")
 
         result = is_client.get_identity_by_address("msisdn", msisdn)

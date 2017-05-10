@@ -39,9 +39,10 @@ class Outbound(models.Model):
     Delivered is set to true when ack received because delivery reports patchy
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    to_addr = models.CharField(null=True, blank=True, max_length=500,
+    to_addr = models.CharField(null=True, blank=False, max_length=500,
                                db_index=True)
-    to_identity = models.CharField(max_length=36, null=True, blank=True)
+    to_identity = models.CharField(max_length=36, null=True, blank=False,
+                                   db_index=True)
     version = models.IntegerField(default=1)
     content = models.CharField(null=True, blank=True, max_length=1000)
     vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
@@ -77,8 +78,9 @@ class Inbound(models.Model):
     in_reply_to = models.CharField(null=True, blank=True, max_length=36)
     to_addr = models.CharField(null=False, blank=False, max_length=255)
     from_addr = models.CharField(
-        null=True, blank=True, max_length=255, db_index=True)
-    from_identity = models.CharField(max_length=36, null=True, blank=True)
+        null=True, blank=False, max_length=255, db_index=True)
+    from_identity = models.CharField(max_length=36, null=True, blank=False,
+                                     db_index=True)
     content = models.CharField(null=True, blank=True, max_length=1000)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
     transport_type = models.CharField(null=True, blank=True, max_length=200)

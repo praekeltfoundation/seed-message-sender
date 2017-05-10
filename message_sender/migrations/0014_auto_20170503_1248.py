@@ -15,21 +15,21 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='outbound',
             name='to_identity',
-            field=models.CharField(blank=True, max_length=36, null=True),
+            field=models.CharField(blank=False, max_length=36, null=True, db_index=True),
         ),
         migrations.AlterField(
             model_name='outbound',
             name='to_addr',
-            field=models.CharField(blank=True, db_index=True, max_length=500, null=True),
+            field=models.CharField(blank=False, db_index=True, max_length=500, null=True),
         ),
         migrations.AddField(
             model_name='inbound',
             name='from_identity',
-            field=models.CharField(blank=True, max_length=36, null=True),
+            field=models.CharField(blank=False, max_length=36, null=True, db_index=True),
         ),
         migrations.AlterField(
             model_name='inbound',
             name='from_addr',
-            field=models.CharField(blank=True, db_index=True, max_length=255, null=True),
+            field=models.CharField(blank=False, db_index=True, max_length=255, null=True),
         ),
     ]

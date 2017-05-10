@@ -31,9 +31,9 @@ class OutboundAdmin(admin.ModelAdmin):
 
 class InboundAdmin(admin.ModelAdmin):
     list_display = ('message_id', 'in_reply_to', 'to_addr', 'from_addr',
-                    'created_at', 'updated_at', 'content', )
+                    'from_identity', 'created_at', 'updated_at', 'content', )
     list_filter = ('in_reply_to', 'from_addr', 'created_at', 'updated_at', )
-    search_fields = ['to_addr']
+    search_fields = ['to_addr', 'from_identity']
 
 
 class ChannelAdminForm(forms.ModelForm):
