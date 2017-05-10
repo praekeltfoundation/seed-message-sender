@@ -6,7 +6,6 @@ import time
 from celery.exceptions import MaxRetriesExceededError
 from celery.task import Task
 from celery.utils.log import get_task_logger
-from seed_services_client.identity_store import IdentityStoreApiClient
 
 from datetime import datetime
 from django.conf import settings
@@ -27,11 +26,6 @@ logger = get_task_logger(__name__)
 
 voice_to_addr_formatter = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
 text_to_addr_formatter = load_callable(settings.TEXT_TO_ADDR_FORMATTER)
-
-is_client = IdentityStoreApiClient(
-    api_url=settings.IDENTITY_STORE_URL,
-    auth_token=settings.IDENTITY_STORE_TOKEN
-)
 
 
 def calculate_retry_delay(attempt, max_delay=300):
