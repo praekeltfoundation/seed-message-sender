@@ -20,7 +20,7 @@ from .factory import MessageClientFactory
 
 
 from .models import Outbound, OutboundSendFailure, Channel
-from seed_message_sender.utils import load_callable
+from seed_message_sender.utils import load_callable, get_identity_address
 from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
@@ -186,16 +186,6 @@ class SendMessage(Task):
     def get_client(self, channel=None):
         return MessageClientFactory.create(channel)
 
-    def get_identity_msisdn(self, identity):
-        identity = is_client.get_identity(identity)
-        if identity:
-            msisdns = \
-                identity['details'].get('addresses', {}).get('msisdn', {})
-
-            for key in msisdns:
-                if not msisdns[key].get('optedout', False):
-                    return key
-
     @papertrail.debug(name, sample=0.1)
     def run(self, message_id, **kwargs):
         """
@@ -234,8 +224,8 @@ class SendMessage(Task):
                 ConcurrencyLimiter.manage_limit(self, channel)
 
                 if not message.to_addr and message.to_identity:
-                    message.to_addr = self.get_identity_msisdn(
-                        message.to_identity)
+                    message.to_addr = get_identity_address(
+                        message.to_identity, use_communicate_through=True)
 
                 if "voice_speech_url" in message.metadata:
                     # OBD number of tries metric

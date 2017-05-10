@@ -487,30 +487,20 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     @responses.activate
     def test_create_outbound_identity_only(self):
 
-        identity = {
-            "id": "test-test-test-test",
-            "version": 1,
-            "details": {
-                "default_addr_type": "msisdn",
-                "addresses": {
-                    "msisdn": {
-                        "+26773000000": {}
-                    }
-                }
+        uid = "test-test-test-test"
+        # mock identity address lookup
+        responses.add(
+            responses.GET,
+            "%s/identities/%s/addresses/msisdn?default=True&use_communicate_through=True" % (settings.IDENTITY_STORE_URL, uid),  # noqa
+            json={
+                "count": 1,
+                "next": None,
+                "previous": None,
+                "results": [{"address": "+26773000000"}]
             },
-            "communicate_through": None,
-            "operator": None,
-            "created_at": "2016-04-21T09:11:05.725680Z",
-            "created_by": 2,
-            "updated_at": "2016-06-15T15:09:05.333526Z",
-            "updated_by": 2
-        }
-        uid = identity["id"]
-
-        responses.add(responses.GET,
-                      "%s/identities/%s/" % (settings.IDENTITY_STORE_URL, uid),
-                      json=identity, status=200,
-                      match_querystring=True)
+            status=200, content_type='application/json',
+            match_querystring=True
+        )
 
         post_outbound = {
             "to_identity": uid,
