@@ -310,7 +310,7 @@ class JunebugEventListener(APIView):
             message.delivered = True
             message.to_addr = None
             message.metadata["ack_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['metadata', 'delivered'])
+            message.save(update_fields=['metadata', 'delivered', 'to_addr'])
 
             # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
@@ -327,7 +327,7 @@ class JunebugEventListener(APIView):
             message.delivered = True
             message.to_addr = None
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['delivered', 'metadata'])
+            message.save(update_fields=['delivered', 'metadata', 'to_addr'])
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
