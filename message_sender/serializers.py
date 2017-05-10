@@ -13,15 +13,13 @@ class OneFieldRequiredValidator:
     def __call__(self, data):
         if self.is_create:
 
-            valid = False
             for field in self.fields:
                 if data.get(field):
-                    valid = True
+                    return
 
-            if not valid:
-                raise serializers.ValidationError(
-                    "One of these fields must be populated: %s" %
-                    (', '.join(self.fields)))
+            raise serializers.ValidationError(
+                "One of these fields must be populated: %s" %
+                (', '.join(self.fields)))
 
 
 class OutboundSerializer(serializers.HyperlinkedModelSerializer):
