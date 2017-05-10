@@ -43,3 +43,48 @@ def get_identity_address(identity_uuid, use_communicate_through=False):
         return r["results"][0]["address"]
     else:
         return None
+
+
+def get_identity_by_address(address_value, address_type="msisdn"):
+    url = "%s/identities/search/" % (settings.IDENTITY_STORE_URL)
+
+    params = {"details__addresses__%s" % address_type: address_value}
+    headers = {
+        'Authorization': 'Token %s' % settings.IDENTITY_STORE_TOKEN,
+        'Content-Type': 'application/json'
+    }
+
+    session = requests.Session()
+    session.mount(settings.IDENTITY_STORE_URL, HTTPAdapter(max_retries=5))
+    result = session.get(
+        url,
+        params=params,
+        headers=headers,
+        timeout=settings.DEFAULT_REQUEST_TIMEOUT
+    )
+    result.raise_for_status()
+    r = result.json()
+    if len(r["results"]) > 0:
+        return r
+    else:
+        return None
+
+
+def create_identity(identity):
+    url = "%s/identities/" % (settings.IDENTITY_STORE_URL)
+    headers = {
+        'Authorization': 'Token %s' % settings.IDENTITY_STORE_TOKEN,
+        'Content-Type': 'application/json'
+    }
+
+    session = requests.Session()
+    session.mount(settings.IDENTITY_STORE_URL, HTTPAdapter(max_retries=5))
+    result = session.post(
+        url,
+        data=identity,
+        headers=headers,
+        timeout=settings.DEFAULT_REQUEST_TIMEOUT
+    )
+    result.raise_for_status()
+    r = result.json()
+    return r

@@ -14,17 +14,10 @@ from .serializers import (OutboundSerializer, InboundSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
 from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
                     requeue_failed_tasks)
-from seed_message_sender.utils import get_available_metrics
+from seed_message_sender.utils import (
+    get_available_metrics, get_identity_by_address, create_identity)
 from seed_papertrail.decorators import papertrail
 import django_filters
-from seed_services_client.identity_store import IdentityStoreApiClient
-
-from django.conf import settings
-
-is_client = IdentityStoreApiClient(
-    api_url=settings.IDENTITY_STORE_URL,
-    auth_token=settings.IDENTITY_STORE_TOKEN
-)
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
@@ -151,12 +144,22 @@ class InboundViewSet(viewsets.ModelViewSet):
         elif "from_addr" in request.data:
             msisdn = request.data.pop("from_addr")
 
-        result = is_client.get_identity_by_address("msisdn", msisdn)
+        result = get_identity_by_address(msisdn)
 
-        if 'results' in result and result['results']:
+        if result:
             identity_id = result['results'][0]['id']
         else:
-            identity = is_client.create_identity(msisdn)
+            identity = {
+                'details': {
+                    'default_addr_type': 'msisdn',
+                    'addresses': {
+                        'msisdn': {
+                            msisdn: {'default': True}
+                        }
+                    }
+                }
+            }
+            identity = create_identity(identity)
             identity_id = identity['id']
 
         request.data['from_identity'] = identity_id
