@@ -2,6 +2,7 @@ from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.contrib.auth.models import User
 from django import forms
 from rest_hooks.models import Hook
+from rest_hooks.signals import raw_hook_event
 from rest_framework import viewsets, status, filters, mixins
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
@@ -172,6 +173,27 @@ class InboundViewSet(viewsets.ModelViewSet):
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 
 
+def fire_delivery_hook(user, outbound):
+    outbound.refresh_from_db()
+    payload = {
+        'outbound_id': str(outbound.id),
+        'delivered': outbound.delivered,
+        'to_addr': outbound.to_addr,
+    }
+    if hasattr(outbound, 'to_identity'):
+        payload['identity'] = outbound.to_identity
+
+    if payload['to_addr'] is None and payload.get('identity', None) is None:
+        return  # TODO: throw exception, this should never happen
+
+    raw_hook_event.send(
+        sender=None,
+        event_name='outbound.delivery_report',
+        payload=payload,
+        user=user
+    )
+
+
 class EventListener(APIView):
 
     """
@@ -200,6 +222,7 @@ class EventListener(APIView):
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+                        fire_delivery_hook(request.user, message)
 
                         # OBD number of successful tries metric
                         if "voice_speech_url" in message.metadata:
@@ -213,12 +236,14 @@ class EventListener(APIView):
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+                        fire_delivery_hook(request.user, message)
                     elif event == "nack":
                         if "nack_reason" in request.data:
                             message.metadata["nack_reason"] = \
                                 request.data["nack_reason"]
                             message.save()
                         send_message.delay(str(message.id))
+                        fire_delivery_hook(request.user, message)
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
                                 "metric_name":
@@ -284,6 +309,7 @@ class JunebugEventListener(APIView):
             message.delivered = True
             message.metadata["ack_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['metadata', 'delivered'])
+            fire_delivery_hook(request.user, message)
 
             # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
@@ -296,15 +322,18 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             send_message.delay(str(message.id))
+            fire_delivery_hook(request.user, message)
         elif event_type == "delivery_succeeded":
             message.delivered = True
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['delivered', 'metadata'])
+            fire_delivery_hook(request.user, message)
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             send_message.delay(str(message.id))
+            fire_delivery_hook(request.user, message)
 
         if ("voice_speech_url" in message.metadata and
                 event_type in ("rejected", "delivery_failed")):
