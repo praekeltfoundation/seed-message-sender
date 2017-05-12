@@ -14,7 +14,8 @@ from .serializers import (OutboundSerializer, InboundSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
 from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
                     requeue_failed_tasks)
-from seed_message_sender.utils import get_available_metrics
+from seed_message_sender.utils import (
+    get_available_metrics, get_identity_by_address, create_identity)
 from seed_papertrail.decorators import papertrail
 import django_filters
 
@@ -138,6 +139,31 @@ class InboundViewSet(viewsets.ModelViewSet):
         else:
             channel = Channel.objects.get(channel_id=kwargs.get('channel_id'))
 
+        if "from" in request.data:
+            msisdn = request.data.pop("from")
+        elif "from_addr" in request.data:
+            msisdn = request.data.pop("from_addr")
+
+        result = get_identity_by_address(msisdn)
+
+        if result:
+            identity_id = result['results'][0]['id']
+        else:
+            identity = {
+                'details': {
+                    'default_addr_type': 'msisdn',
+                    'addresses': {
+                        'msisdn': {
+                            msisdn: {'default': True}
+                        }
+                    }
+                }
+            }
+            identity = create_identity(identity)
+            identity_id = identity['id']
+
+        request.data['from_identity'] = identity_id
+
         if channel.concurrency_limit == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
@@ -147,12 +173,10 @@ class InboundViewSet(viewsets.ModelViewSet):
                 "close":
             close_event = True
             related_outbound = request.data["reply_to"]
-            msisdn = request.data["from"]
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
                 related_outbound = request.data["in_reply_to"]
-                msisdn = request.data["from_addr"]
 
         if close_event:
             if related_outbound is not None:
@@ -161,10 +185,10 @@ class InboundViewSet(viewsets.ModelViewSet):
                         vumi_message_id=related_outbound)
                 except (ObjectDoesNotExist, MultipleObjectsReturned):
                     message = Outbound.objects.filter(
-                        to_addr=msisdn).order_by('-created_at').last()
+                        to_identity=identity_id).order_by('-created_at').last()
             else:
                 message = Outbound.objects.filter(
-                    to_addr=msisdn).order_by('-created_at').last()
+                    to_identity=identity_id).order_by('-created_at').last()
             if message:
                 ConcurrencyLimiter.decr_message_count(
                     channel, message.last_sent_time)
@@ -197,6 +221,7 @@ class EventListener(APIView):
                     # expecting ack, nack, delivery_report
                     if event == "ack":
                         message.delivered = True
+                        message.to_addr = ''
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
@@ -210,6 +235,7 @@ class EventListener(APIView):
                             })
                     elif event == "delivery_report":
                         message.delivered = True
+                        message.to_addr = ''
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
@@ -282,8 +308,9 @@ class JunebugEventListener(APIView):
         event_type = request.data["event_type"]
         if event_type == "submitted":
             message.delivered = True
+            message.to_addr = ''
             message.metadata["ack_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['metadata', 'delivered'])
+            message.save(update_fields=['metadata', 'delivered', 'to_addr'])
 
             # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
@@ -298,8 +325,9 @@ class JunebugEventListener(APIView):
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
+            message.to_addr = ''
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['delivered', 'metadata'])
+            message.save(update_fields=['delivered', 'metadata', 'to_addr'])
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
