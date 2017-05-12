@@ -1120,7 +1120,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
                                      "target": hook.target})
         self.assertEqual(r['data'], {"delivered": False, "to_addr": d.to_addr,
-                                     "outbound_id": str(d.id)})
+                                     "outbound_id": str(d.id),
+                                     "identity": d.to_identity})
 
 
 class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
