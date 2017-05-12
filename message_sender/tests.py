@@ -19,6 +19,7 @@ from django.core.urlresolvers import reverse
 from django.db.models.signals import post_save
 from django.conf import settings
 from django.utils import timezone
+from django.core.management import call_command
 from mock import MagicMock
 from mock import patch
 from rest_framework import status
@@ -31,7 +32,8 @@ from go_http.send import LoggingSender
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
     JunebugApiSenderException)
-from .models import Inbound, Outbound, OutboundSendFailure, Channel
+from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
+                     IdentityLookup)
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
 from .tasks import (SendMessage, send_message, fire_metric,
                     ConcurrencyLimiter, requeue_failed_tasks)
@@ -1918,3 +1920,70 @@ class TestChannels(AuthenticatedAPITestCase):
         channel.save()
 
         self.assertEqual(Channel.objects.filter(default=True).count(), 1)
+
+
+class TestManagementCommands(AuthenticatedAPITestCase):
+
+    def make_identity_lookup(self, msisdn='+27123', identity='test-identity'):
+        identity = {
+            "msisdn": msisdn,
+            "identity": identity,
+        }
+        lookup = IdentityLookup.objects.create(**identity)
+        return lookup
+
+    def test_update_identity_no_argument(self):
+        self.make_outbound()
+        self.make_inbound('1234', from_addr='+27123')
+        self.make_identity_lookup()
+        call_command('update_identity_field')
+
+        d = Outbound.objects.last()
+        self.assertEqual(str(d.to_addr), "")
+        self.assertEqual(str(d.to_identity), "test-identity")
+
+        i = Inbound.objects.last()
+        self.assertEqual(str(i.from_addr), "")
+        self.assertEqual(str(i.from_identity), "test-identity")
+
+    def test_update_identity_by_id(self):
+        self.make_outbound()
+        self.make_inbound('1234', from_addr='+27123')
+        self.make_identity_lookup()
+        call_command('update_identity_field', '--loop', 'ID')
+
+        d = Outbound.objects.last()
+        self.assertEqual(str(d.to_addr), "")
+        self.assertEqual(str(d.to_identity), "test-identity")
+
+        i = Inbound.objects.last()
+        self.assertEqual(str(i.from_addr), "")
+        self.assertEqual(str(i.from_identity), "test-identity")
+
+    def test_update_identity_by_msg(self):
+        self.make_outbound()
+        self.make_inbound('1234', from_addr='+27123')
+        self.make_identity_lookup()
+        call_command('update_identity_field', '--loop', 'MSG')
+
+        d = Outbound.objects.last()
+        self.assertEqual(str(d.to_addr), "")
+        self.assertEqual(str(d.to_identity), "test-identity")
+
+        i = Inbound.objects.last()
+        self.assertEqual(str(i.from_addr), "")
+        self.assertEqual(str(i.from_identity), "test-identity")
+
+    def test_update_identity_by_sql(self):
+        self.make_outbound()
+        self.make_inbound('1234', from_addr='+27123')
+        self.make_identity_lookup()
+        call_command('update_identity_field', '--loop', 'SQL')
+
+        d = Outbound.objects.last()
+        self.assertEqual(str(d.to_addr), "")
+        self.assertEqual(str(d.to_identity), "test-identity")
+
+        i = Inbound.objects.last()
+        self.assertEqual(str(i.from_addr), "")
+        self.assertEqual(str(i.from_identity), "test-identity")
