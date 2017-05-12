@@ -108,7 +108,7 @@ class Command(BaseCommand):
         update_out_addr = """
             update message_sender_outbound
             set to_addr = ''
-            where to_identity is not null;"""
+            where to_identity != '';"""
 
         update_in_identity = """
             update message_sender_inbound a
@@ -121,7 +121,7 @@ class Command(BaseCommand):
         update_in_addr = """
             update message_sender_inbound
             set from_addr = ''
-            where from_identity is not null;"""
+            where from_identity != '';"""
 
         with connection.cursor() as cursor:
             cursor.execute(update_out_identity)

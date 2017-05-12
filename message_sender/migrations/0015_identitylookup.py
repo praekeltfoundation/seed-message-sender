@@ -15,8 +15,8 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='IdentityLookup',
             fields=[
-                ('msisdn', models.CharField(db_index=True, max_length=255, primary_key=True, serialize=False)),
-                ('identity', models.CharField(blank=True, max_length=36, null=True)),
+                ('msisdn', models.CharField(max_length=255, primary_key=True, serialize=False)),
+                ('identity', models.CharField(blank=False, max_length=36, null=False)),
             ],
         ),
     ]

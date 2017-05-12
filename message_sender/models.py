@@ -111,9 +111,8 @@ class OutboundSendFailure(models.Model):
 @python_2_unicode_compatible
 class IdentityLookup(models.Model):
 
-    msisdn = models.CharField(
-        primary_key=True, max_length=255, db_index=True)
-    identity = models.CharField(max_length=36, null=True, blank=True)
+    msisdn = models.CharField(primary_key=True, max_length=255)
+    identity = models.CharField(max_length=36, null=False, blank=False)
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.identity)

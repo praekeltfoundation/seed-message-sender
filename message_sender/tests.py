@@ -1922,68 +1922,59 @@ class TestChannels(AuthenticatedAPITestCase):
         self.assertEqual(Channel.objects.filter(default=True).count(), 1)
 
 
-class TestManagementCommands(AuthenticatedAPITestCase):
+class TestUpdateIdentityCommand(AuthenticatedAPITestCase):
 
-    def make_identity_lookup(self, msisdn='+27123', identity='test-identity'):
+    def make_identity_lookup(self, msisdn='+27123', identity='56f6e9506ee3'):
         identity = {
             "msisdn": msisdn,
             "identity": identity,
         }
-        lookup = IdentityLookup.objects.create(**identity)
-        return lookup
+        return IdentityLookup.objects.create(**identity)
+
+    def prepare_data(self):
+        self.out1 = self.make_outbound()
+        self.out2 = self.make_outbound(to_addr="+274321", to_identity='')
+        self.in1 = self.make_inbound('1234', from_addr='+27123')
+        self.in2 = self.make_inbound('1234', from_addr='+274321')
+        self.make_identity_lookup()
+
+    def check_data(self):
+        # Outbound with valid msisdn
+        out1 = Outbound.objects.get(id=self.out1)
+        self.assertEqual(str(out1.to_addr), "")
+        self.assertEqual(str(out1.to_identity), "56f6e9506ee3")
+
+        # Outbound msisdn not found
+        out2 = Outbound.objects.get(id=self.out2)
+        self.assertEqual(str(out2.to_addr), "+274321")
+        self.assertEqual(str(out2.to_identity), "")
+
+        # Inbound with valid msisdn
+        in1 = Inbound.objects.get(id=self.in1)
+        self.assertEqual(str(in1.from_addr), "")
+        self.assertEqual(str(in1.from_identity), "56f6e9506ee3")
+
+        # Inbound msisdn not found
+        in2 = Inbound.objects.get(id=self.in2)
+        self.assertEqual(str(in2.from_addr), "+274321")
+        self.assertEqual(str(in2.from_identity), "")
 
     def test_update_identity_no_argument(self):
-        self.make_outbound()
-        self.make_inbound('1234', from_addr='+27123')
-        self.make_identity_lookup()
+        self.prepare_data()
         call_command('update_identity_field')
-
-        d = Outbound.objects.last()
-        self.assertEqual(str(d.to_addr), "")
-        self.assertEqual(str(d.to_identity), "test-identity")
-
-        i = Inbound.objects.last()
-        self.assertEqual(str(i.from_addr), "")
-        self.assertEqual(str(i.from_identity), "test-identity")
+        self.check_data()
 
     def test_update_identity_by_id(self):
-        self.make_outbound()
-        self.make_inbound('1234', from_addr='+27123')
-        self.make_identity_lookup()
+        self.prepare_data()
         call_command('update_identity_field', '--loop', 'ID')
-
-        d = Outbound.objects.last()
-        self.assertEqual(str(d.to_addr), "")
-        self.assertEqual(str(d.to_identity), "test-identity")
-
-        i = Inbound.objects.last()
-        self.assertEqual(str(i.from_addr), "")
-        self.assertEqual(str(i.from_identity), "test-identity")
+        self.check_data()
 
     def test_update_identity_by_msg(self):
-        self.make_outbound()
-        self.make_inbound('1234', from_addr='+27123')
-        self.make_identity_lookup()
+        self.prepare_data()
         call_command('update_identity_field', '--loop', 'MSG')
-
-        d = Outbound.objects.last()
-        self.assertEqual(str(d.to_addr), "")
-        self.assertEqual(str(d.to_identity), "test-identity")
-
-        i = Inbound.objects.last()
-        self.assertEqual(str(i.from_addr), "")
-        self.assertEqual(str(i.from_identity), "test-identity")
+        self.check_data()
 
     def test_update_identity_by_sql(self):
-        self.make_outbound()
-        self.make_inbound('1234', from_addr='+27123')
-        self.make_identity_lookup()
+        self.prepare_data()
         call_command('update_identity_field', '--loop', 'SQL')
-
-        d = Outbound.objects.last()
-        self.assertEqual(str(d.to_addr), "")
-        self.assertEqual(str(d.to_identity), "test-identity")
-
-        i = Inbound.objects.last()
-        self.assertEqual(str(i.from_addr), "")
-        self.assertEqual(str(i.from_identity), "test-identity")
+        self.check_data()
