@@ -1102,7 +1102,23 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
 
     @responses.activate
-    def test_fire_delivery_hook(self):
+    def test_fire_delivery_hook_max_retries_not_reached(self):
+        '''
+        This should not fire the hook
+        '''
+        Hook.objects.create(
+            user=self.user, event='outbound.delivery_report',
+            target='http://example.com')
+        d = Outbound.objects.get(pk=self.make_outbound())
+        responses.add(responses.POST, 'http://example.com',
+                      status=200, content_type='application/json')
+
+        fire_delivery_hook(self.user, d)
+
+        self.assertEqual(len(responses.calls), 0)
+
+    @responses.activate
+    def test_fire_delivery_hook_max_retries_reached(self):
         '''
         This should call deliver_hook_wrapper to send data to a web hook
         '''
@@ -1110,6 +1126,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             user=self.user, event='outbound.delivery_report',
             target='http://example.com')
         d = Outbound.objects.get(pk=self.make_outbound())
+        d.attempts = 3
+        d.save()
         responses.add(responses.POST, 'http://example.com',
                       status=200, content_type='application/json')
 
@@ -1120,6 +1138,30 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
                                      "target": hook.target})
         self.assertEqual(r['data'], {"delivered": False, "to_addr": d.to_addr,
+                                     "outbound_id": str(d.id),
+                                     "identity": d.to_identity})
+
+    @responses.activate
+    def test_fire_delivery_hook_when_delivered(self):
+        '''
+        This should call deliver_hook_wrapper to send data to a web hook
+        '''
+        hook = Hook.objects.create(
+            user=self.user, event='outbound.delivery_report',
+            target='http://example.com')
+        d = Outbound.objects.get(pk=self.make_outbound())
+        d.delivered = True
+        d.save()
+        responses.add(responses.POST, 'http://example.com',
+                      status=200, content_type='application/json')
+
+        fire_delivery_hook(self.user, d)
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
+                                     "target": hook.target})
+        self.assertEqual(r['data'], {"delivered": True, "to_addr": d.to_addr,
                                      "outbound_id": str(d.id),
                                      "identity": d.to_identity})
 

@@ -1,4 +1,5 @@
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.conf import settings
 from django.contrib.auth.models import User
 from django import forms
 from rest_hooks.models import Hook
@@ -199,6 +200,11 @@ class InboundViewSet(viewsets.ModelViewSet):
 
 def fire_delivery_hook(user, outbound):
     outbound.refresh_from_db()
+    # Only fire if the message has been delivered or we've reached max attempts
+    if (not outbound.delivered and
+            outbound.attempts < settings.MESSAGE_SENDER_MAX_RETRIES):
+        return
+
     payload = {
         'outbound_id': str(outbound.id),
         'delivered': outbound.delivered,
