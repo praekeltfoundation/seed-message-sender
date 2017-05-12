@@ -19,7 +19,7 @@ from .factory import MessageClientFactory
 
 
 from .models import Outbound, OutboundSendFailure, Channel
-from seed_message_sender.utils import load_callable
+from seed_message_sender.utils import load_callable, get_identity_address
 from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
@@ -216,6 +216,11 @@ class SendMessage(Task):
 
                 sender = self.get_client(channel)
                 ConcurrencyLimiter.manage_limit(self, channel)
+
+                if not message.to_addr and message.to_identity:
+                    message.to_addr = get_identity_address(
+                        message.to_identity, use_communicate_through=True)
+
                 if "voice_speech_url" in message.metadata:
                     # OBD number of tries metric
                     fire_metric.apply_async(kwargs={
@@ -283,6 +288,8 @@ class SendMessage(Task):
         else:
             # This is for retries based on async nacks from the transport.
             l.info("Message <%s> at max retries." % str(message_id))
+            message.to_addr = ''
+            message.save(update_fields=['to_addr'])
             fire_metric.apply_async(kwargs={
                 "metric_name": 'vumimessage.maxretries.sum',
                 "metric_value": 1.0

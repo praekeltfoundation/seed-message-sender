@@ -331,3 +331,8 @@ if REDIS_PASSWORD:
     CACHES['default']['OPTIONS']['PASSWORD'] = REDIS_PASSWORD
 
 DEFAULT_REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_REQUEST_TIMEOUT", 30))
+
+IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
+                                    'http://is/api/v1')
+IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
+                                      'REPLACEME')
