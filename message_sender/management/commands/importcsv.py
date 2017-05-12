@@ -40,5 +40,5 @@ class Command(BaseCommand):
                     for i, field in enumerate(row):
                         setattr(obj, fields_name[i], field)
                     obj.save()
-                except Exception, e:
+                except Exception as e:
                     raise CommandError(e)
