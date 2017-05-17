@@ -76,10 +76,10 @@ class Inbound(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     message_id = models.CharField(null=False, blank=False, max_length=36)
     in_reply_to = models.CharField(null=True, blank=True, max_length=36)
-    to_addr = models.CharField(null=False, blank=True, max_length=255)
+    to_addr = models.CharField(null=False, blank=False, max_length=255)
     from_addr = models.CharField(
         null=False, blank=True, max_length=255, db_index=True)
-    from_identity = models.CharField(max_length=36, null=True, blank=False,
+    from_identity = models.CharField(max_length=36, null=False, blank=True,
                                      db_index=True, default="")
     content = models.CharField(null=True, blank=True, max_length=1000)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
