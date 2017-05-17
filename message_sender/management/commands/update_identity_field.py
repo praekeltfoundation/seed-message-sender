@@ -10,13 +10,13 @@ import pytz
 
 
 def queryset_iterator_created_at(queryset, chunksize=1000):
-    pk = datetime.datetime(1800, 1, 1).replace(tzinfo=pytz.UTC)
-    last_pk = queryset.order_by('-created_at').values_list(
+    pk = datetime.datetime(2100, 1, 1).replace(tzinfo=pytz.UTC)
+    last_pk = queryset.order_by('created_at').values_list(
         'created_at', flat=True).first()
     if last_pk is not None:
-        queryset = queryset.order_by('created_at')
-        while pk < last_pk:
-            for row in queryset.filter(created_at__gt=pk)[:chunksize]:
+        queryset = queryset.order_by('-created_at')
+        while pk > last_pk:
+            for row in queryset.filter(created_at__lt=pk)[:chunksize]:
                 pk = row.created_at
                 yield row
             gc.collect()
@@ -73,7 +73,8 @@ class Command(BaseCommand):
                 from_addr='', from_identity=identity.identity)
 
     def update_by_msg(self):
-        outbounds = queryset_iterator_created_at(Outbound.objects.all())
+        outbounds = Outbound.objects.exclude(to_addr='')
+        outbounds = queryset_iterator_created_at(outbounds)
 
         for outbound in outbounds:
             try:
@@ -85,7 +86,8 @@ class Command(BaseCommand):
             except ObjectDoesNotExist:
                 self.stdout.write("Identity not Found: %s" % outbound.to_addr)
 
-        inbounds = queryset_iterator_created_at(Inbound.objects.all())
+        inbounds = Inbound.objects.exclude(from_addr='')
+        inbounds = queryset_iterator_created_at(inbounds)
         for inbound in inbounds:
             try:
                 identity = IdentityLookup.objects.get(
