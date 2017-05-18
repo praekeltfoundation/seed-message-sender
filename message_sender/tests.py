@@ -19,6 +19,7 @@ from django.core.urlresolvers import reverse
 from django.db.models.signals import post_save
 from django.conf import settings
 from django.utils import timezone
+from django.core.management import call_command
 from mock import MagicMock
 from mock import patch
 from rest_framework import status
@@ -31,7 +32,8 @@ from go_http.send import LoggingSender
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
     JunebugApiSenderException)
-from .models import Inbound, Outbound, OutboundSendFailure, Channel
+from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
+                     IdentityLookup)
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
 from .tasks import (SendMessage, send_message, fire_metric,
                     ConcurrencyLimiter, requeue_failed_tasks)
@@ -1918,3 +1920,61 @@ class TestChannels(AuthenticatedAPITestCase):
         channel.save()
 
         self.assertEqual(Channel.objects.filter(default=True).count(), 1)
+
+
+class TestUpdateIdentityCommand(AuthenticatedAPITestCase):
+
+    def make_identity_lookup(self, msisdn='+27123', identity='56f6e9506ee3'):
+        identity = {
+            "msisdn": msisdn,
+            "identity": identity,
+        }
+        return IdentityLookup.objects.create(**identity)
+
+    def prepare_data(self):
+        self.out1 = self.make_outbound()
+        self.out2 = self.make_outbound(to_addr="+274321", to_identity='')
+        self.in1 = self.make_inbound('1234', from_addr='+27123')
+        self.in2 = self.make_inbound('1234', from_addr='+274321')
+        self.make_identity_lookup()
+
+    def check_data(self):
+        # Outbound with valid msisdn
+        out1 = Outbound.objects.get(id=self.out1)
+        self.assertEqual(str(out1.to_addr), "")
+        self.assertEqual(str(out1.to_identity), "56f6e9506ee3")
+
+        # Outbound msisdn not found
+        out2 = Outbound.objects.get(id=self.out2)
+        self.assertEqual(str(out2.to_addr), "+274321")
+        self.assertEqual(str(out2.to_identity), "")
+
+        # Inbound with valid msisdn
+        in1 = Inbound.objects.get(id=self.in1)
+        self.assertEqual(str(in1.from_addr), "")
+        self.assertEqual(str(in1.from_identity), "56f6e9506ee3")
+
+        # Inbound msisdn not found
+        in2 = Inbound.objects.get(id=self.in2)
+        self.assertEqual(str(in2.from_addr), "+274321")
+        self.assertEqual(str(in2.from_identity), "")
+
+    def test_update_identity_no_argument(self):
+        self.prepare_data()
+        call_command('update_identity_field')
+        self.check_data()
+
+    def test_update_identity_by_id(self):
+        self.prepare_data()
+        call_command('update_identity_field', '--loop', 'ID')
+        self.check_data()
+
+    def test_update_identity_by_msg(self):
+        self.prepare_data()
+        call_command('update_identity_field', '--loop', 'MSG')
+        self.check_data()
+
+    def test_update_identity_by_sql(self):
+        self.prepare_data()
+        call_command('update_identity_field', '--loop', 'SQL')
+        self.check_data()
