@@ -1,14 +1,17 @@
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.conf import settings
 from django.contrib.auth.models import User
 from django import forms
 from rest_hooks.models import Hook
+from rest_hooks.signals import raw_hook_event
 from rest_framework import viewsets, status, filters, mixins
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
-from .models import Outbound, Inbound, OutboundSendFailure, Channel
+from .models import (
+    Outbound, Inbound, OutboundSendFailure, Channel, InvalidMessage)
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
@@ -196,6 +199,32 @@ class InboundViewSet(viewsets.ModelViewSet):
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 
 
+def fire_delivery_hook(user, outbound):
+    outbound.refresh_from_db()
+    # Only fire if the message has been delivered or we've reached max attempts
+    if (not outbound.delivered and
+            outbound.attempts < settings.MESSAGE_SENDER_MAX_RETRIES):
+        return
+
+    payload = {
+        'outbound_id': str(outbound.id),
+        'delivered': outbound.delivered,
+        'to_addr': outbound.to_addr,
+    }
+    if hasattr(outbound, 'to_identity'):
+        payload['identity'] = outbound.to_identity
+
+    if payload['to_addr'] is None and payload.get('identity', None) is None:
+        raise InvalidMessage(outbound)
+
+    raw_hook_event.send(
+        sender=None,
+        event_name='outbound.delivery_report',
+        payload=payload,
+        user=user
+    )
+
+
 class EventListener(APIView):
 
     """
@@ -225,6 +254,7 @@ class EventListener(APIView):
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+                        fire_delivery_hook(request.user, message)
 
                         # OBD number of successful tries metric
                         if "voice_speech_url" in message.metadata:
@@ -239,11 +269,13 @@ class EventListener(APIView):
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+                        fire_delivery_hook(request.user, message)
                     elif event == "nack":
                         if "nack_reason" in request.data:
                             message.metadata["nack_reason"] = \
                                 request.data["nack_reason"]
                             message.save()
+                        fire_delivery_hook(request.user, message)
                         send_message.delay(str(message.id))
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
@@ -311,6 +343,7 @@ class JunebugEventListener(APIView):
             message.to_addr = ''
             message.metadata["ack_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['metadata', 'delivered', 'to_addr'])
+            fire_delivery_hook(request.user, message)
 
             # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
@@ -322,16 +355,19 @@ class JunebugEventListener(APIView):
             message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
+            fire_delivery_hook(request.user, message)
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
             message.to_addr = ''
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
             message.save(update_fields=['delivered', 'metadata', 'to_addr'])
+            fire_delivery_hook(request.user, message)
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
+            fire_delivery_hook(request.user, message)
             send_message.delay(str(message.id))
 
         if ("voice_speech_url" in message.metadata and

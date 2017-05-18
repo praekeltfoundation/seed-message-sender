@@ -25,6 +25,7 @@ from mock import patch
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
+from rest_hooks.models import Hook
 from requests_testadapter import TestAdapter, TestSession
 from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
@@ -37,6 +38,7 @@ from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
 from .tasks import (SendMessage, send_message, fire_metric,
                     ConcurrencyLimiter, requeue_failed_tasks)
+from .views import fire_delivery_hook
 from . import tasks
 
 from seed_message_sender.utils import load_callable
@@ -959,7 +961,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.transport_type, "voice")
         self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
-    def test_event_ack(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_ack(self, mock_hook):
         existing = self.make_outbound()
 
         d = Outbound.objects.get(pk=existing)
@@ -984,8 +987,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                          "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(self.user, d)
 
-    def test_event_delivery_report(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_delivery_report(self, mock_hook):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         dr = {
@@ -1009,8 +1014,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                          "2015-10-28 16:20:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(self.user, d)
 
-    def test_event_nack_first(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_nack_first(self, mock_hook):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         post_save.connect(
@@ -1041,6 +1048,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
+        mock_hook.assert_called_once_with(self.user, d)
         # TODO: Bring metrics back
         # self.assertEquals(
         #     True,
@@ -1095,6 +1103,70 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         #     True,
         #     self.check_logs("Metric: 'vumimessage.maxretries' [sum] -> 1"))
 
+    @responses.activate
+    def test_fire_delivery_hook_max_retries_not_reached(self):
+        '''
+        This should not fire the hook
+        '''
+        Hook.objects.create(
+            user=self.user, event='outbound.delivery_report',
+            target='http://example.com')
+        d = Outbound.objects.get(pk=self.make_outbound())
+        responses.add(responses.POST, 'http://example.com',
+                      status=200, content_type='application/json')
+
+        fire_delivery_hook(self.user, d)
+
+        self.assertEqual(len(responses.calls), 0)
+
+    @responses.activate
+    def test_fire_delivery_hook_max_retries_reached(self):
+        '''
+        This should call deliver_hook_wrapper to send data to a web hook
+        '''
+        hook = Hook.objects.create(
+            user=self.user, event='outbound.delivery_report',
+            target='http://example.com')
+        d = Outbound.objects.get(pk=self.make_outbound())
+        d.attempts = 3
+        d.save()
+        responses.add(responses.POST, 'http://example.com',
+                      status=200, content_type='application/json')
+
+        fire_delivery_hook(self.user, d)
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
+                                     "target": hook.target})
+        self.assertEqual(r['data'], {"delivered": False, "to_addr": d.to_addr,
+                                     "outbound_id": str(d.id),
+                                     "identity": d.to_identity})
+
+    @responses.activate
+    def test_fire_delivery_hook_when_delivered(self):
+        '''
+        This should call deliver_hook_wrapper to send data to a web hook
+        '''
+        hook = Hook.objects.create(
+            user=self.user, event='outbound.delivery_report',
+            target='http://example.com')
+        d = Outbound.objects.get(pk=self.make_outbound())
+        d.delivered = True
+        d.save()
+        responses.add(responses.POST, 'http://example.com',
+                      status=200, content_type='application/json')
+
+        fire_delivery_hook(self.user, d)
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
+                                     "target": hook.target})
+        self.assertEqual(r['data'], {"delivered": True, "to_addr": d.to_addr,
+                                     "outbound_id": str(d.id),
+                                     "identity": d.to_identity})
+
 
 class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
     def test_event_missing_fields(self):
@@ -1124,7 +1196,8 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             content_type='application/json')
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    def test_event_ack(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_ack(self, mock_hook):
         '''A submitted event should update the message object accordingly.'''
         existing = self.make_outbound()
 
@@ -1149,8 +1222,10 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(self.user, d)
 
-    def test_event_nack(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_nack(self, mock_hook):
         '''
         A rejected event should retry and update the message object accordingly
         '''
@@ -1181,8 +1256,10 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
+        mock_hook.assert_called_once_with(self.user, d)
 
-    def test_event_delivery_succeeded(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_delivery_succeeded(self, mock_hook):
         '''A successful delivery should update the message accordingly.'''
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
@@ -1205,8 +1282,10 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(self.user, d)
 
-    def test_event_delivery_failed(self):
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_delivery_failed(self, mock_hook):
         '''
         A failed delivery should retry and update the message accordingly.
         '''
@@ -1231,6 +1310,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["delivery_failed_reason"], {})
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(self.user, d)
 
     @responses.activate
     def test_create_inbound_junebug_message(self):

@@ -169,6 +169,7 @@ REST_FRAMEWORK = {
 HOOK_EVENTS = {
     # 'any.event.name': 'App.Model.Action' (created/updated/deleted)
     # 'dummymodel.added': 'message_sender.DummyModel.created+'
+    'outbound.delivery_report': None,
 }
 
 HOOK_DELIVERER = 'message_sender.tasks.deliver_hook_wrapper'
