@@ -10,7 +10,8 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
-from .models import Outbound, Inbound, OutboundSendFailure, Channel
+from .models import (
+    Outbound, Inbound, OutboundSendFailure, Channel, InvalidMessage)
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
@@ -214,7 +215,7 @@ def fire_delivery_hook(user, outbound):
         payload['identity'] = outbound.to_identity
 
     if payload['to_addr'] is None and payload.get('identity', None) is None:
-        return  # TODO: throw exception, this should never happen
+        raise InvalidMessage(outbound)
 
     raw_hook_event.send(
         sender=None,

@@ -31,6 +31,14 @@ class Channel(models.Model):
         return str(self.channel_id)
 
 
+class InvalidMessage(Exception):
+    """
+    The message that has been stored in the database is not a valid message.
+    """
+    def __init__(self, message):
+        return super(InvalidMessage, self).__init__(
+            'Invalid message: {}'.format(message.id))
+
 @python_2_unicode_compatible
 class Outbound(models.Model):
 
