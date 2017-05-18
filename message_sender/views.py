@@ -275,8 +275,8 @@ class EventListener(APIView):
                             message.metadata["nack_reason"] = \
                                 request.data["nack_reason"]
                             message.save()
-                        send_message.delay(str(message.id))
                         fire_delivery_hook(request.user, message)
+                        send_message.delay(str(message.id))
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
                                 "metric_name":
@@ -355,8 +355,8 @@ class JunebugEventListener(APIView):
             message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
-            send_message.delay(str(message.id))
             fire_delivery_hook(request.user, message)
+            send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
             message.to_addr = ''
@@ -367,8 +367,8 @@ class JunebugEventListener(APIView):
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
-            send_message.delay(str(message.id))
             fire_delivery_hook(request.user, message)
+            send_message.delay(str(message.id))
 
         if ("voice_speech_url" in message.metadata and
                 event_type in ("rejected", "delivery_failed")):
