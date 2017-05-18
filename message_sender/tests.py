@@ -987,7 +987,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                          "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
 
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_delivery_report(self, mock_hook):
@@ -1014,7 +1014,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
                          "2015-10-28 16:20:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
 
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_nack_first(self, mock_hook):
@@ -1048,7 +1048,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
         # TODO: Bring metrics back
         # self.assertEquals(
         #     True,
@@ -1115,7 +1115,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         responses.add(responses.POST, 'http://example.com',
                       status=200, content_type='application/json')
 
-        fire_delivery_hook(self.user, d)
+        fire_delivery_hook(d)
 
         self.assertEqual(len(responses.calls), 0)
 
@@ -1133,7 +1133,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         responses.add(responses.POST, 'http://example.com',
                       status=200, content_type='application/json')
 
-        fire_delivery_hook(self.user, d)
+        fire_delivery_hook(d)
 
         [r] = responses.calls
         r = json.loads(r.request.body)
@@ -1157,7 +1157,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         responses.add(responses.POST, 'http://example.com',
                       status=200, content_type='application/json')
 
-        fire_delivery_hook(self.user, d)
+        fire_delivery_hook(d)
 
         [r] = responses.calls
         r = json.loads(r.request.body)
@@ -1222,7 +1222,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
 
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_nack(self, mock_hook):
@@ -1256,7 +1256,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEquals(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
 
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_delivery_succeeded(self, mock_hook):
@@ -1282,7 +1282,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
 
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_delivery_failed(self, mock_hook):
@@ -1310,7 +1310,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             d.metadata["delivery_failed_reason"], {})
         self.assertEquals(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
-        mock_hook.assert_called_once_with(self.user, d)
+        mock_hook.assert_called_once_with(d)
 
     @responses.activate
     def test_create_inbound_junebug_message(self):
