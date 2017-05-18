@@ -39,6 +39,7 @@ class InvalidMessage(Exception):
         return super(InvalidMessage, self).__init__(
             'Invalid message: {}'.format(message.id))
 
+
 @python_2_unicode_compatible
 class Outbound(models.Model):
 
