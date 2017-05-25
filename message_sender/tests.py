@@ -445,7 +445,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     @responses.activate
     def test_create_outbound_data_new_identity(self):
 
-        self.add_identity_search_response('+2712345', '0c03d360123', 0)
+        self.add_identity_search_response('+2712345', None, 0)
         self.add_create_identity_response('0c03d360123', '+2712345')
 
         post_outbound = {
