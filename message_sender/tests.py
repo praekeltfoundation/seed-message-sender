@@ -385,7 +385,10 @@ class AuthenticatedAPITestCase(APITestCase):
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
-    def test_create_outbound_data(self):
+    @responses.activate
+    def test_create_outbound_data1(self):
+
+        self.add_identity_search_response('+27123', '0c03d360')
 
         post_outbound = {
             "to_addr": "+27123",
@@ -404,12 +407,16 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
         self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.content, "Say something")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata, {})
 
+    @responses.activate
     def test_create_outbound_data_simple(self):
+
+        self.add_identity_search_response('+27123', '0c03d360')
 
         post_outbound = {
             "to_addr": "+27123",
@@ -427,6 +434,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
         self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata, {
@@ -434,7 +442,40 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         })
         self.assertEqual(d.channel, None)
 
+    @responses.activate
+    def test_create_outbound_data_new_identity(self):
+
+        self.add_identity_search_response('+2712345', '0c03d360123', 0)
+        self.add_create_identity_response('0c03d360123', '+2712345')
+
+        post_outbound = {
+            "to_addr": "+2712345",
+            "delivered": "false",
+            "metadata": {
+                "voice_speech_url": "https://foo.com/file.mp3"
+            }
+        }
+        response = self.client.post('/api/v1/outbound/',
+                                    json.dumps(post_outbound),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Outbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.version, 1)
+        self.assertEqual(str(d.to_addr), "+2712345")
+        self.assertEqual(str(d.to_identity), "0c03d360123")
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata, {
+            "voice_speech_url": "https://foo.com/file.mp3"
+        })
+        self.assertEqual(d.channel, None)
+
+    @responses.activate
     def test_create_outbound_data_with_channel(self):
+
+        self.add_identity_search_response('+27123', '0c03d360')
 
         post_outbound = {
             "to_addr": "+27123",
@@ -453,6 +494,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
         self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata, {
@@ -1623,6 +1665,8 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         if channel:
             channel = Channel.objects.get(channel_id=channel)
 
+        self.add_identity_search_response(to_addr, '098734738')
+
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
@@ -1644,6 +1688,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         super(TestConcurrencyLimiter, self).setUp()
         self.fake_cache = MockCache()
 
+    @responses.activate
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
     @patch('django.core.cache.cache.add')
@@ -1681,6 +1726,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             self.fake_cache.cache_data["JUNE_VOICE2_messages_at_%s" % bucket],
             2)
 
+    @responses.activate
     @patch('time.time', MagicMock(return_value=1479131658.000000))
     @patch('django.core.cache.cache.get')
     @patch('django.core.cache.cache.add')
@@ -1783,6 +1829,8 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         if channel:
             channel = Channel.objects.get(channel_id=channel)
 
+        self.add_identity_search_response(to_addr, '34857985789')
+
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
             "to_addr": to_addr,
@@ -1796,6 +1844,7 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return outbound
 
+    @responses.activate
     def test_requeue(self):
         outbound1 = self.make_outbound(to_addr="+27123")
         outbound2 = self.make_outbound(to_addr="+27987")
@@ -1820,6 +1869,8 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
 
         if channel:
             channel = Channel.objects.get(channel_id=channel)
+
+        self.add_identity_search_response(to_addr, '34857985789')
 
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {

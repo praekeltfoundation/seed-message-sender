@@ -19,7 +19,9 @@ from .factory import MessageClientFactory
 
 
 from .models import Outbound, OutboundSendFailure, Channel
-from seed_message_sender.utils import load_callable, get_identity_address
+from seed_message_sender.utils import (
+    load_callable, get_identity_address, get_identity_by_address,
+    create_identity)
 from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
@@ -220,6 +222,25 @@ class SendMessage(Task):
                 if not message.to_addr and message.to_identity:
                     message.to_addr = get_identity_address(
                         message.to_identity, use_communicate_through=True)
+
+                if message.to_addr and not message.to_identity:
+                    result = get_identity_by_address(message.to_addr)
+
+                    if result:
+                        message.to_identity = result['results'][0]['id']
+                    else:
+                        identity = {
+                            'details': {
+                                'default_addr_type': 'msisdn',
+                                'addresses': {
+                                    'msisdn': {
+                                        message.to_addr: {'default': True}
+                                    }
+                                }
+                            }
+                        }
+                        identity = create_identity(identity)
+                        message.to_identity = identity['id']
 
                 if "voice_speech_url" in message.metadata:
                     # OBD number of tries metric
