@@ -648,6 +648,39 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
 
+    def test_to_identity_filter_outbound(self):
+        """
+        When filtering on to_identity, only outbound messages with that
+        identity id should be returned.
+        """
+        self.make_outbound(to_identity='1234')
+        self.make_outbound(to_identity='4321')
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
+            ('to_identity', '1234'),
+        ))))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_to_identity_filter_outbound_multiple(self):
+        """
+        When filtering on to_identity, if multiple values are presented for the
+        identity ID, we should return all outbound messages that match one of
+        the identity IDs.
+        """
+        self.make_outbound(to_identity='1234')
+        self.make_outbound(to_identity='4321')
+        self.make_outbound(to_identity='1111')
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
+            ('to_identity', '1234'),
+            ('to_identity', '4321'),
+        ))))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
     def test_created_at_ordering_filter_outbound(self):
         """
         We should be able to order the results of the Outbound list endpoint
