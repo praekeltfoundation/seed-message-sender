@@ -83,6 +83,7 @@ class OutboundFilter(filters.FilterSet):
     after = django_filters.IsoDateTimeFilter(name="created_at",
                                              lookup_type='gte')
     to_addr = MultipleFilter(name='to_addr')
+    to_identity = MultipleFilter(name='to_identity')
 
     class Meta:
         model = Outbound
@@ -110,6 +111,7 @@ class OutboundViewSet(viewsets.ModelViewSet):
 
 class InboundFilter(filters.FilterSet):
     from_addr = MultipleFilter(name='from_addr')
+    from_identity = MultipleFilter(name='from_identity')
 
     class Meta:
         model = Inbound

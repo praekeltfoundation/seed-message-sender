@@ -209,12 +209,13 @@ class AuthenticatedAPITestCase(APITestCase):
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return str(outbound.id)
 
-    def make_inbound(self, in_reply_to, from_addr='020'):
+    def make_inbound(self, in_reply_to, from_addr='020', from_identity=''):
         inbound_message = {
             "message_id": str(uuid.uuid4()),
             "in_reply_to": in_reply_to,
             "to_addr": "+27123",
             "from_addr": from_addr,
+            "from_identity": from_identity,
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
@@ -648,6 +649,39 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
 
+    def test_to_identity_filter_outbound(self):
+        """
+        When filtering on to_identity, only outbound messages with that
+        identity id should be returned.
+        """
+        self.make_outbound(to_identity='1234')
+        self.make_outbound(to_identity='4321')
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
+            ('to_identity', '1234'),
+        ))))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_to_identity_filter_outbound_multiple(self):
+        """
+        When filtering on to_identity, if multiple values are presented for the
+        identity ID, we should return all outbound messages that match one of
+        the identity IDs.
+        """
+        self.make_outbound(to_identity='1234')
+        self.make_outbound(to_identity='4321')
+        self.make_outbound(to_identity='1111')
+
+        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
+            ('to_identity', '1234'),
+            ('to_identity', '4321'),
+        ))))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
     def test_created_at_ordering_filter_outbound(self):
         """
         We should be able to order the results of the Outbound list endpoint
@@ -700,6 +734,39 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         response = self.client.get('/api/v1/inbound/?{}'.format(urlencode((
             ('from_addr', '+1234'),
             ('from_addr', '+4321'))))
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_from_identity_filter_inbound(self):
+        """
+        When filtering on from_identity, only the inbounds with the specified
+        identity ID should be returned.
+        """
+        self.make_inbound('1234', from_identity='1234')
+        self.make_inbound('1234', from_identity='4321')
+
+        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
+            'from_identity': '1234'}))
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data["results"]), 1)
+
+    def test_from_identity_filter_inbound_multiple(self):
+        """
+        When filtering on from_identity, if multiple values are presented for
+        the from identity IDs, we should return all inbound messages that match
+        one of the from identity IDs.
+        """
+        self.make_inbound('1234', from_identity='1234')
+        self.make_inbound('1234', from_identity='4321')
+        self.make_inbound('1234', from_identity='1111')
+
+        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode((
+            ('from_identity', '1234'),
+            ('from_identity', '4321'))))
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
