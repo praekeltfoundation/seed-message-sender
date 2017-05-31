@@ -111,6 +111,7 @@ class OutboundViewSet(viewsets.ModelViewSet):
 
 class InboundFilter(filters.FilterSet):
     from_addr = MultipleFilter(name='from_addr')
+    from_identity = MultipleFilter(name='from_identity')
 
     class Meta:
         model = Inbound
