@@ -1,3 +1,5 @@
+from .models import Channel
+
 
 def psh_fire_msg_action_if_new(sender, instance, created, **kwargs):
     """ Post save hook to fire message send task
@@ -16,3 +18,11 @@ def psh_fire_metrics_if_new(sender, instance, created, **kwargs):
             "metric_name": 'inbounds.created.sum',
             "metric_value": 1.0
         })
+
+
+def update_default_channels(sender, instance, created, **kwargs):
+    """ Post save hook to ensure that there is only one default
+    """
+    if instance.default:
+        Channel.objects.filter(default=True).exclude(
+            channel_id=instance.channel_id).update(default=False)

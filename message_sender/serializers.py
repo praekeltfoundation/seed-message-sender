@@ -1,15 +1,39 @@
-from .models import Inbound, Outbound, OutboundSendFailure
+from .models import Inbound, Outbound, OutboundSendFailure, Channel
 from rest_hooks.models import Hook
 from rest_framework import serializers
 
 
+class OneFieldRequiredValidator:
+    def __init__(self, fields):
+        self.fields = fields
+
+    def set_context(self, serializer):
+        self.is_create = getattr(serializer, 'instance', None) is None
+
+    def __call__(self, data):
+        if self.is_create:
+
+            for field in self.fields:
+                if data.get(field):
+                    return
+
+            raise serializers.ValidationError(
+                "One of these fields must be populated: %s" %
+                (', '.join(self.fields)))
+
+
 class OutboundSerializer(serializers.HyperlinkedModelSerializer):
+
+    channel = serializers.PrimaryKeyRelatedField(
+        queryset=Channel.objects.all(), required=False)
 
     class Meta:
         model = Outbound
         fields = (
             'url', 'id', 'version', 'to_addr', 'vumi_message_id', 'content',
-            'delivered', 'attempts', 'metadata', 'created_at', 'updated_at')
+            'delivered', 'attempts', 'metadata', 'created_at', 'updated_at',
+            'channel', 'to_identity')
+        validators = [OneFieldRequiredValidator(['to_addr', 'to_identity'])]
 
 
 class InboundSerializer(serializers.HyperlinkedModelSerializer):
@@ -19,7 +43,9 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             'url', 'id', 'message_id', 'in_reply_to', 'to_addr',
             'from_addr', 'content', 'transport_name', 'transport_type',
-            'helper_metadata', 'created_at', 'updated_at')
+            'helper_metadata', 'created_at', 'updated_at', 'from_identity')
+        validators = \
+            [OneFieldRequiredValidator(['from_addr', 'from_identity'])]
 
     def to_internal_value(self, data):
         """
@@ -27,6 +53,7 @@ class InboundSerializer(serializers.HyperlinkedModelSerializer):
         """
         if "session_event" in data:
             data['helper_metadata']['session_event'] = data['session_event']
+
         return super(InboundSerializer, self).to_internal_value(data)
 
 
@@ -44,20 +71,9 @@ class JunebugInboundSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             'url', 'id', 'message_id', 'reply_to', 'to', 'from_addr',
             'content', 'channel_id', 'channel_data', 'created_at',
-            'updated_at')
-
-    def to_internal_value(self, data):
-        """
-        Maps Junebug 'from' field to 'from_addr' expected by serializer since
-        'from' is a python keyword.
-        """
-        if "from" not in data:
-            raise serializers.ValidationError({
-                'from': 'This field is required.'
-            })
-        else:
-            data['from_addr'] = data['from']
-        return super(JunebugInboundSerializer, self).to_internal_value(data)
+            'updated_at', 'from_identity')
+        validators = \
+            [OneFieldRequiredValidator(['from', 'from_identity'])]
 
 
 class HookSerializer(serializers.ModelSerializer):

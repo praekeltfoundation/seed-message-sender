@@ -169,6 +169,7 @@ REST_FRAMEWORK = {
 HOOK_EVENTS = {
     # 'any.event.name': 'App.Model.Action' (created/updated/deleted)
     # 'dummymodel.added': 'message_sender.DummyModel.created+'
+    'outbound.delivery_report': None,
 }
 
 HOOK_DELIVERER = 'message_sender.tasks.deliver_hook_wrapper'
@@ -330,3 +331,8 @@ if REDIS_PASSWORD:
     CACHES['default']['OPTIONS']['PASSWORD'] = REDIS_PASSWORD
 
 DEFAULT_REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_REQUEST_TIMEOUT", 30))
+
+IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
+                                    'http://is/api/v1')
+IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
+                                      'REPLACEME')

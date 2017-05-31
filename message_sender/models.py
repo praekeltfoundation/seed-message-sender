@@ -7,6 +7,40 @@ from django.utils.encoding import python_2_unicode_compatible
 
 
 @python_2_unicode_compatible
+class Channel(models.Model):
+
+    VUMI_TYPE = 'vumi'
+    JUNEBUG_TYPE = 'junebug'
+
+    CHANNEL_TYPES = (
+        (JUNEBUG_TYPE, 'Junebug'),
+        (VUMI_TYPE, 'Vumi')
+    )
+
+    channel_id = models.CharField(primary_key=True, editable=True,
+                                  max_length=64)
+    channel_type = models.CharField(choices=CHANNEL_TYPES, max_length=20,
+                                    default=JUNEBUG_TYPE)
+    concurrency_limit = models.IntegerField(null=False, blank=False, default=0)
+    message_delay = models.IntegerField(null=False, blank=False, default=0)
+    message_timeout = models.IntegerField(null=False, blank=False, default=0)
+    default = models.BooleanField(default=False)
+    configuration = JSONField()
+
+    def __str__(self):  # __unicode__ on Python 2
+        return str(self.channel_id)
+
+
+class InvalidMessage(Exception):
+    """
+    The message that has been stored in the database is not a valid message.
+    """
+    def __init__(self, message):
+        return super(InvalidMessage, self).__init__(
+            'Invalid message: {}'.format(message.id))
+
+
+@python_2_unicode_compatible
 class Outbound(models.Model):
 
     """
@@ -14,8 +48,10 @@ class Outbound(models.Model):
     Delivered is set to true when ack received because delivery reports patchy
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    to_addr = models.CharField(null=False, blank=False, max_length=500,
+    to_addr = models.CharField(null=False, blank=True, max_length=500,
                                db_index=True)
+    to_identity = models.CharField(max_length=36, null=False, blank=True,
+                                   db_index=True)
     version = models.IntegerField(default=1)
     content = models.CharField(null=True, blank=True, max_length=1000)
     vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
@@ -26,6 +62,7 @@ class Outbound(models.Model):
         "been answered. Not used for text messages")
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
+    channel = models.ForeignKey(Channel, null=True)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     last_sent_time = models.DateTimeField(null=True, blank=True)
@@ -50,7 +87,9 @@ class Inbound(models.Model):
     in_reply_to = models.CharField(null=True, blank=True, max_length=36)
     to_addr = models.CharField(null=False, blank=False, max_length=255)
     from_addr = models.CharField(
-        null=False, blank=False, max_length=255, db_index=True)
+        null=False, blank=True, max_length=255, db_index=True)
+    from_identity = models.CharField(max_length=36, null=False, blank=True,
+                                     db_index=True, default="")
     content = models.CharField(null=True, blank=True, max_length=1000)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
     transport_type = models.CharField(null=True, blank=True, max_length=200)
@@ -76,3 +115,13 @@ class OutboundSendFailure(models.Model):
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.id)
+
+
+@python_2_unicode_compatible
+class IdentityLookup(models.Model):
+
+    msisdn = models.CharField(primary_key=True, max_length=255)
+    identity = models.CharField(max_length=36, null=False, blank=False)
+
+    def __str__(self):  # __unicode__ on Python 2
+        return str(self.identity)

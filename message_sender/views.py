@@ -1,5 +1,5 @@
-from django.conf import settings
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from django.conf import settings
 from django.contrib.auth.models import User
 from django import forms
 from rest_hooks.models import Hook
@@ -9,13 +9,15 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
-from .models import Outbound, Inbound, OutboundSendFailure
+from .models import (
+    Outbound, Inbound, OutboundSendFailure, Channel, InvalidMessage)
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
                           CreateUserSerializer, OutboundSendFailureSerializer)
 from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
                     requeue_failed_tasks)
-from seed_message_sender.utils import get_available_metrics
+from seed_message_sender.utils import (
+    get_available_metrics, get_identity_by_address, create_identity)
 from seed_papertrail.decorators import papertrail
 import django_filters
 
@@ -81,6 +83,7 @@ class OutboundFilter(filters.FilterSet):
     after = django_filters.IsoDateTimeFilter(name="created_at",
                                              lookup_type='gte')
     to_addr = MultipleFilter(name='to_addr')
+    to_identity = MultipleFilter(name='to_identity')
 
     class Meta:
         model = Outbound
@@ -108,6 +111,7 @@ class OutboundViewSet(viewsets.ModelViewSet):
 
 class InboundFilter(filters.FilterSet):
     from_addr = MultipleFilter(name='from_addr')
+    from_identity = MultipleFilter(name='from_identity')
 
     class Meta:
         model = Inbound
@@ -134,7 +138,37 @@ class InboundViewSet(viewsets.ModelViewSet):
         return InboundSerializer
 
     def create(self, request, *args, **kwargs):
-        if int(getattr(settings, 'CONCURRENT_VOICE_LIMIT', 0)) == 0:
+        if not kwargs.get('channel_id'):
+            channel = Channel.objects.get(default=True)
+        else:
+            channel = Channel.objects.get(channel_id=kwargs.get('channel_id'))
+
+        if "from" in request.data:
+            msisdn = request.data.pop("from")
+        elif "from_addr" in request.data:
+            msisdn = request.data.pop("from_addr")
+
+        result = get_identity_by_address(msisdn)
+
+        if result:
+            identity_id = result['results'][0]['id']
+        else:
+            identity = {
+                'details': {
+                    'default_addr_type': 'msisdn',
+                    'addresses': {
+                        'msisdn': {
+                            msisdn: {'default': True}
+                        }
+                    }
+                }
+            }
+            identity = create_identity(identity)
+            identity_id = identity['id']
+
+        request.data['from_identity'] = identity_id
+
+        if channel.concurrency_limit == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
         close_event = False
@@ -143,12 +177,10 @@ class InboundViewSet(viewsets.ModelViewSet):
                 "close":
             close_event = True
             related_outbound = request.data["reply_to"]
-            msisdn = request.data["from"]
         elif "session_event" in request.data:  # Handle message from Vumi
             if request.data["session_event"] == "close":
                 close_event = True
                 related_outbound = request.data["in_reply_to"]
-                msisdn = request.data["from_addr"]
 
         if close_event:
             if related_outbound is not None:
@@ -157,17 +189,45 @@ class InboundViewSet(viewsets.ModelViewSet):
                         vumi_message_id=related_outbound)
                 except (ObjectDoesNotExist, MultipleObjectsReturned):
                     message = Outbound.objects.filter(
-                        to_addr=msisdn).order_by('-created_at').last()
+                        to_identity=identity_id).order_by('-created_at').last()
             else:
                 message = Outbound.objects.filter(
-                    to_addr=msisdn).order_by('-created_at').last()
+                    to_identity=identity_id).order_by('-created_at').last()
             if message:
-                outbound_type = "voice" if "voice_speech_url" in \
-                    message.metadata else "text"
                 ConcurrencyLimiter.decr_message_count(
-                    outbound_type, message.last_sent_time)
+                    channel, message.last_sent_time)
 
         return super(InboundViewSet, self).create(request, *args, **kwargs)
+
+
+def fire_delivery_hook(outbound):
+    outbound.refresh_from_db()
+    # Only fire if the message has been delivered or we've reached max attempts
+    if (not outbound.delivered and
+            outbound.attempts < settings.MESSAGE_SENDER_MAX_RETRIES):
+        return
+
+    payload = {
+        'outbound_id': str(outbound.id),
+        'delivered': outbound.delivered,
+        'to_addr': outbound.to_addr,
+    }
+    if hasattr(outbound, 'to_identity'):
+        payload['identity'] = outbound.to_identity
+
+    if payload['to_addr'] is None and payload.get('identity', None) is None:
+        raise InvalidMessage(outbound)
+
+    # Becaues the Junebug event endpoint has no authentication, we get an
+    # AnonymousUser object for the user. So we have to manually find all of the
+    # hook events, ignoring the user, and deliver them.
+    hooks = Hook.objects.filter(event='outbound.delivery_report')
+    for hook in hooks:
+        hook.deliver_hook(None, payload_override={
+            'hook': hook.dict(),
+            'data': payload,
+            }
+        )
 
 
 class EventListener(APIView):
@@ -195,9 +255,11 @@ class EventListener(APIView):
                     # expecting ack, nack, delivery_report
                     if event == "ack":
                         message.delivered = True
+                        message.to_addr = ''
                         message.metadata["ack_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+                        fire_delivery_hook(message)
 
                         # OBD number of successful tries metric
                         if "voice_speech_url" in message.metadata:
@@ -208,14 +270,17 @@ class EventListener(APIView):
                             })
                     elif event == "delivery_report":
                         message.delivered = True
+                        message.to_addr = ''
                         message.metadata["delivery_timestamp"] = \
                             request.data["timestamp"]
                         message.save()
+                        fire_delivery_hook(message)
                     elif event == "nack":
                         if "nack_reason" in request.data:
                             message.metadata["nack_reason"] = \
                                 request.data["nack_reason"]
                             message.save()
+                        fire_delivery_hook(message)
                         send_message.delay(str(message.id))
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
@@ -280,8 +345,10 @@ class JunebugEventListener(APIView):
         event_type = request.data["event_type"]
         if event_type == "submitted":
             message.delivered = True
+            message.to_addr = ''
             message.metadata["ack_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['metadata', 'delivered'])
+            message.save(update_fields=['metadata', 'delivered', 'to_addr'])
+            fire_delivery_hook(message)
 
             # OBD number of successful tries metric
             if "voice_speech_url" in message.metadata:
@@ -293,15 +360,19 @@ class JunebugEventListener(APIView):
             message.metadata["nack_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
+            fire_delivery_hook(message)
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
+            message.to_addr = ''
             message.metadata["delivery_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=['delivered', 'metadata'])
+            message.save(update_fields=['delivered', 'metadata', 'to_addr'])
+            fire_delivery_hook(message)
         elif event_type == "delivery_failed":
             message.metadata["delivery_failed_reason"] = (
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
+            fire_delivery_hook(message)
             send_message.delay(str(message.id))
 
         if ("voice_speech_url" in message.metadata and
