@@ -231,15 +231,12 @@ def fire_delivery_hook(outbound):
 
 
 def decr_message_count(message):
-    if not message.channel:
-        channel = Channel.objects.get(default=True)
+    if message.channel:
+        channel = message.channel
     else:
-        channel = Channel.objects.get(
-            channel_id=message.channel)
-
-    if channel.concurrency_limit != 0:
-        ConcurrencyLimiter.decr_message_count(
-            channel, message.last_sent_time)
+        channel = Channel.objects.get(default=True)
+    ConcurrencyLimiter.decr_message_count(
+        channel, message.last_sent_time)
 
 
 class EventListener(APIView):
@@ -259,7 +256,7 @@ class EventListener(APIView):
                       "event_id", "timestamp"]
             if set(expect).issubset(request.data.keys()):
                 # Load message
-                message = Outbound.objects.get(
+                message = Outbound.objects.select_related('channel').get(
                     vumi_message_id=request.data["user_message_id"])
                 # only expecting `event` on this endpoint
                 if request.data["message_type"] == "event":
@@ -349,7 +346,7 @@ class JunebugEventListener(APIView):
             }, status=400)
 
         try:
-            message = Outbound.objects.get(
+            message = Outbound.objects.select_related('channel').get(
                 vumi_message_id=request.data["message_id"])
         except ObjectDoesNotExist:
             return Response({
