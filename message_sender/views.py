@@ -230,6 +230,15 @@ def fire_delivery_hook(outbound):
         )
 
 
+def decr_message_count(message):
+    if message.channel:
+        channel = message.channel
+    else:
+        channel = Channel.objects.get(default=True)
+    ConcurrencyLimiter.decr_message_count(
+        channel, message.last_sent_time)
+
+
 class EventListener(APIView):
 
     """
@@ -247,7 +256,7 @@ class EventListener(APIView):
                       "event_id", "timestamp"]
             if set(expect).issubset(request.data.keys()):
                 # Load message
-                message = Outbound.objects.get(
+                message = Outbound.objects.select_related('channel').get(
                     vumi_message_id=request.data["user_message_id"])
                 # only expecting `event` on this endpoint
                 if request.data["message_type"] == "event":
@@ -281,6 +290,9 @@ class EventListener(APIView):
                                 request.data["nack_reason"]
                             message.save()
                         fire_delivery_hook(message)
+
+                        decr_message_count(message)
+
                         send_message.delay(str(message.id))
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
@@ -334,7 +346,7 @@ class JunebugEventListener(APIView):
             }, status=400)
 
         try:
-            message = Outbound.objects.get(
+            message = Outbound.objects.select_related('channel').get(
                 vumi_message_id=request.data["message_id"])
         except ObjectDoesNotExist:
             return Response({
@@ -361,6 +373,7 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             fire_delivery_hook(message)
+            decr_message_count(message)
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
@@ -373,6 +386,7 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             fire_delivery_hook(message)
+            decr_message_count(message)
             send_message.delay(str(message.id))
 
         if ("voice_speech_url" in message.metadata and

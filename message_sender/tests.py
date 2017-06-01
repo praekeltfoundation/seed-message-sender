@@ -1969,6 +1969,139 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "JUNE_VOICE_messages_at_24652193": 0,
             "JUNE_VOICE_messages_at_24652194": 0})
 
+    def test_event_nack_concurrency_decr(self):
+        channel = Channel.objects.get(channel_id='VUMI_VOICE')
+        outbound_message = {
+            "to_addr": "+27123",
+            "vumi_message_id": "08b34de7-c6da-4853-a74d-9458533ed169",
+            "content": "Simple outbound message",
+            "channel": channel,
+            "delivered": False,
+            "attempts": 3,
+            "metadata": {}
+        }
+        failed = Outbound.objects.create(**outbound_message)
+        failed.last_sent_time = failed.created_at
+        failed.save()
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
+        nack = {
+            "message_type": "event",
+            "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
+            "event_type": "nack",
+            "nack_reason": "no answer",
+            "user_message_id": failed.vumi_message_id,
+            "helper_metadata": {},
+            "timestamp": "2015-10-28 16:20:37.485612",
+            "sent_message_id": "external-id"
+        }
+
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/events',
+                                        json.dumps(nack),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with(channel, failed.created_at)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=failed.id)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
+        self.assertEqual(d.metadata["nack_reason"],
+                         "no answer")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"
+            "[session_event: new]"))
+
+    @patch('django.core.cache.cache.get_or_set')
+    @patch('django.core.cache.cache.decr')
+    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.tasks.send_message.delay")
+    def test_event_nack_concurrency_decr_june(
+            self, mock_send_message, mock_hook, mock_get_or_set, mock_decr):
+        '''
+        A rejected event should retry and update the message object accordingly
+        '''
+        # Fake cache calls
+        mock_get_or_set.side_effect = self.fake_cache.get_or_set
+        mock_decr.side_effect = self.fake_cache.decr
+
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
+        d = self.make_outbound(to_addr='+27123', channel=channel.channel_id)
+        d.last_sent_time = d.created_at
+        d.save()
+
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
+        nack = {
+            "event_type": "rejected",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {"reason": "No answer"},
+        }
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(nack),
+                content_type='application/json')
+            mock_method.assert_called_once_with(channel, d.created_at)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d.refresh_from_db()
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 0)
+        self.assertEqual(
+            d.metadata["nack_reason"], {"reason": "No answer"})
+        mock_hook.assert_called_once_with(d)
+
+    @patch('django.core.cache.cache.get_or_set')
+    @patch('django.core.cache.cache.decr')
+    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.tasks.send_message.delay")
+    def test_event_delivery_failed_concurrency_decr_june(
+            self, mock_send_message, mock_hook, mock_get_or_set, mock_decr):
+        '''
+        A failed delivery should retry and update the message accordingly.
+        '''
+        # Fake cache calls
+        mock_get_or_set.side_effect = self.fake_cache.get_or_set
+        mock_decr.side_effect = self.fake_cache.decr
+
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
+        d = self.make_outbound(to_addr='+27123', channel=channel.channel_id)
+        d.last_sent_time = d.created_at
+        d.save()
+        dr = {
+            "event_type": "delivery_failed",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(dr),
+                content_type='application/json')
+            mock_method.assert_called_once_with(channel, d.created_at)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d.refresh_from_db()
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 0)
+        self.assertEqual(
+            d.metadata["delivery_failed_reason"], {})
+        mock_hook.assert_called_once_with(d)
+
 
 class TestRequeueFailedTasks(AuthenticatedAPITestCase):
     def make_outbound(self, to_addr, channel=None):
