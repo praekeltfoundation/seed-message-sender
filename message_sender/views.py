@@ -230,6 +230,18 @@ def fire_delivery_hook(outbound):
         )
 
 
+def decr_message_count(message):
+    if not message.channel:
+        channel = Channel.objects.get(default=True)
+    else:
+        channel = Channel.objects.get(
+            channel_id=message.channel)
+
+    if channel.concurrency_limit != 0:
+        ConcurrencyLimiter.decr_message_count(
+            channel, message.last_sent_time)
+
+
 class EventListener(APIView):
 
     """
@@ -281,6 +293,9 @@ class EventListener(APIView):
                                 request.data["nack_reason"]
                             message.save()
                         fire_delivery_hook(message)
+
+                        decr_message_count(message)
+
                         send_message.delay(str(message.id))
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
@@ -361,6 +376,7 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             fire_delivery_hook(message)
+            decr_message_count(message)
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
@@ -373,6 +389,7 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             fire_delivery_hook(message)
+            decr_message_count(message)
             send_message.delay(str(message.id))
 
         if ("voice_speech_url" in message.metadata and
