@@ -148,7 +148,7 @@ class ConcurrencyLimiter(object):
         key = cls.get_key(channel.channel_id, bucket)
         # Set the expiry time to the timeout minus the time passed since
         # the message was sent.
-        if int(cache.get_or_set(key, 0, timeout - time_since)) > 0:
+        if int(cache.get_or_set(key, lambda: 0, timeout - time_since)) > 0:
             cache.decr(key)
 
     @classmethod
