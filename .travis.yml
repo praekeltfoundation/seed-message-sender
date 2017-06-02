@@ -51,3 +51,6 @@ matrix:
         script: dcd --version "$(git rev-parse --short HEAD)" --version-latest "$IMAGE_NAME"
         on:
           branch: develop
+
+      # Inherited build steps that we don't want
+      addons: {}
