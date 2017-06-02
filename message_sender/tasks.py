@@ -137,6 +137,7 @@ class ConcurrencyLimiter(object):
             return
 
         # Convert from datetime to seconds since epoch
+        msg_time = msg_time.replace(tzinfo=None) - msg_time.utcoffset()
         msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
 
         time_since = time.time() - msg_time
