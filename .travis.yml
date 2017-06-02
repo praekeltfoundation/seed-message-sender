@@ -22,11 +22,9 @@ deploy:
   on:
     tags: true
 
-jobs:
+matrix:
   include:
-    - stage: test
-    - stage: docker
-      python: "2.7"
+    - python: "2.7"
       sudo: required
       dist: trusty
       services: [docker]
