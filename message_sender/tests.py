@@ -1957,12 +1957,14 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.set_cache_entry("JUNE_VOICE", 1479131648 // 60, -0)  # Invalid value  # noqa
 
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
-        ConcurrencyLimiter.decr_message_count(
-            channel, datetime.fromtimestamp(1479131535))
-        ConcurrencyLimiter.decr_message_count(
-            channel, datetime.fromtimestamp(1479131588))
-        ConcurrencyLimiter.decr_message_count(
-            channel, datetime.fromtimestamp(1479131608))
+
+        def get_utc(timestamp):
+            return datetime.fromtimestamp(timestamp).replace(
+                tzinfo=timezone.now().tzinfo)
+
+        ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131535))
+        ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131588))
+        ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131608))
 
         self.assertEqual(self.fake_cache.cache_data, {
             "JUNE_VOICE_messages_at_24652192": 1,
