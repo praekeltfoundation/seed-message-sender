@@ -9,6 +9,7 @@ from .tasks import send_message
 class OutboundAdmin(admin.ModelAdmin):
     list_display = ('to_addr', 'to_identity', 'delivered', 'attempts',
                     'vumi_message_id', 'created_at', 'updated_at', 'content', )
+    list_display_links = ('to_addr', 'to_identity')
     list_filter = ('delivered', 'attempts', 'created_at', 'updated_at', )
     search_fields = ['to_addr', 'to_identity']
     actions = ["resend_outbound"]
