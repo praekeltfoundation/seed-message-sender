@@ -475,6 +475,21 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         })
         self.assertEqual(d.channel, None)
 
+        [r, create_id_post] = responses.calls
+
+        self.assertEqual(
+            json.loads(create_id_post.request.body.decode("utf-8")),
+            {
+                "details": {
+                    "default_addr_type": "msisdn",
+                    "addresses": {
+                        "msisdn": {
+                            "+2712345": {"default": True}
+                        }
+                    }
+                }
+            })
+
     @responses.activate
     def test_create_outbound_data_with_channel(self):
 

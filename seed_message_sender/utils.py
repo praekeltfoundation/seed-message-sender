@@ -81,7 +81,7 @@ def create_identity(identity):
     session.mount(settings.IDENTITY_STORE_URL, HTTPAdapter(max_retries=5))
     result = session.post(
         url,
-        data=identity,
+        json=identity,
         headers=headers,
         timeout=settings.DEFAULT_REQUEST_TIMEOUT
     )
