@@ -1584,7 +1584,6 @@ class TestMetrics(AuthenticatedAPITestCase):
         )
 
         # Check
-        print responses.calls
         request = responses.calls[-1].request
         self.check_request(
             request, 'POST',
