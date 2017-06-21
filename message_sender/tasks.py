@@ -12,7 +12,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 
-from go_http.metrics import MetricsApiClient
+from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
 
 from .factory import MessageClientFactory
@@ -71,8 +71,8 @@ def deliver_hook_wrapper(target, payload, instance, hook):
 
 def get_metric_client(session=None):
     return MetricsApiClient(
-        auth_token=settings.METRICS_AUTH_TOKEN,
-        api_url=settings.METRICS_URL,
+        url=settings.METRICS_URL,
+        auth=settings.METRICS_AUTH,
         session=session)
 
 
@@ -89,7 +89,7 @@ class FireMetric(Task):
             metric_name: metric_value
         }
         metric_client = get_metric_client(session=session)
-        metric_client.fire(metric)
+        metric_client.fire_metrics(**metric)
         return "Fired metric <%s> with value <%s>" % (
             metric_name, metric_value)
 
