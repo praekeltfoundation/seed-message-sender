@@ -648,7 +648,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'after': (existing.created_at - timedelta(days=1)).isoformat(),
         })))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(response.data["results"][0]["id"], str(existing.id))
 
     def test_created_at_filter_outbound_not_exists(self):
