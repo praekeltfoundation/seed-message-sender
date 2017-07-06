@@ -394,6 +394,51 @@ class AuthenticatedAPITestCase(APITestCase):
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
+    def test_list_pagination_one_page(self):
+        outbound = self.make_outbound()
+
+        response = self.client.get('/api/v1/outbound/')
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 1)
+        self.assertEqual(body['results'][0]['id'], outbound)
+        self.assertIsNone(body['previous'])
+        self.assertIsNone(body['next'])
+
+    def test_list_pagination_two_pages(self):
+        outbounds = []
+        for i in range(3):
+            outbounds.append(self.make_outbound())
+
+        # Test first page
+        response = self.client.get('/api/v1/outbound/')
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 2)
+        self.assertEqual(body['results'][0]['id'], outbounds[2])
+        self.assertEqual(body['results'][1]['id'], outbounds[1])
+        self.assertIsNone(body['previous'])
+        self.assertIsNotNone(body['next'])
+
+        # Test next page
+        response = self.client.get(body['next'])
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 1)
+        self.assertEqual(body['results'][0]['id'], outbounds[0])
+        self.assertIsNotNone(body['previous'])
+        self.assertIsNone(body['next'])
+
+        # Test going back to previous page works
+        response = self.client.get(body['previous'])
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 2)
+        self.assertEqual(body['results'][0]['id'], outbounds[2])
+        self.assertEqual(body['results'][1]['id'], outbounds[1])
+        self.assertIsNone(body['previous'])
+        self.assertIsNotNone(body['next'])
+
     @responses.activate
     def test_create_outbound_data(self):
         """
