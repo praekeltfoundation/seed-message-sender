@@ -33,11 +33,6 @@ matrix:
         - REGISTRY_USER=praekeltorgdeploy
         - secure: "iVoMNqOJxezbwYlieKloNZo2FT16KwZIH7AkmFs+QMBMY7sHE9TGronMt4YBjFRAVqohFGH2DdtA/Tf7866thdoqlWa7myi3K6JApjREgJg4Mc1GTdrELGNZ3Xx7z3isZdWdEkqMGp/PqCBLFsQL+VgOKfHqMT9YaOf0gf9ceYmjwtzHzlJemqmLVIMe+59wfHFPLuCm4pl9mmscG748FjH4nJn8r5KBrQ+KutKmdn3D4GIFfAAyuqST0Z8LNgOkBblZsUwD4Ah3Z57KrcrSyUaY9K5tP42h4ohJ09H0D4dlNEYfW1WLFZdvyX3tfQTjFF93cKGkwVnIb1Qv1AdxgvoQPSlCkLlW7WOd1sHQGUAK/vXNYzkZxhFRtW+/JXepSEkUgACbItqI45YSbCtdgoZij4I10hVZEobOblo6PK984o8Tcw8Sc7laBp0dUOS0hQBaMvfYyJyLJSnXHPaDqSCu/qnRWx7iWXwBu85szMUrnvnjcU0Dkr721D2FNZF1hUNH2kqBtagwNr3g7rrqNyw+o6LOC/De+c08f5/3kZ4oVg7N7X+FaLQioWXQMg03ny4qXnzLsQt+/If8zpgrtqqjrd+SLWYLcF4PKc25VxsW+a92RT0NkbfUR/WuGppdHtmCtko9qv2v4pQId1NX9ZSEpt8PCINyVjsGyNe58HU="
 
-      # Update docker-engine: we need at least 17.03.1 for `--cache-from`
-      install:
-        - sudo apt-get update
-        - sudo apt-get install -y -o Dpkg::Options::="--force-confold" docker-engine
-
       before_script:
         - docker pull "$IMAGE_NAME" || true
       script:
@@ -53,4 +48,5 @@ matrix:
           branch: develop
 
       # Inherited build steps that we don't want
+      install: []
       addons: {}
