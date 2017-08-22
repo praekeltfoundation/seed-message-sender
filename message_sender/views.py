@@ -103,7 +103,6 @@ class OutboundViewSet(viewsets.ModelViewSet):
     filter_class = OutboundFilter
     filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
     ordering_fields = ('created_at',)
-    ordering = ('-created_at',)
 
     @papertrail.debug('api_outbound_create', sample=0.1)
     def create(self, *args, **kwargs):
@@ -131,7 +130,6 @@ class InboundViewSet(viewsets.ModelViewSet):
     filter_class = InboundFilter
     filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
     ordering_fields = ('created_at',)
-    ordering = ('-created_at',)
 
     def get_serializer_class(self):
         if self.action == 'create':
