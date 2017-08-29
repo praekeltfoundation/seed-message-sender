@@ -497,7 +497,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         create_id_post = responses.calls[1]
 
         self.assertEqual(
-            json.loads(create_id_post.request.body.decode("utf-8")),
+            json.loads(create_id_post.request.body),
             {
                 "details": {
                     "default_addr_type": "msisdn",
