@@ -151,7 +151,7 @@ class InboundViewSet(viewsets.ModelViewSet):
         result = get_identity_by_address(msisdn)
 
         if result:
-            identity_id = result['results'][0]['id']
+            identity_id = result[0]['id']
         else:
             identity = {
                 'details': {

@@ -228,7 +228,7 @@ class SendMessage(Task):
                     result = get_identity_by_address(message.to_addr)
 
                     if result:
-                        message.to_identity = result['results'][0]['id']
+                        message.to_identity = result[0]['id']
                     else:
                         identity = {
                             'details': {

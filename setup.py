@@ -52,7 +52,7 @@ setup(
         'drfdocs==0.0.11',
         'django-redis-cache==1.7.1',
         'seed-papertrail>=1.5.1',
-        'seed-services-client>=0.29.0',
+        'seed-services-client==0.31.0',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -38,8 +38,9 @@ def get_identity_by_address(address_value, address_type="msisdn"):
     r = identity_store_client.get_identity_by_address(address_type,
                                                       address_value)
 
-    if len(r["results"]) > 0:
-        return r
+    results = list(r["results"])
+    if len(results) > 0:
+        return results
     else:
         return None
 
