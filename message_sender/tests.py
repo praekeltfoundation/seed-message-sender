@@ -351,7 +351,6 @@ class AuthenticatedAPITestCase(APITestCase):
             }
         }] * count
         response = {
-            "count": count,
             "next": None,
             "previous": None,
             "results": results
@@ -393,6 +392,51 @@ class AuthenticatedAPITestCase(APITestCase):
 
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
+
+    def test_list_pagination_one_page(self):
+        outbound = self.make_outbound()
+
+        response = self.client.get('/api/v1/outbound/')
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 1)
+        self.assertEqual(body['results'][0]['id'], outbound)
+        self.assertIsNone(body['previous'])
+        self.assertIsNone(body['next'])
+
+    def test_list_pagination_two_pages(self):
+        outbounds = []
+        for i in range(3):
+            outbounds.append(self.make_outbound())
+
+        # Test first page
+        response = self.client.get('/api/v1/outbound/')
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 2)
+        self.assertEqual(body['results'][0]['id'], outbounds[2])
+        self.assertEqual(body['results'][1]['id'], outbounds[1])
+        self.assertIsNone(body['previous'])
+        self.assertIsNotNone(body['next'])
+
+        # Test next page
+        response = self.client.get(body['next'])
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 1)
+        self.assertEqual(body['results'][0]['id'], outbounds[0])
+        self.assertIsNotNone(body['previous'])
+        self.assertIsNone(body['next'])
+
+        # Test going back to previous page works
+        response = self.client.get(body['previous'])
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 2)
+        self.assertEqual(body['results'][0]['id'], outbounds[2])
+        self.assertEqual(body['results'][1]['id'], outbounds[1])
+        self.assertIsNone(body['previous'])
+        self.assertIsNotNone(body['next'])
 
     @responses.activate
     def test_create_outbound_data(self):
@@ -584,7 +628,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             responses.GET,
             "%s/identities/%s/addresses/msisdn?default=True&use_communicate_through=True" % (settings.IDENTITY_STORE_URL, uid),  # noqa
             json={
-                "count": 1,
                 "next": None,
                 "previous": None,
                 "results": [{"address": "+26773000000"}]
@@ -648,7 +691,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'after': (existing.created_at - timedelta(days=1)).isoformat(),
         })))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(response.data["results"][0]["id"], str(existing.id))
 
     def test_created_at_filter_outbound_not_exists(self):
@@ -658,7 +701,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'after': (existing.created_at + timedelta(days=1)).isoformat(),
         })))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
 
     def test_to_addr_filter_outbound(self):
         """
