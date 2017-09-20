@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django import forms
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, filters, mixins
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -23,6 +24,10 @@ import django_filters
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
+
+
+class IdCursorPagination(CursorPagination):
+    ordering = "-id"
 
 
 class UserView(APIView):
@@ -456,6 +461,7 @@ class FailedTaskViewSet(mixins.ListModelMixin,
     permission_classes = (IsAuthenticated,)
     queryset = OutboundSendFailure.objects.all()
     serializer_class = OutboundSendFailureSerializer
+    pagination_class = IdCursorPagination
 
     def create(self, request):
         status = 201
