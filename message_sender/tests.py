@@ -2244,6 +2244,39 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
         return outbound
 
     @responses.activate
+    def test_failed_tasks_list(self):
+        """
+        When making a GET requests to the failed tasks endpoint, a paginated
+        list of all of the failed tasks should be returned.
+        """
+        self.add_metrics_response()
+        outbound1 = self.make_outbound(to_addr="+27123")
+        failures = []
+        for i in range(3):
+            failures.append(
+                OutboundSendFailure.objects.create(
+                    outbound=outbound1,
+                    task_id=uuid.uuid4(),
+                    initiated_at=timezone.now(),
+                    reason='Error'))
+
+        response = self.client.get('/api/v1/failed-tasks/',
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]['id'], failures[2].id)
+        self.assertEqual(results[1]['id'], failures[1].id)
+        self.assertIsNotNone(response.data['next'])
+
+        response = self.client.get(response.data['next'],
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['id'], failures[0].id)
+
+    @responses.activate
     def test_failed_tasks_requeue(self):
         """
         When making a POST requests to the failed tasks endpoint, all of the
