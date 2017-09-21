@@ -4,6 +4,7 @@ from django.contrib.auth.models import User
 from django import forms
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, filters, mixins
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -23,6 +24,10 @@ import django_filters
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
+
+
+class IdCursorPagination(CursorPagination):
+    ordering = "-id"
 
 
 class UserView(APIView):
@@ -103,6 +108,7 @@ class OutboundViewSet(viewsets.ModelViewSet):
     filter_class = OutboundFilter
     filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
     ordering_fields = ('created_at',)
+    ordering = ('-created_at',)
 
     @papertrail.debug('api_outbound_create', sample=0.1)
     def create(self, *args, **kwargs):
@@ -130,6 +136,7 @@ class InboundViewSet(viewsets.ModelViewSet):
     filter_class = InboundFilter
     filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
     ordering_fields = ('created_at',)
+    ordering = ('-created_at',)
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -151,7 +158,7 @@ class InboundViewSet(viewsets.ModelViewSet):
         result = get_identity_by_address(msisdn)
 
         if result:
-            identity_id = result['results'][0]['id']
+            identity_id = result[0]['id']
         else:
             identity = {
                 'details': {
@@ -230,6 +237,15 @@ def fire_delivery_hook(outbound):
         )
 
 
+def decr_message_count(message):
+    if message.channel:
+        channel = message.channel
+    else:
+        channel = Channel.objects.get(default=True)
+    ConcurrencyLimiter.decr_message_count(
+        channel, message.last_sent_time)
+
+
 class EventListener(APIView):
 
     """
@@ -247,7 +263,7 @@ class EventListener(APIView):
                       "event_id", "timestamp"]
             if set(expect).issubset(request.data.keys()):
                 # Load message
-                message = Outbound.objects.get(
+                message = Outbound.objects.select_related('channel').get(
                     vumi_message_id=request.data["user_message_id"])
                 # only expecting `event` on this endpoint
                 if request.data["message_type"] == "event":
@@ -281,6 +297,9 @@ class EventListener(APIView):
                                 request.data["nack_reason"]
                             message.save()
                         fire_delivery_hook(message)
+
+                        decr_message_count(message)
+
                         send_message.delay(str(message.id))
                         if "voice_speech_url" in message.metadata:
                             fire_metric.apply_async(kwargs={
@@ -334,7 +353,7 @@ class JunebugEventListener(APIView):
             }, status=400)
 
         try:
-            message = Outbound.objects.get(
+            message = Outbound.objects.select_related('channel').get(
                 vumi_message_id=request.data["message_id"])
         except ObjectDoesNotExist:
             return Response({
@@ -361,6 +380,7 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             fire_delivery_hook(message)
+            decr_message_count(message)
             send_message.delay(str(message.id))
         elif event_type == "delivery_succeeded":
             message.delivered = True
@@ -373,6 +393,7 @@ class JunebugEventListener(APIView):
                 request.data.get("event_details"))
             message.save(update_fields=['metadata'])
             fire_delivery_hook(message)
+            decr_message_count(message)
             send_message.delay(str(message.id))
 
         if ("voice_speech_url" in message.metadata and
@@ -440,6 +461,7 @@ class FailedTaskViewSet(mixins.ListModelMixin,
     permission_classes = (IsAuthenticated,)
     queryset = OutboundSendFailure.objects.all()
     serializer_class = OutboundSendFailureSerializer
+    pagination_class = IdCursorPagination
 
     def create(self, request):
         status = 201

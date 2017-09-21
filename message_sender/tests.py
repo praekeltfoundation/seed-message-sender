@@ -27,8 +27,8 @@ from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
 from rest_hooks.models import Hook
 from requests_testadapter import TestAdapter, TestSession
-from go_http.metrics import MetricsApiClient
 from go_http.send import LoggingSender
+from seed_services_client.metrics import MetricsApiClient
 
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
@@ -210,6 +210,7 @@ class AuthenticatedAPITestCase(APITestCase):
         return str(outbound.id)
 
     def make_inbound(self, in_reply_to, from_addr='020', from_identity=''):
+        self._replace_post_save_hooks_inbound()
         inbound_message = {
             "message_id": str(uuid.uuid4()),
             "in_reply_to": in_reply_to,
@@ -222,18 +223,19 @@ class AuthenticatedAPITestCase(APITestCase):
             "helper_metadata": {}
         }
         inbound = Inbound.objects.create(**inbound_message)
+        self._restore_post_save_hooks_inbound()
         return str(inbound.id)
 
     def _replace_get_metric_client(self, session=None):
         return MetricsApiClient(
-            auth_token=settings.METRICS_AUTH_TOKEN,
-            api_url=settings.METRICS_URL,
-            session=self.session)
+            url=settings.METRICS_URL,
+            auth=settings.METRICS_AUTH,
+            session=session)
 
     def _restore_get_metric_client(self, session=None):
         return MetricsApiClient(
-            auth_token=settings.METRICS_AUTH_TOKEN,
-            api_url=settings.METRICS_URL,
+            url=settings.METRICS_URL,
+            auth=settings.METRICS_AUTH,
             session=session)
 
     def _replace_post_save_hooks_outbound(self):
@@ -349,7 +351,6 @@ class AuthenticatedAPITestCase(APITestCase):
             }
         }] * count
         response = {
-            "count": count,
             "next": None,
             "previous": None,
             "results": results
@@ -385,12 +386,65 @@ class AuthenticatedAPITestCase(APITestCase):
                       "%s/identities/" % settings.IDENTITY_STORE_URL,
                       json=identity, status=201)
 
+    def add_metrics_response(self):
+        responses.add(
+            responses.POST, 'http://metrics-url/metrics/', json={}, status=201)
+
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
-    @responses.activate
-    def test_create_outbound_data1(self):
+    def test_list_pagination_one_page(self):
+        outbound = self.make_outbound()
 
+        response = self.client.get('/api/v1/outbound/')
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 1)
+        self.assertEqual(body['results'][0]['id'], outbound)
+        self.assertIsNone(body['previous'])
+        self.assertIsNone(body['next'])
+
+    def test_list_pagination_two_pages(self):
+        outbounds = []
+        for i in range(3):
+            outbounds.append(self.make_outbound())
+
+        # Test first page
+        response = self.client.get('/api/v1/outbound/')
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 2)
+        self.assertEqual(body['results'][0]['id'], outbounds[2])
+        self.assertEqual(body['results'][1]['id'], outbounds[1])
+        self.assertIsNone(body['previous'])
+        self.assertIsNotNone(body['next'])
+
+        # Test next page
+        response = self.client.get(body['next'])
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 1)
+        self.assertEqual(body['results'][0]['id'], outbounds[0])
+        self.assertIsNotNone(body['previous'])
+        self.assertIsNone(body['next'])
+
+        # Test going back to previous page works
+        response = self.client.get(body['previous'])
+
+        body = response.json()
+        self.assertEqual(len(body['results']), 2)
+        self.assertEqual(body['results'][0]['id'], outbounds[2])
+        self.assertEqual(body['results'][1]['id'], outbounds[1])
+        self.assertIsNone(body['previous'])
+        self.assertIsNotNone(body['next'])
+
+    @responses.activate
+    def test_create_outbound_data(self):
+        """
+        When creating an outbound message, it should save a new Outbound
+        object with the correct specified values.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('+27123', '0c03d360')
 
         post_outbound = {
@@ -418,7 +472,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_outbound_data_simple(self):
-
+        """
+        When creating a new outbound message, leaving out the optional fields
+        in the request should still create an Outbound object.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('+27123', '0c03d360')
 
         post_outbound = {
@@ -447,7 +505,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_outbound_data_new_identity(self):
-
+        """
+        When creating a new outbound message, if the identity is not supplied,
+        and the identity does not exist in the identity store, a new identity
+        should be created on the identity store for that address.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('+2712345', None, 0)
         self.add_create_identity_response('0c03d360123', '+2712345')
 
@@ -475,9 +538,28 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         })
         self.assertEqual(d.channel, None)
 
+        create_id_post = responses.calls[1]
+
+        self.assertEqual(
+            json.loads(create_id_post.request.body),
+            {
+                "details": {
+                    "default_addr_type": "msisdn",
+                    "addresses": {
+                        "msisdn": {
+                            "+2712345": {"default": True}
+                        }
+                    }
+                }
+            })
+
     @responses.activate
     def test_create_outbound_data_with_channel(self):
-
+        """
+        When creating an outbound message, if the channel is specified, then
+        that Outbound should have the specified channel.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('+27123', '0c03d360')
 
         post_outbound = {
@@ -533,6 +615,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_outbound_identity_only(self):
+        """
+        When only the identity UUID is specified, the resulting created
+        Outbound object should have the address that was looked up from the
+        identity store on it.
+        """
+        self.add_metrics_response()
 
         uid = "test-test-test-test"
         # mock identity address lookup
@@ -540,7 +628,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             responses.GET,
             "%s/identities/%s/addresses/msisdn?default=True&use_communicate_through=True" % (settings.IDENTITY_STORE_URL, uid),  # noqa
             json={
-                "count": 1,
                 "next": None,
                 "previous": None,
                 "results": [{"address": "+26773000000"}]
@@ -604,7 +691,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'after': (existing.created_at - timedelta(days=1)).isoformat(),
         })))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(response.data["results"][0]["id"], str(existing.id))
 
     def test_created_at_filter_outbound_not_exists(self):
@@ -614,7 +701,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             'after': (existing.created_at + timedelta(days=1)).isoformat(),
         })))
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["results"], [])
 
     def test_to_addr_filter_outbound(self):
         """
@@ -798,7 +885,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_inbound_data_no_limit(self):
-
+        """
+        When there is no concurrency limit set, then for inbound messages,
+        the concurrency limiter should not decrement.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('020', '0c03d360')
 
         existing_outbound = self.make_outbound()
@@ -835,7 +926,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_inbound_data_unknown_msisdn(self):
-
+        """
+        When there is an inbound message created, with an msisdn that doesn't
+        exist in the identity store, we should create a new identity for that
+        address in the identity store.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('020', '0c03d360', 0)
         self.add_create_identity_response('0c03d360', '020')
 
@@ -872,8 +968,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.helper_metadata, {})
 
     @responses.activate
-    def test_create_inbound_data_with_channel(self):
-
+    def test_create_inbound_data_with_channel_vumi(self):
+        """
+        When we create an inbound message, the specific channel that the
+        URL is linked to should be set on the message.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('020', '0c03d360')
 
         existing_outbound = self.make_outbound()
@@ -913,8 +1013,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
     @responses.activate
-    def test_create_inbound_data_with_concurrency_limiter(self):
-
+    def test_create_inbound_data_with_channel_junebug(self):
+        """
+        When an inbound message is created from Junebug, it should set the
+        channel specified in the URL as the channel on the inbound message.
+        """
+        self.add_metrics_response()
         self.add_identity_search_response('020', '0c03d360')
 
         existing_outbound = self.make_outbound()
@@ -946,47 +1050,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
         self.assertEqual(d.to_addr, "+27123")
-        self.assertEqual(d.from_addr, "")
-        self.assertEqual(d.from_identity, "0c03d360")
-        self.assertEqual(d.content, "Call delivered")
-        self.assertEqual(d.transport_name, "test_voice")
-        self.assertEqual(d.transport_type, "voice")
-        self.assertEqual(d.helper_metadata, {"session_event": "close"})
-
-    @responses.activate
-    def test_create_inbound_without_vumi_id_with_concurrency_limiter(self):
-
-        self.add_identity_search_response('+27123', '0c03d360')
-
-        existing_outbound = self.make_outbound()
-        out = Outbound.objects.get(pk=existing_outbound)
-        out.last_sent_time = out.created_at
-        out.save()
-        message_id = str(uuid.uuid4())
-        post_inbound = {
-            "message_id": message_id,
-            "in_reply_to": None,
-            "to_addr": "020",
-            "from_addr": "+27123",
-            "content": "Call delivered",
-            "transport_name": "test_voice",
-            "transport_type": "voice",
-            "helper_metadata": {},
-            "session_event": "close"
-        }
-        channel = Channel.objects.get(channel_id='JUNE_VOICE')
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/JUNE_VOICE/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with(channel, out.created_at)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        d = Inbound.objects.last()
-        self.assertIsNotNone(d.id)
-        self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "020")
         self.assertEqual(d.from_addr, "")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "Call delivered")
@@ -1027,48 +1090,6 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
-
-    @responses.activate
-    def test_create_inbound_event_message(self):
-
-        self.add_identity_search_response('020', '0c03d360')
-
-        existing_outbound = self.make_outbound()
-        out = Outbound.objects.get(pk=existing_outbound)
-        out.last_sent_time = out.created_at
-        out.save()
-        message_id = str(uuid.uuid4())
-        post_inbound = {
-            "message_id": message_id,
-            "in_reply_to": out.vumi_message_id,
-            "to_addr": "0.0.0.0:9001",
-            "from_addr": "020",
-            "content": "Call delivered",
-            "transport_name": "test_voice",
-            "transport_type": "voice",
-            "helper_metadata": {},
-            "session_event": "close"
-        }
-        channel = Channel.objects.get(channel_id='JUNE_VOICE')
-
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/JUNE_VOICE/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
-            mock_method.assert_called_once_with(channel, out.created_at)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-
-        d = Inbound.objects.last()
-        self.assertIsNotNone(d.id)
-        self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "0.0.0.0:9001")
-        self.assertEqual(d.from_addr, "")
-        self.assertEqual(d.from_identity, "0c03d360")
-        self.assertEqual(d.content, "Call delivered")
-        self.assertEqual(d.transport_name, "test_voice")
-        self.assertEqual(d.transport_type, "voice")
-        self.assertEqual(d.helper_metadata, {"session_event": "close"})
 
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_ack(self, mock_hook):
@@ -1125,8 +1146,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
+    @responses.activate
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_nack_first(self, mock_hook):
+        self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         post_save.connect(
@@ -1163,7 +1186,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         #     True,
         #     self.check_logs("Metric: 'vumimessage.tries' [sum] -> 1"))
 
+    @responses.activate
     def test_event_nack_last(self):
+        self.add_metrics_response()
         # Be assured this is last message attempt
         outbound_message = {
             "to_addr": "+27123",
@@ -1333,11 +1358,13 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
+    @responses.activate
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_nack(self, mock_hook):
         '''
         A rejected event should retry and update the message object accordingly
         '''
+        self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         post_save.connect(
@@ -1393,11 +1420,13 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
+    @responses.activate
     @patch('message_sender.views.fire_delivery_hook')
     def test_event_delivery_failed(self, mock_hook):
         '''
         A failed delivery should retry and update the message accordingly.
         '''
+        self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         dr = {
@@ -1423,6 +1452,11 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_inbound_junebug_message(self):
+        """
+        If Junebug send an inbound message to the inbound endpoint, then a
+        new Inbound should be created with the specified parameters.
+        """
+        self.add_metrics_response()
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
         out.last_sent_time = out.created_at
@@ -1456,7 +1490,12 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_create_inbound_junebug_unknown_msisdn(self):
-
+        """
+        If Junebug sends a new inbound message to the inbound endpoint, for
+        an address that doesn't exist in the identity store, then a new
+        identity should be created for that address.
+        """
+        self.add_metrics_response()
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
         out.last_sent_time = out.created_at
@@ -1538,26 +1577,36 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
 
 class TestMetrics(AuthenticatedAPITestCase):
 
+    @responses.activate
     def test_direct_fire(self):
+        """
+        When calling the `fire_metric` task, a call should be make to the
+        metrics store with the details provided in the task arguments.
+        """
         # Setup
-        adapter = self._mount_session()
+        self.add_metrics_response()
         # Execute
         result = fire_metric.apply_async(kwargs={
             "metric_name": 'foo.last',
             "metric_value": 1,
-            "session": self.session
         })
         # Check
+        request = responses.calls[-1].request
         self.check_request(
-            adapter.request, 'POST',
+            request, 'POST',
             data={"foo.last": 1.0}
         )
         self.assertEqual(result.get(),
                          "Fired metric <foo.last> with value <1.0>")
 
+    @responses.activate
     def test_created_metrics(self):
+        """
+        When creating a new inbound message, the correct metric should be
+        sent to the metrics API.
+        """
         # Setup
-        adapter = self._mount_session()
+        self.add_metrics_response()
         # reconnect metric post_save hook
         post_save.connect(
             psh_fire_metrics_if_new,
@@ -1569,11 +1618,18 @@ class TestMetrics(AuthenticatedAPITestCase):
         out = Outbound.objects.get(pk=existing_outbound)
 
         # Execute
-        self.make_inbound(out.vumi_message_id)
+        Inbound.objects.create(
+            message_id=str(uuid.uuid4()),
+            in_reply_to=out.vumi_message_id,
+            to_addr='+27123',
+            transport_name='test_voice',
+            helper_metadata={},
+        )
 
         # Check
+        request = responses.calls[-1].request
         self.check_request(
-            adapter.request, 'POST',
+            request, 'POST',
             data={"inbounds.created.sum": 1.0}
         )
         # remove post_save hooks to prevent teardown errors
@@ -1844,6 +1900,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         """
         Messages under the limit should get sent.
         """
+        self.add_metrics_response()
         # Fake cache calls
         mock_incr.side_effect = self.fake_cache.incr
         mock_add.side_effect = self.fake_cache.add
@@ -1885,6 +1942,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         Messages under the limit should get sent. Messages over the limit
         should get retried
         """
+        self.add_metrics_response()
         mock_retry.side_effect = Retry
 
         # Fake cache calls
@@ -1957,17 +2015,164 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.set_cache_entry("JUNE_VOICE", 1479131648 // 60, -0)  # Invalid value  # noqa
 
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
-        ConcurrencyLimiter.decr_message_count(
-            channel, datetime.fromtimestamp(1479131535))
-        ConcurrencyLimiter.decr_message_count(
-            channel, datetime.fromtimestamp(1479131588))
-        ConcurrencyLimiter.decr_message_count(
-            channel, datetime.fromtimestamp(1479131608))
+
+        def get_utc(timestamp):
+            return datetime.fromtimestamp(timestamp).replace(
+                tzinfo=timezone.now().tzinfo)
+
+        ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131535))
+        ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131588))
+        ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131608))
 
         self.assertEqual(self.fake_cache.cache_data, {
             "JUNE_VOICE_messages_at_24652192": 1,
             "JUNE_VOICE_messages_at_24652193": 0,
             "JUNE_VOICE_messages_at_24652194": 0})
+
+    @responses.activate
+    def test_event_nack_concurrency_decr(self):
+        """
+        When receiving a nack, we should decrement the correct concurrency
+        limiter for the channel that the nack is for.
+        """
+        self.add_metrics_response()
+        channel = Channel.objects.get(channel_id='VUMI_VOICE')
+        outbound_message = {
+            "to_addr": "+27123",
+            "vumi_message_id": "08b34de7-c6da-4853-a74d-9458533ed169",
+            "content": "Simple outbound message",
+            "channel": channel,
+            "delivered": False,
+            "attempts": 3,
+            "metadata": {}
+        }
+        failed = Outbound.objects.create(**outbound_message)
+        failed.last_sent_time = failed.created_at
+        failed.save()
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
+        nack = {
+            "message_type": "event",
+            "event_id": "b04ec322fc1c4819bc3f28e6e0c69de6",
+            "event_type": "nack",
+            "nack_reason": "no answer",
+            "user_message_id": failed.vumi_message_id,
+            "helper_metadata": {},
+            "timestamp": "2015-10-28 16:20:37.485612",
+            "sent_message_id": "external-id"
+        }
+
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post('/api/v1/events',
+                                        json.dumps(nack),
+                                        content_type='application/json')
+            mock_method.assert_called_once_with(channel, failed.created_at)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=failed.id)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
+        self.assertEqual(d.metadata["nack_reason"],
+                         "no answer")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"
+            "[session_event: new]"))
+
+    @responses.activate
+    @patch('django.core.cache.cache.get_or_set')
+    @patch('django.core.cache.cache.decr')
+    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.tasks.send_message.delay")
+    def test_event_nack_concurrency_decr_junebug(
+            self, mock_send_message, mock_hook, mock_get_or_set, mock_decr):
+        """
+        A rejected event should retry and update the message object accordingly
+        as well as decrement the relative concurrency limiter
+        """
+        self.add_metrics_response()
+        # Fake cache calls
+        mock_get_or_set.side_effect = self.fake_cache.get_or_set
+        mock_decr.side_effect = self.fake_cache.decr
+
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
+        d = self.make_outbound(to_addr='+27123', channel=channel.channel_id)
+        d.last_sent_time = d.created_at
+        d.save()
+
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
+        nack = {
+            "event_type": "rejected",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {"reason": "No answer"},
+        }
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(nack),
+                content_type='application/json')
+            mock_method.assert_called_once_with(channel, d.created_at)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d.refresh_from_db()
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 0)
+        self.assertEqual(
+            d.metadata["nack_reason"], {"reason": "No answer"})
+        mock_hook.assert_called_once_with(d)
+
+    @responses.activate
+    @patch('django.core.cache.cache.get_or_set')
+    @patch('django.core.cache.cache.decr')
+    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.tasks.send_message.delay")
+    def test_event_delivery_failed_concurrency_decr_june(
+            self, mock_send_message, mock_hook, mock_get_or_set, mock_decr):
+        """
+        A failed delivery should retry and update the message accordingly, as
+        well as decrement the concurrency limiter.
+        """
+        self.add_metrics_response()
+        # Fake cache calls
+        mock_get_or_set.side_effect = self.fake_cache.get_or_set
+        mock_decr.side_effect = self.fake_cache.decr
+
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
+        d = self.make_outbound(to_addr='+27123', channel=channel.channel_id)
+        d.last_sent_time = d.created_at
+        d.save()
+        dr = {
+            "event_type": "delivery_failed",
+            "message_id": d.vumi_message_id,
+            "channel-id": "channel-uuid-1234",
+            "timestamp": "2015-10-28 16:19:37.485612",
+            "event_details": {},
+        }
+        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
+                mock_method:
+            response = self.client.post(
+                '/api/v1/events/junebug', json.dumps(dr),
+                content_type='application/json')
+            mock_method.assert_called_once_with(channel, d.created_at)
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d.refresh_from_db()
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 0)
+        self.assertEqual(
+            d.metadata["delivery_failed_reason"], {})
+        mock_hook.assert_called_once_with(d)
 
 
 class TestRequeueFailedTasks(AuthenticatedAPITestCase):
@@ -1993,6 +2198,12 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_requeue(self):
+        """
+        When running the `requeue_failed_tasks` task, all the failed tasks
+        should be rerun, and all the failure objects for those tasks should
+        be removed from the database.
+        """
+        self.add_metrics_response()
         outbound1 = self.make_outbound(to_addr="+27123")
         outbound2 = self.make_outbound(to_addr="+27987")
         OutboundSendFailure.objects.create(
@@ -2033,7 +2244,46 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
         return outbound
 
     @responses.activate
+    def test_failed_tasks_list(self):
+        """
+        When making a GET requests to the failed tasks endpoint, a paginated
+        list of all of the failed tasks should be returned.
+        """
+        self.add_metrics_response()
+        outbound1 = self.make_outbound(to_addr="+27123")
+        failures = []
+        for i in range(3):
+            failures.append(
+                OutboundSendFailure.objects.create(
+                    outbound=outbound1,
+                    task_id=uuid.uuid4(),
+                    initiated_at=timezone.now(),
+                    reason='Error'))
+
+        response = self.client.get('/api/v1/failed-tasks/',
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]['id'], failures[2].id)
+        self.assertEqual(results[1]['id'], failures[1].id)
+        self.assertIsNotNone(response.data['next'])
+
+        response = self.client.get(response.data['next'],
+                                   content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        results = response.data['results']
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]['id'], failures[0].id)
+
+    @responses.activate
     def test_failed_tasks_requeue(self):
+        """
+        When making a POST requests to the failed tasks endpoint, all of the
+        failed tasks should be rerun, and all of the failure objects should
+        be removed from the database.
+        """
+        self.add_metrics_response()
         outbound1 = self.make_outbound(to_addr="+27123")
         OutboundSendFailure.objects.create(
             outbound=outbound1,

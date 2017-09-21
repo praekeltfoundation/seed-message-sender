@@ -154,7 +154,7 @@ RAVEN_CONFIG = {
 REST_FRAMEWORK = {
     'PAGE_SIZE': 1000,
     'DEFAULT_PAGINATION_CLASS':
-        'rest_framework.pagination.LimitOffsetPagination',
+        'rest_framework.pagination.CursorPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework.authentication.TokenAuthentication',
@@ -297,7 +297,10 @@ MESSAGE_SENDER_MAX_FAILURES = \
     int(os.environ.get('MESSAGE_SENDER_MAX_FAILURES', 5))
 
 METRICS_URL = os.environ.get("METRICS_URL", None)
-METRICS_AUTH_TOKEN = os.environ.get("METRICS_AUTH_TOKEN", "REPLACEME")
+METRICS_AUTH = (
+    os.environ.get("METRICS_AUTH_USER", "REPLACEME"),
+    os.environ.get("METRICS_AUTH_PASSWORD", "REPLACEME"),
+)
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
