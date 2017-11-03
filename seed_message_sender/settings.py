@@ -51,6 +51,7 @@ INSTALLED_APPS = (
     'django_filters',
     'rest_hooks',
     'djcelery',
+    'django_py_zipkin',
     # us
     'message_sender',
 
@@ -339,3 +340,21 @@ IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
                                     'http://is/api/v1')
 IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
                                       'REPLACEME')
+
+ZIPKIN_HTTP_ENDPOINT = os.environ.get('ZIPKIN_HTTP_ENDPOINT', None)
+ZIPKIN_SERVICE_NAME = os.environ.get('ZIPKIN_SERVICE_NAME', 'message_sender')
+if os.environ.get('ZIPKIN_ADD_LOGGING_ANNOTATION', None) is not None:
+    ZIPKIN_ADD_LOGGING_ANNOTATION = (
+        os.environ.get('ZIPKIN_ADD_LOGGING_ANNOTATION').lower() == 'true')
+if os.environ.get('ZIPKIN_TRACING_ENABLED', None) is not None:
+    ZIPKIN_TRACING_ENABLED = (
+        os.environ.get('ZIPKIN_TRACING_ENABLED').lower() == 'true')
+if os.environ.get('ZIPKIN_TRACING_SAMPLING', None) is not None:
+    ZIPKIN_TRACING_SAMPLING = float(
+        os.environ.get('ZIPKIN_TRACING_SAMPLING'))
+if os.environ.get('ZIPKIN_BLACKLISTED_PATHS', None) is not None:
+    ZIPKIN_BLACKLISTED_PATHS = (
+        os.environ.get('ZIPKIN_BLACKLISTED_PATHS').split(','))
+if ZIPKIN_HTTP_ENDPOINT is not None:
+    MIDDLEWARE_CLASSES = (
+        MIDDLEWARE_CLASSES + ('django_py_zipkin.middleware.ZipkinMiddleware',))
