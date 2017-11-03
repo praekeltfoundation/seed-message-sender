@@ -14,6 +14,7 @@ import dj_database_url
 
 from kombu import Exchange, Queue
 import djcelery
+from getenv import env
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -51,6 +52,7 @@ INSTALLED_APPS = (
     'django_filters',
     'rest_hooks',
     'djcelery',
+    'django_py_zipkin',
     # us
     'message_sender',
 
@@ -339,3 +341,13 @@ IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
                                     'http://is/api/v1')
 IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
                                       'REPLACEME')
+
+ZIPKIN_TRACING_ENABLED = env('ZIPKIN_TRACING_ENABLED', False)
+ZIPKIN_SERVICE_NAME = env('ZIPKIN_SERVICE_NAME', 'message_sender')
+ZIPKIN_HTTP_ENDPOINT = env('ZIPKIN_HTTP_ENDPOINT', None)
+ZIPKIN_BLACKLISTED_PATHS = filter(
+    None, env('ZIPKIN_BLACKLISTED_PATHS', '').split(','))
+ZIPKIN_TRACING_SAMPLING = env('ZIPKIN_TRACING_SAMPLING', 1.00)
+if ZIPKIN_HTTP_ENDPOINT is not None:
+    MIDDLEWARE_CLASSES = (
+        ('django_py_zipkin.middleware.ZipkinMiddleware',) + MIDDLEWARE_CLASSES)
