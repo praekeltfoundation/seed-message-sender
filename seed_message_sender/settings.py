@@ -14,6 +14,7 @@ import dj_database_url
 
 from kombu import Exchange, Queue
 import djcelery
+from getenv import env
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -341,20 +342,12 @@ IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
 IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
                                       'REPLACEME')
 
-ZIPKIN_HTTP_ENDPOINT = os.environ.get('ZIPKIN_HTTP_ENDPOINT', None)
-ZIPKIN_SERVICE_NAME = os.environ.get('ZIPKIN_SERVICE_NAME', 'message_sender')
-if os.environ.get('ZIPKIN_ADD_LOGGING_ANNOTATION', None) is not None:
-    ZIPKIN_ADD_LOGGING_ANNOTATION = (
-        os.environ.get('ZIPKIN_ADD_LOGGING_ANNOTATION').lower() == 'true')
-if os.environ.get('ZIPKIN_TRACING_ENABLED', None) is not None:
-    ZIPKIN_TRACING_ENABLED = (
-        os.environ.get('ZIPKIN_TRACING_ENABLED').lower() == 'true')
-if os.environ.get('ZIPKIN_TRACING_SAMPLING', None) is not None:
-    ZIPKIN_TRACING_SAMPLING = float(
-        os.environ.get('ZIPKIN_TRACING_SAMPLING'))
-if os.environ.get('ZIPKIN_BLACKLISTED_PATHS', None) is not None:
-    ZIPKIN_BLACKLISTED_PATHS = (
-        os.environ.get('ZIPKIN_BLACKLISTED_PATHS').split(','))
+ZIPKIN_TRACING_ENABLED = env('ZIPKIN_TRACING_ENABLED', False)
+ZIPKIN_SERVICE_NAME = env('ZIPKIN_SERVICE_NAME', 'message_sender')
+ZIPKIN_HTTP_ENDPOINT = env('ZIPKIN_HTTP_ENDPOINT', None)
+ZIPKIN_BLACKLISTED_PATHS = filter(
+    None, env('ZIPKIN_BLACKLISTED_PATHS', '').split(','))
+ZIPKIN_TRACING_SAMPLING = env('ZIPKIN_TRACING_SAMPLING', 1.00)
 if ZIPKIN_HTTP_ENDPOINT is not None:
     MIDDLEWARE_CLASSES = (
-        MIDDLEWARE_CLASSES + ('django_py_zipkin.middleware.ZipkinMiddleware',))
+        ('django_py_zipkin.middleware.ZipkinMiddleware',) + MIDDLEWARE_CLASSES)

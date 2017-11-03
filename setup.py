@@ -54,6 +54,7 @@ setup(
         'seed-papertrail>=1.5.1',
         'seed-services-client==0.31.0',
         'django-py-zipkin==0.2.4',
+        'django-getenv==1.3.2',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
