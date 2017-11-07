@@ -53,7 +53,7 @@ setup(
         'django-redis-cache==1.7.1',
         'seed-papertrail>=1.5.1',
         'seed-services-client==0.31.0',
-        'django-py-zipkin==0.2.4',
+        'django-py-zipkin==0.2.5',
         'django-getenv==1.3.2',
     ],
     classifiers=[
