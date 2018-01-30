@@ -58,7 +58,7 @@ class Outbound(models.Model):
                                        db_index=True)
     delivered = models.BooleanField(default=False)
     resend = models.BooleanField(default=False, help_text="True if this is a "
-        "resend requested by the user.")
+                                 "resend requested by the user.")
     call_answered = models.NullBooleanField(
         default=None, null=True, blank=True, help_text="True if the call has "
         "been answered. Not used for text messages")
