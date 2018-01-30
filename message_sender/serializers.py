@@ -32,7 +32,7 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             'url', 'id', 'version', 'to_addr', 'vumi_message_id', 'content',
             'delivered', 'attempts', 'metadata', 'created_at', 'updated_at',
-            'channel', 'to_identity')
+            'channel', 'to_identity', 'resend')
         validators = [OneFieldRequiredValidator(['to_addr', 'to_identity'])]
 
 

@@ -453,7 +453,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Say something",
             "delivered": False,
             "attempts": 0,
-            "metadata": {}
+            "metadata": {},
+            "resend": True
         }
         response = self.client.post('/api/v1/outbound/',
                                     json.dumps(post_outbound),
@@ -469,6 +470,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata, {})
+        self.assertEqual(d.resend, True)
 
     @responses.activate
     def test_create_outbound_data_simple(self):
