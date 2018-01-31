@@ -57,6 +57,9 @@ class Outbound(models.Model):
     vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
                                        db_index=True)
     delivered = models.BooleanField(default=False)
+    resend = models.NullBooleanField(
+        default=None, null=True, blank=True, help_text="True if this is a "
+        "resend requested by the user.")
     call_answered = models.NullBooleanField(
         default=None, null=True, blank=True, help_text="True if the call has "
         "been answered. Not used for text messages")
