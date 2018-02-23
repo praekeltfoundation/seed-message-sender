@@ -32,7 +32,7 @@ from seed_services_client.metrics import MetricsApiClient
 
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
-    JunebugApiSenderException)
+    HttpApiSenderException)
 from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
                      IdentityLookup)
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
@@ -123,6 +123,36 @@ def make_channels():
         'message_delay': 10
     }
     Channel.objects.create(**june_channel2)
+
+    http_channel_text = {
+        'channel_id': 'HTTP_API_TEXT',
+        'channel_type': Channel.HTTP_API_TYPE,
+        'default': False,
+        'configuration': {
+            'HTTP_API_URL': 'http://example.com/',
+            'HTTP_API_AUTH': ('username', 'password'),
+            'HTTP_API_FROM': '+4321'
+        },
+        'concurrency_limit': 0,
+        'message_timeout': 0,
+        'message_delay': 0
+    }
+    Channel.objects.create(**http_channel_text)
+
+    http_channel_voice = {
+        'channel_id': 'HTTP_API_VOICE',
+        'channel_type': Channel.HTTP_API_TYPE,
+        'default': False,
+        'configuration': {
+            'HTTP_API_URL': 'http://example.com/',
+            'HTTP_API_AUTH': ('username', 'password'),
+            'HTTP_API_FROM': '+4321'
+        },
+        'concurrency_limit': 2,
+        'message_timeout': 20,
+        'message_delay': 10
+    }
+    Channel.objects.create(**http_channel_voice)
 
 
 class RecordingAdapter(TestAdapter):
@@ -1779,6 +1809,20 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.conversation_key, 'conv-key')
         self.assertEqual(message_sender.conversation_token, 'account-token')
 
+    def test_create_http_api_voice(self):
+        channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertTrue(isinstance(message_sender, HttpApiSender))
+        self.assertEqual(message_sender.api_url, 'http://example.com/')
+        self.assertEqual(message_sender.auth, ('username', 'password'))
+
+    def test_create_http_api_text(self):
+        channel = Channel.objects.get(channel_id="HTTP_API_TEXT")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertTrue(isinstance(message_sender, HttpApiSender))
+        self.assertEqual(message_sender.api_url, 'http://example.com/')
+        self.assertEqual(message_sender.auth, ('username', 'password'))
+
     def test_create_no_backend_type_specified_default(self):
         '''
         If no message backend is specified, it should use the default channel.
@@ -1787,6 +1831,202 @@ class TestFactory(TestCase):
         self.assertTrue(isinstance(message_sender, JunebugApiSender))
         self.assertEqual(message_sender.api_url, 'http://example.com/')
         self.assertEqual(message_sender.auth, ('username', 'password'))
+
+
+class TestGenericHttpApiSender(TestCase):
+
+    def setUp(self):
+        super(TestGenericHttpApiSender, self).setUp()
+        make_channels()
+
+    @responses.activate
+    def test_send_text(self):
+        '''
+        Using the send_text function should send a request to the api with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="HTTP_API_TEXT")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_text('+1234', 'Test', session_event='new')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], 'Test')
+        self.assertEqual(r['channel_data']['session_event'], 'new')
+
+    @responses.activate
+    def test_send_voice(self):
+        '''
+        Using the send_voice function should send a request to the api with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', '', speech_url='http://sbm.com/test.mp3',
+            session_event='new')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], '')
+        self.assertEqual(r['channel_data']['session_event'], 'new')
+        self.assertEqual(r['channel_data']['voice']['speech_url'],
+                         'http://sbm.com/test.mp3')
+
+    @responses.activate
+    def test_send_voice_multiple(self):
+        '''
+        Using the send_voice function should send a request to the api with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', '', speech_url=['http://sbm.com/test1.mp3',
+                                     'http://sbm.com/test2.mp3'],
+            session_event='new')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to'], '+1234')
+        self.assertEqual(r['from'], '+4321')
+        self.assertEqual(r['content'], '')
+        self.assertEqual(r['channel_data']['session_event'], 'new')
+        self.assertEqual(
+            r['channel_data']['voice']['speech_url'],
+            ['http://sbm.com/test1.mp3', 'http://sbm.com/test2.mp3'])
+
+    @responses.activate
+    def test_send_voice_override_payload(self):
+        '''
+        Using the send_voice function should send a request to the api with the
+        correct JSON data based on the override_payload setting in the channel.
+        The full path should be stripped if the STRIP_FILEPATH key is present.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        http_channel_override_payload = {
+            'channel_id': 'HTTP_API_VOICE_OP',
+            'channel_type': Channel.HTTP_API_TYPE,
+            'default': False,
+            'configuration': {
+                'HTTP_API_URL': 'http://example.com/',
+                'HTTP_API_AUTH': ('username', 'password'),
+                'HTTP_API_FROM': '+4321',
+                'OVERRIDE_PAYLOAD': {
+                    'mobile_no': 'to',
+                    'filename': 'channel_data.voice.speech_url',
+                    'nested_data': {'from_addr': 'from', 'unknown': 'unknown'}
+                },
+                'STRIP_FILEPATH': 'true'
+            },
+            'concurrency_limit': 2,
+            'message_timeout': 20,
+            'message_delay': 10
+        }
+        channel = Channel.objects.create(**http_channel_override_payload)
+
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', '', speech_url='http://sbm.com/test.mp3',
+            session_event='new')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['mobile_no'], '+1234')
+        self.assertEqual(r['nested_data']['from_addr'], '+4321')
+        self.assertEqual(r['nested_data']['unknown'], 'unknown')
+        self.assertEqual(r['filename'], 'test.mp3')
+
+    @responses.activate
+    def test_send_voice_override_payload_multiple_urls(self):
+        '''
+        Using the send_voice function should send a request to the api with the
+        correct JSON data based on the override_payload setting in the channel.
+        The full path should be stripped if the STRIP_FILEPATH key is present,
+        even if there is a list of urls.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        http_channel_override_payload = {
+            'channel_id': 'HTTP_API_VOICE_OP',
+            'channel_type': Channel.HTTP_API_TYPE,
+            'default': False,
+            'configuration': {
+                'HTTP_API_URL': 'http://example.com/',
+                'HTTP_API_AUTH': ('username', 'password'),
+                'HTTP_API_FROM': '+4321',
+                'OVERRIDE_PAYLOAD': {
+                    'mobile_no': 'to',
+                    'filename': 'channel_data.voice.speech_url',
+                    'nested_data': {'from_addr': 'from', 'unknown': 'unknown'}
+                },
+                'STRIP_FILEPATH': 'true'
+            },
+            'concurrency_limit': 2,
+            'message_timeout': 20,
+            'message_delay': 10
+        }
+        channel = Channel.objects.create(**http_channel_override_payload)
+
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', '', speech_url=[
+                'http://sbm.com/test1.mp3', 'http://sbm.com/test2.mp3'],
+            session_event='new')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['mobile_no'], '+1234')
+        self.assertEqual(r['nested_data']['from_addr'], '+4321')
+        self.assertEqual(r['nested_data']['unknown'], 'unknown')
+        self.assertEqual(r['filename'], ['test1.mp3', 'test2.mp3'])
+
+    def test_fire_metric(self):
+        '''
+        Using the fire_metric function should result in an exception being
+        raised, since the generic http api doesn't support metrics sending.
+        '''
+        channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertRaises(
+            HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
+            3.0, agg='sum')
 
 
 class TestJunebugAPISender(TestCase):
@@ -1860,7 +2100,7 @@ class TestJunebugAPISender(TestCase):
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertRaises(
-            JunebugApiSenderException, message_sender.fire_metric, 'foo.bar',
+            HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
             3.0, agg='sum')
 
 

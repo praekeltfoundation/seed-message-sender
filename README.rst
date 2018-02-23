@@ -19,6 +19,16 @@ Configuration:
 
 JSON field containing the following data:
 
+Generic API:
+""""""""""""
+
+* **HTTP_API_URL**: http://example.com/
+* **HTTP_API_AUTH**: ('username', 'password')
+* **HTTP_API_FROM**: +4321
+* **OVERRIDE_PAYLOAD**: {'new_key': 'key_from_original payload'}
+* **STRIP_FILEPATH**: True/False - True when voice files are hosted where the API is.
+
+
 Junebug:
 """"""""
 
