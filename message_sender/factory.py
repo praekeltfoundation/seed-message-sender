@@ -1,6 +1,7 @@
 import json
 import os
 
+from copy import deepcopy
 from django.conf import settings
 from django.core.urlresolvers import reverse
 
@@ -80,18 +81,19 @@ class GenericHttpApiSender(HttpApiSender):
         return res.get('result', {})
 
     def _override_payload(self, payload):
+        """
+        This function transforms the payload into a new format using the
+        self.override_payload property.
+        """
         if self.override_payload:
             old_payload = payload
 
             def get_value(data, key):
-                index = key.find('.')
-                if index != -1:
-                    nested_data = data.get(key[:index], {})
-                    nested_key = key[index+1:]
-
-                    return get_value(nested_data, nested_key)
-
-                return data.get(key, key)
+                try:
+                    parent_key, nested_key = key.split('.', 1)
+                    return get_value(data.get(parent_key, {}), nested_key)
+                except ValueError:
+                    return data.get(key, key)
 
             def set_values(data):
                 for key, value in data.items():
@@ -100,7 +102,7 @@ class GenericHttpApiSender(HttpApiSender):
                     else:
                         data[key] = get_value(old_payload, value)
 
-            payload = self.override_payload
+            payload = deepcopy(self.override_payload)
             set_values(payload)
 
         return payload
