@@ -28,6 +28,37 @@ Generic API:
 * **OVERRIDE_PAYLOAD**: {'new_key': 'key_from_original_payload'}
 * **STRIP_FILEPATH**: True/False - True when voice files are hosted where the API is.
 
+Original Payload::
+
+    {
+        "to": "+27820000000",
+        "from": "1444",
+        "content": "Hey, this is a message!",
+        "channel_data": {
+            "voice": {
+                "speech_url": "http://sbm.com/hello.mp3"
+            }
+        }
+    }
+
+Example of OVERRIDE_PAYLOAD::
+
+    {
+        "to_msisdn": "to",
+        "from_number": "from",
+        "text": "content",
+        "filename": "channel_data.voice.speech_url"
+    }
+
+Will generate this payload::
+
+    {
+        "to_msisdn": "+27820000000",
+        "from_number": "1444",
+        "text": "Hey, this is a message!",
+        "filename": "http://sbm.com/hello.mp3"
+    }
+
 
 Junebug:
 """"""""
