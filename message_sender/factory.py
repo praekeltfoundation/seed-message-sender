@@ -1,5 +1,6 @@
 import json
 import os
+import re
 
 from copy import deepcopy
 from django.conf import settings
@@ -47,6 +48,21 @@ class GenericHttpApiSender(HttpApiSender):
         self.override_payload = override_payload
         self.strip_filepath = strip_filepath
 
+    def _get_filename(self, path):
+        """
+        This function gets the base filename from the path, if a language code
+        is present the filename will start from there.
+        """
+        match = re.search('[a-z]{2,3}_[A-Z]{2}', path)
+
+        if match:
+            start = match.start(0)
+            filename = path[start:]
+        else:
+            filename = os.path.basename(path)
+
+        return filename
+
     def _raw_send(self, py_data):
         headers = {'content-type': 'application/json; charset=utf-8'}
 
@@ -56,12 +72,12 @@ class GenericHttpApiSender(HttpApiSender):
         url = channel_data.get('voice', {}).get('speech_url')
         if self.strip_filepath and url:
             if isinstance(url, str):
-                channel_data['voice']['speech_url'] = os.path.basename(url)
+                channel_data['voice']['speech_url'] = self._get_filename(url)
             else:
                 channel_data['voice']['speech_url'] = []
                 for item in url:
                     channel_data['voice']['speech_url'].append(
-                        os.path.basename(item))
+                        self._get_filename(item))
 
         data = {
             'to': py_data['to_addr'],
