@@ -2018,7 +2018,7 @@ class TestGenericHttpApiSender(TestCase):
         self.assertEqual(r['filename'], ['test1.mp3', 'test2.mp3'])
 
     @responses.activate
-    def test_send_voice_strip_fielpath_language(self):
+    def test_send_voice_strip_filepath_language(self):
         '''
         Using the send_voice function should send a request to the api with the
         correct JSON data. The full path should be stripped if the
