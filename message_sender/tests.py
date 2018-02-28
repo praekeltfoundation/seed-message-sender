@@ -2017,6 +2017,51 @@ class TestGenericHttpApiSender(TestCase):
         self.assertEqual(r['nested_data']['unknown'], 'unknown')
         self.assertEqual(r['filename'], ['test1.mp3', 'test2.mp3'])
 
+    @responses.activate
+    def test_send_voice_strip_filepath_language(self):
+        '''
+        Using the send_voice function should send a request to the api with the
+        correct JSON data. The full path should be stripped if the
+        STRIP_FILEPATH key is present, even if there is a list of urls. If
+        there is a language code present it should not be removed.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}}, status=200,
+            content_type='application/json')
+
+        http_channel_override_payload = {
+            'channel_id': 'HTTP_API_VOICE_OP',
+            'channel_type': Channel.HTTP_API_TYPE,
+            'default': False,
+            'configuration': {
+                'HTTP_API_URL': 'http://example.com/',
+                'HTTP_API_AUTH': ('username', 'password'),
+                'HTTP_API_FROM': '+4321',
+                'STRIP_FILEPATH': 'true'
+            },
+            'concurrency_limit': 2,
+            'message_timeout': 20,
+            'message_delay': 10
+        }
+        channel = Channel.objects.create(**http_channel_override_payload)
+
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', '', speech_url=[
+                'http://sbm.com/eng_ZA/test1.mp3',
+                'http://sbm.com/zul_ZA/nested/test2.mp3',
+                'http://sbm.com/test3.mp3'],
+            session_event='new')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(
+            r['channel_data']['voice']['speech_url'],
+            ['eng_ZA/test1.mp3', 'zul_ZA/nested/test2.mp3', 'test3.mp3'])
+
     def test_fire_metric(self):
         '''
         Using the fire_metric function should result in an exception being
