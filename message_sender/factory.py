@@ -71,7 +71,7 @@ class GenericHttpApiSender(HttpApiSender):
 
         url = channel_data.get('voice', {}).get('speech_url')
         if self.strip_filepath and url:
-            if isinstance(url, str):
+            if not isinstance(url, (list, tuple)):
                 channel_data['voice']['speech_url'] = self._get_filename(url)
             else:
                 channel_data['voice']['speech_url'] = []
