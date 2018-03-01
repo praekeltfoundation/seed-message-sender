@@ -50,6 +50,8 @@ class ChannelAdminForm(forms.ModelForm):
         elif channel_type == Channel.VUMI_TYPE:
             keys = ('VUMI_CONVERSATION_KEY', 'VUMI_ACCOUNT_KEY',
                     'VUMI_ACCOUNT_TOKEN', 'VUMI_API_URL')
+        elif channel_type == Channel.HTTP_API_TYPE:
+            keys = ('HTTP_API_URL', 'HTTP_API_AUTH', 'HTTP_API_FROM')
 
         for key in keys:
             if key not in config.keys():
