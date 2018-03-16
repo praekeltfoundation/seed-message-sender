@@ -92,3 +92,8 @@ class OutboundSendFailureSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = OutboundSendFailure
         fields = ('url', 'id', 'outbound', 'task_id', 'initiated_at', 'reason')
+
+
+class AggregateOutboundSerializer(serializers.Serializer):
+    start = serializers.DateField(required=False)
+    end = serializers.DateField(required=False)

@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+import mock
 import responses
 
 try:
@@ -2807,3 +2808,31 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
             date=date(2017, 1, 1), channel=c2, delivered=False)
         self.assertEqual(agg3.total, 1)
         self.assertEqual(agg3.attempts, 1)
+
+    @mock.patch('message_sender.views.aggregate_outbounds')
+    def test_view_defaults(self, task):
+        """
+        Should default to today's date for end, and
+        AGGREGATE_OUTBOUND_BACKTRACK days in the past for start
+        """
+        response = self.client.post(
+            '/api/v1/aggregate-outbounds/', content_type='application/json')
+        self.assertEqual(response.status_code, 202)
+        end = datetime.now().date().isoformat()
+        start = (datetime.now() - timedelta(30)).date().isoformat()
+        task.delay.assert_called_once_with(start, end)
+
+    @mock.patch('message_sender.views.aggregate_outbounds')
+    def test_view(self, task):
+        """
+        Should fire the task with the provided parameters
+        """
+        response = self.client.post(
+            '/api/v1/aggregate-outbounds/', content_type='application/json',
+            data=json.dumps({
+                'start': '2017-01-01',
+                'end': '2017-01-03',
+            })
+        )
+        self.assertEqual(response.status_code, 202)
+        task.delay.assert_called_once_with('2017-01-01', '2017-01-03')

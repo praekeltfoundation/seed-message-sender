@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
 from django.contrib.auth.models import User
@@ -11,12 +12,14 @@ from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
 from .models import (
-    Outbound, Inbound, OutboundSendFailure, Channel, InvalidMessage)
+    Outbound, Inbound, OutboundSendFailure, Channel, InvalidMessage,
+    AggregateOutbounds)
 from .serializers import (OutboundSerializer, InboundSerializer,
                           JunebugInboundSerializer, HookSerializer,
-                          CreateUserSerializer, OutboundSendFailureSerializer)
+                          CreateUserSerializer, OutboundSendFailureSerializer,
+                          AggregateOutboundSerializer)
 from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
-                    requeue_failed_tasks)
+                    requeue_failed_tasks, aggregate_outbounds)
 from seed_message_sender.utils import (
     get_available_metrics, get_identity_by_address, create_identity)
 from seed_papertrail.decorators import papertrail
@@ -468,3 +471,23 @@ class FailedTaskViewSet(mixins.ListModelMixin,
         resp = {'requeued_failed_tasks': True}
         requeue_failed_tasks.delay()
         return Response(resp, status=status)
+
+
+class AggregateOutboundViewSet(viewsets.GenericViewSet):
+    permission_classes = (IsAuthenticated,)
+    queryset = AggregateOutbounds.objects.all()
+    serializer_class = AggregateOutboundSerializer
+
+    def create(self, request):
+        serializer = self.get_serializer_class()(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        start = serializer.validated_data.get('start', None)
+        end = serializer.validated_data.get('end', None)
+        if not end:
+            end = datetime.now().date()
+        if not start:
+            diff = timedelta(days=settings.AGGREGATE_OUTBOUND_BACKTRACK)
+            start = (datetime.now() - diff).date()
+        aggregate_outbounds.delay(
+            start.isoformat(), end.isoformat())
+        return Response({'aggregate_outbounds': True}, status=202)
