@@ -130,3 +130,29 @@ class IdentityLookup(models.Model):
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.identity)
+
+
+@python_2_unicode_compatible
+class AggregateOutbounds(models.Model):
+    date = models.DateField(
+        help_text="The date that the aggregate is for")
+    delivered = models.BooleanField(
+        help_text="Whether this is for delivery passed or failed messages")
+    channel = models.ForeignKey(
+        to=Channel, on_delete=models.SET_NULL, null=True,
+        help_text="Which channel this is for")
+    attempts = models.IntegerField(
+        help_text="The total number of attempts")
+    total = models.IntegerField(
+        help_text="The total number of messages")
+
+    class Meta:
+        unique_together = [
+            ['date', 'delivered', 'channel'],
+        ]
+
+    def __str__(self):
+        return "{}: {} {}".format(
+            self.date, self.channel_id,
+            "delivered" if self.delivered else "not delivered",
+        )
