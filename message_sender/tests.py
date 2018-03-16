@@ -12,7 +12,7 @@ except ImportError:
 from datetime import timedelta
 
 from celery.exceptions import Retry
-from datetime import datetime
+from datetime import datetime, date
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.core.urlresolvers import reverse
@@ -34,7 +34,7 @@ from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
     HttpApiSenderException)
 from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
-                     IdentityLookup)
+                     IdentityLookup, AggregateOutbounds)
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
 from .tasks import (SendMessage, send_message, fire_metric,
                     ConcurrencyLimiter, requeue_failed_tasks)
@@ -2753,3 +2753,57 @@ class TestUpdateIdentityCommand(AuthenticatedAPITestCase):
         self.prepare_data()
         call_command('update_identity_field', '--loop', 'SQL')
         self.check_data()
+
+
+class TestAggregateOutbounds(AuthenticatedAPITestCase):
+    def test_aggregate_outbounds(self):
+        """
+        The aggregate outbounds task should create new AggregateOutbounds
+        objects that represent the current Outbounds
+        """
+        c1 = Channel.objects.create(channel_id="c1", configuration={})
+        c2 = Channel.objects.create(channel_id="c2", configuration={})
+
+        o = self.make_outbound(channel=c1)
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 1, 1)
+        o.attempts = 2
+        o.save()
+
+        o = self.make_outbound(channel=c1)
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 1, 1)
+        o.save()
+
+        o = self.make_outbound(channel=c2)
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 1, 1)
+        o.save()
+
+        o = self.make_outbound(channel=c2)
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 1, 1)
+        o.delivered = True
+        o.save()
+
+        o = self.make_outbound(channel=c2)
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 1, 3)
+        o.save()
+
+        tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
+
+        agg1 = AggregateOutbounds.objects.get(
+            date=date(2017, 1, 1), channel=c1, delivered=False)
+        self.assertEqual(agg1.total, 2)
+        self.assertEqual(agg1.attempts, 3)
+
+        agg2 = AggregateOutbounds.objects.get(
+            date=date(2017, 1, 1), channel=c2, delivered=True)
+        self.assertEqual(agg2.total, 1)
+        self.assertEqual(agg2.attempts, 1)
+
+        agg3 = AggregateOutbounds.objects.get(
+            date=date(2017, 1, 1), channel=c2, delivered=False)
+        self.assertEqual(agg3.total, 1)
+        self.assertEqual(agg3.attempts, 1)

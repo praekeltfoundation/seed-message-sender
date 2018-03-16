@@ -1,6 +1,7 @@
+from datetime import date
 from django.test import TestCase, override_settings
 
-from .utils import make_absolute_url
+from .utils import daterange, make_absolute_url
 
 
 class TestMakeAbsoluteUrl(TestCase):
@@ -27,3 +28,14 @@ class TestMakeAbsoluteUrl(TestCase):
         self.assertEqual(
             make_absolute_url('/foo'),
             'http://example.com/foo')
+
+
+class DateRangeTests(TestCase):
+    def test_date_range(self):
+        """
+        daterange should return the list of dates that falls within the range
+        """
+        self.assertEqual(
+            list(daterange(date(2017, 1, 1), date(2017, 1, 3))),
+            [date(2017, 1, 1), date(2017, 1, 2), date(2017, 1, 3)]
+        )

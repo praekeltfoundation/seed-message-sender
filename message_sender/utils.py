@@ -1,3 +1,4 @@
+from datetime import timedelta
 from django.conf import settings
 from django.contrib.sites.shortcuts import get_current_site
 
@@ -15,3 +16,11 @@ def make_absolute_url(path):
         ('https' if settings.USE_SSL else 'http',
          site.domain, path,
          '', '', ''))
+
+
+def daterange(start_date, end_date):
+    """
+    Returns the dates between the start and end dates
+    """
+    for n in range(int((end_date - start_date).days) + 1):
+        yield start_date + timedelta(n)
