@@ -1,9 +1,32 @@
 from django.contrib import admin
 from django import forms
 from django.core.exceptions import ValidationError
+from django.core.paginator import Paginator
+from django.db import connections
+from django.utils.functional import cached_property
 
-from .models import Outbound, Inbound, Channel
+from .models import Outbound, Inbound, Channel, AggregateOutbounds
 from .tasks import send_message
+
+
+class EstimatedCountPaginator(Paginator):
+    def __init__(self, *args, **kwargs):
+        super(EstimatedCountPaginator, self).__init__(*args, **kwargs)
+        self.object_list.count = self.count
+
+    @cached_property
+    def count(self):
+        if self.object_list.query.where:
+            return self.object_list.count()
+
+        db_table = self.object_list.model._meta.db_table
+        cursor = connections[self.object_list.db].cursor()
+        cursor.execute(
+            "SELECT reltuples FROM pg_class WHERE relname = %s", (db_table, ))
+        result = cursor.fetchone()
+        if not result:
+            return 0
+        return int(result[0])
 
 
 class OutboundAdmin(admin.ModelAdmin):
@@ -13,6 +36,7 @@ class OutboundAdmin(admin.ModelAdmin):
     list_filter = ('delivered', 'attempts', 'created_at', 'updated_at', )
     search_fields = ['to_addr', 'to_identity']
     actions = ["resend_outbound"]
+    paginator = EstimatedCountPaginator
 
     def resend_outbound(self, request, queryset):
         resent = 0
@@ -35,6 +59,7 @@ class InboundAdmin(admin.ModelAdmin):
                     'from_identity', 'created_at', 'updated_at', 'content', )
     list_filter = ('in_reply_to', 'from_addr', 'created_at', 'updated_at', )
     search_fields = ['to_addr', 'from_identity']
+    paginator = EstimatedCountPaginator
 
 
 class ChannelAdminForm(forms.ModelForm):
@@ -77,6 +102,17 @@ class ChannelAdmin(admin.ModelAdmin):
     search_fields = ['channel_id']
     form = ChannelAdminForm
 
+
+class AggregateOutboundsAdmin(admin.ModelAdmin):
+    list_display = (
+        'date', 'delivered', 'channel', 'attempts', 'total',
+    )
+    list_filter = (
+        'date', 'delivered', 'channel',
+    )
+    paginator = EstimatedCountPaginator
+
 admin.site.register(Outbound, OutboundAdmin)
 admin.site.register(Inbound, InboundAdmin)
 admin.site.register(Channel, ChannelAdmin)
+admin.site.register(AggregateOutbounds, AggregateOutboundsAdmin)
