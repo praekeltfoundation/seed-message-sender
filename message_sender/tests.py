@@ -2792,7 +2792,10 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
         o.created_at = datetime(2017, 1, 3)
         o.save()
 
-        tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
+        self.assertNumQueries(
+            3,
+            tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
+        )
 
         agg1 = AggregateOutbounds.objects.get(
             date=date(2017, 1, 1), channel=c1, delivered=False)
@@ -2808,6 +2811,8 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
             date=date(2017, 1, 1), channel=c2, delivered=False)
         self.assertEqual(agg3.total, 1)
         self.assertEqual(agg3.attempts, 1)
+
+        self.assertEqual(AggregateOutbounds.objects.count(), 3)
 
     @mock.patch('message_sender.views.aggregate_outbounds')
     def test_view_defaults(self, task):
