@@ -81,22 +81,22 @@ class MultipleFilter(django_filters.Filter):
     field_class = MultipleField
 
     def __init__(self, *args, **kwargs):
-        kwargs.setdefault('lookup_type', 'in')
+        kwargs.setdefault('lookup_expr', 'in')
         super(MultipleFilter, self).__init__(*args, **kwargs)
 
 
 class OutboundFilter(filters.FilterSet):
     before = django_filters.IsoDateTimeFilter(name="created_at",
-                                              lookup_type='lte')
+                                              lookup_expr='lte')
     after = django_filters.IsoDateTimeFilter(name="created_at",
-                                             lookup_type='gte')
+                                             lookup_expr='gte')
     to_addr = MultipleFilter(name='to_addr')
     to_identity = MultipleFilter(name='to_identity')
 
     class Meta:
         model = Outbound
         fields = ('version', 'vumi_message_id',
-                  'delivered', 'attempts', 'metadata',
+                  'delivered', 'attempts',
                   'created_at', 'updated_at',
                   'before', 'after')
 
