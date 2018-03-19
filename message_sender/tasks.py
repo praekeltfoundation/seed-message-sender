@@ -382,19 +382,25 @@ class AggregateOutboundMessages(Task):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
+        # Delete any existing aggregates for these dates. This is necessary
+        # to avoid having leftovers from changed objects. eg. There were
+        # undelivered messages, but now they're all delivered, so we don't want
+        # the undelivered aggregate to still be there, but an update won't set
+        # the undelivered aggregate to 0.
+        AggregateOutbounds.objects.filter(
+            date__gte=start_date, date__lte=end_date).delete()
+
         for d in daterange(start_date, end_date):
             query = Outbound.objects.filter(created_at__date=d)
             query = query.values('delivered', 'channel')
             query = query.annotate(attempts=Sum('attempts'), total=Count('*'))
             for aggregate in query.iterator():
-                AggregateOutbounds.objects.update_or_create(
-                    defaults={
-                        'attempts': aggregate['attempts'],
-                        'total': aggregate['total'],
-                    },
+                AggregateOutbounds.objects.create(
                     date=d,
                     delivered=aggregate['delivered'],
                     channel_id=aggregate['channel'],
+                    attempts=aggregate['attempts'],
+                    total=aggregate['total'],
                 )
 
 aggregate_outbounds = AggregateOutboundMessages()
