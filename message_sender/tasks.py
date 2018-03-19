@@ -11,6 +11,7 @@ from datetime import datetime
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
+from django.db.models import Count, Sum
 
 from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
@@ -18,10 +19,11 @@ from requests import exceptions as requests_exceptions
 from .factory import MessageClientFactory
 
 
-from .models import Outbound, OutboundSendFailure, Channel
+from .models import Outbound, OutboundSendFailure, Channel, AggregateOutbounds
 from seed_message_sender.utils import (
     load_callable, get_identity_address, get_identity_by_address,
     create_identity)
+from message_sender.utils import daterange
 from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
@@ -367,3 +369,32 @@ class RequeueFailedTasks(Task):
 
 
 requeue_failed_tasks = RequeueFailedTasks()
+
+
+class AggregateOutboundMessages(Task):
+    """
+    Task to aggregate the outbound messages and store the results in the
+    aggregate table
+    """
+    name = "message_sender.tasks.aggregate_outbounds"
+
+    def run(self, start_date, end_date):
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        for d in daterange(start_date, end_date):
+            query = Outbound.objects.filter(created_at__date=d)
+            query = query.values('delivered', 'channel')
+            query = query.annotate(attempts=Sum('attempts'), total=Count('*'))
+            for aggregate in query.iterator():
+                AggregateOutbounds.objects.update_or_create(
+                    defaults={
+                        'attempts': aggregate['attempts'],
+                        'total': aggregate['total'],
+                    },
+                    date=d,
+                    delivered=aggregate['delivered'],
+                    channel_id=aggregate['channel'],
+                )
+
+aggregate_outbounds = AggregateOutboundMessages()
