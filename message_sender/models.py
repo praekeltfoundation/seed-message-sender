@@ -150,6 +150,8 @@ class AggregateOutbounds(models.Model):
         unique_together = [
             ['date', 'delivered', 'channel'],
         ]
+        verbose_name = "aggregate outbound"
+        verbose_name_plural = "aggregate outbounds"
 
     def __str__(self):
         return "{}: {} {}".format(

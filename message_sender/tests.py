@@ -2793,7 +2793,7 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
         o.save()
 
         self.assertNumQueries(
-            3,
+            4,
             tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
         )
 
@@ -2813,6 +2813,40 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
         self.assertEqual(agg3.attempts, 1)
 
         self.assertEqual(AggregateOutbounds.objects.count(), 3)
+
+    def test_aggregate_outbounds_replace(self):
+        """
+        If the task is run a second time, it should replace all aggregates
+        with new aggregates.
+        """
+        c = Channel.objects.create(channel_id="c1", configuration={})
+
+        for i in range(10):
+            o = self.make_outbound(channel=c)
+            o = Outbound.objects.get(id=o)
+            o.created_at = datetime(2017, 1, 1)
+            o.save()
+
+        self.assertNumQueries(
+            2,
+            tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
+        )
+
+        agg = AggregateOutbounds.objects.get(
+            date=date(2017, 1, 1), channel=c, delivered=False)
+        self.assertEqual(agg.total, 10)
+
+        Outbound.objects.all().update(delivered=True)
+
+        self.assertNumQueries(
+            2,
+            tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
+        )
+
+        agg = AggregateOutbounds.objects.get(
+            date=date(2017, 1, 1), channel=c, delivered=True)
+        self.assertEqual(agg.total, 10)
+        self.assertEqual(AggregateOutbounds.objects.count(), 1)
 
     @mock.patch('message_sender.views.aggregate_outbounds')
     def test_view_defaults(self, task):
