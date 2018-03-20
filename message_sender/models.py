@@ -150,7 +150,7 @@ class AggregateOutbounds(models.Model):
         unique_together = [
             ['date', 'delivered', 'channel'],
         ]
-        verbose_name = "aggregate outbound"
+        verbose_name = "aggregate outbounds"
         verbose_name_plural = "aggregate outbounds"
 
     def __str__(self):
@@ -158,3 +158,18 @@ class AggregateOutbounds(models.Model):
             self.date, self.channel_id,
             "delivered" if self.delivered else "not delivered",
         )
+
+
+@python_2_unicode_compatible
+class ArchivedOutbounds(models.Model):
+    date = models.DateField(
+        help_text="The date that the archive is for", primary_key=True)
+    archive = models.FileField(
+        help_text="The file for the archive")
+
+    class Meta:
+        verbose_name = "archived outbounds"
+        verbose_name_plural = "archived outbounds"
+
+    def __str__(self):
+        return "{}: {}".format(self.date, self.archive)
