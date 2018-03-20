@@ -2938,7 +2938,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         [archive] = ArchivedOutbounds.objects.all()
 
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
-        self.assertEqual(archive.archive.read(), 'test')
+        self.assertEqual(archive.archive.read().decode('utf-8'), 'test')
 
     def test_task_skips_already_archived(self):
         """
@@ -2960,7 +2960,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
 
         [archive] = ArchivedOutbounds.objects.all()
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
-        self.assertEqual(archive.archive.read(), 'test')
+        self.assertEqual(archive.archive.read().decode('utf-8'), 'test')
         self.assertEqual(Outbound.objects.count(), 1)
 
     def test_task_skips_empty_dates(self):
