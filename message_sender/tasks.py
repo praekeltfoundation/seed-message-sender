@@ -437,14 +437,14 @@ class ArchiveOutboundMessages(Task):
                 data = OutboundArchiveSerializer(outbound).data
                 data = JSONRenderer().render(data)
                 f.write(data)
-                f.write('\n')
+                f.write('\n'.encode('utf-8'))
 
     def create_archived_outbound(self, date, filename):
         """
         Creates the required ArchivedOutbound entry with the file specified
         at `filename`
         """
-        with open(filename) as f:
+        with open(filename, 'rb') as f:
             f = File(f)
             ArchivedOutbounds.objects.create(date=date, archive=f)
 
