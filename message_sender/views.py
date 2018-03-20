@@ -13,13 +13,16 @@ from rest_framework.authtoken.models import Token
 
 from .models import (
     Outbound, Inbound, OutboundSendFailure, Channel, InvalidMessage,
-    AggregateOutbounds)
-from .serializers import (OutboundSerializer, InboundSerializer,
-                          JunebugInboundSerializer, HookSerializer,
-                          CreateUserSerializer, OutboundSendFailureSerializer,
-                          AggregateOutboundSerializer)
-from .tasks import (send_message, fire_metric, ConcurrencyLimiter,
-                    requeue_failed_tasks, aggregate_outbounds)
+    AggregateOutbounds, ArchivedOutbounds)
+from .serializers import (
+    OutboundSerializer, InboundSerializer, JunebugInboundSerializer,
+    HookSerializer, CreateUserSerializer, OutboundSendFailureSerializer,
+    AggregateOutboundSerializer, ArchivedOutboundSerializer,
+)
+from .tasks import (
+    send_message, fire_metric, ConcurrencyLimiter, requeue_failed_tasks,
+    aggregate_outbounds, archive_outbound,
+)
 from seed_message_sender.utils import (
     get_available_metrics, get_identity_by_address, create_identity)
 from seed_papertrail.decorators import papertrail
@@ -491,3 +494,17 @@ class AggregateOutboundViewSet(viewsets.GenericViewSet):
         aggregate_outbounds.delay(
             start.isoformat(), end.isoformat())
         return Response({'aggregate_outbounds': True}, status=202)
+
+
+class ArchivedOutboundViewSet(viewsets.GenericViewSet):
+    permission_classes = (IsAuthenticated,)
+    queryset = ArchivedOutbounds.objects.all()
+    serializer_class = ArchivedOutboundSerializer
+
+    def create(self, request):
+        serializer = self.get_serializer_class()(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        start = serializer.validated_data['start']
+        end = serializer.validated_data['end']
+        archive_outbound.delay(start.isoformat(), end.isoformat())
+        return Response({'archived_outbounds': True}, status=202)

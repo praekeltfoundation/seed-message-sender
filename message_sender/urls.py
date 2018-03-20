@@ -8,6 +8,7 @@ router.register(r'outbound', views.OutboundViewSet)
 router.register(r'webhook', views.HookViewSet)
 router.register(r'failed-tasks', views.FailedTaskViewSet)
 router.register(r'aggregate-outbounds', views.AggregateOutboundViewSet)
+router.register(r'archive-outbounds', views.ArchivedOutboundViewSet)
 
 # Wire up our API using automatic URL routing.
 # Additionally, we include login URLs for the browseable API.

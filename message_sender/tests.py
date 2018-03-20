@@ -3006,3 +3006,18 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
         outbounds = map(json.loads, gzip.GzipFile(fileobj=archive.archive))
         self.assertEqual(outbounds, [OutboundArchiveSerializer(o).data])
+
+    @mock.patch('message_sender.views.archive_outbound')
+    def test_view(self, task):
+        """
+        The view should call the task
+        """
+        response = self.client.post(
+            '/api/v1/archive-outbounds/', content_type='application/json',
+            data=json.dumps({
+                'start': '2017-01-01',
+                'end': '2017-01-03',
+            })
+        )
+        self.assertEqual(response.status_code, 202)
+        task.delay.assert_called_once_with('2017-01-01', '2017-01-03')
