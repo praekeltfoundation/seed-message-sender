@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import datetime
 from django.test import TestCase, override_settings
 
 from .utils import daterange, make_absolute_url
@@ -36,6 +36,6 @@ class DateRangeTests(TestCase):
         daterange should return the list of dates that falls within the range
         """
         self.assertEqual(
-            list(daterange(date(2017, 1, 1), date(2017, 1, 3))),
-            [date(2017, 1, 1), date(2017, 1, 2), date(2017, 1, 3)]
+            list(daterange(datetime(2017, 1, 1), datetime(2017, 1, 3))),
+            [datetime(2017, 1, 1), datetime(2017, 1, 2), datetime(2017, 1, 3)]
         )

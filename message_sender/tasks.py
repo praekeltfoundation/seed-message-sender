@@ -1,6 +1,7 @@
 import gzip
 import json
 import os
+import pytz
 import random
 import requests
 import time
@@ -9,7 +10,7 @@ from celery.exceptions import MaxRetriesExceededError
 from celery.task import Task
 from celery.utils.log import get_task_logger
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -387,8 +388,10 @@ class AggregateOutboundMessages(Task):
     name = "message_sender.tasks.aggregate_outbounds"
 
     def run(self, start_date, end_date):
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_date = datetime.strptime(
+            start_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
+        end_date = datetime.strptime(
+            end_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
 
         # Delete any existing aggregates for these dates. This is necessary
         # to avoid having leftovers from changed objects. eg. There were
@@ -396,10 +399,13 @@ class AggregateOutboundMessages(Task):
         # the undelivered aggregate to still be there, but an update won't set
         # the undelivered aggregate to 0.
         AggregateOutbounds.objects.filter(
-            date__gte=start_date, date__lte=end_date).delete()
+            date__gte=start_date.date(), date__lte=end_date.date()).delete()
 
         for d in daterange(start_date, end_date):
-            query = Outbound.objects.filter(created_at__date=d)
+            query = Outbound.objects.filter(
+                created_at__gte=d,
+                created_at__lt=(d + timedelta(1))
+            )
             query = query.values('delivered', 'channel')
             query = query.annotate(attempts=Sum('attempts'), total=Count('*'))
             for aggregate in query.iterator():
@@ -449,14 +455,19 @@ class ArchiveOutboundMessages(Task):
             ArchivedOutbounds.objects.create(date=date, archive=f)
 
     def run(self, start_date, end_date):
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+        start_date = datetime.strptime(
+            start_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
+        end_date = datetime.strptime(
+            end_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
 
         for d in daterange(start_date, end_date):
-            if ArchivedOutbounds.objects.filter(date=d).exists():
+            if ArchivedOutbounds.objects.filter(date=d.date()).exists():
                 continue
 
-            query = Outbound.objects.filter(created_at__date=d)
+            query = Outbound.objects.filter(
+                created_at__gte=d,
+                created_at__lt=(d + timedelta(1))
+            )
 
             if not query.exists():
                 continue
