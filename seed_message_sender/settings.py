@@ -26,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 SECRET_KEY = os.environ.get('SECRET_KEY', 'REPLACEME')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', False)
+DEBUG = env('DEBUG', False)
 
 ALLOWED_HOSTS = ['*']
 
@@ -53,6 +53,7 @@ INSTALLED_APPS = (
     'rest_hooks',
     'djcelery',
     'django_py_zipkin',
+    'storages',
     # us
     'message_sender',
 
@@ -111,6 +112,9 @@ STATICFILES_FINDERS = (
 
 STATIC_ROOT = 'static'
 STATIC_URL = '/static/'
+
+MEDIA_ROOT = 'media'
+MEDIA_URL = '/media/'
 
 TEMPLATES = [
     {
@@ -355,3 +359,12 @@ if ZIPKIN_HTTP_ENDPOINT is not None:
 
 AGGREGATE_OUTBOUND_BACKTRACK = os.environ.get(
     'AGGREGATE_OUTBOUND_BACKTRACK', 30)
+
+
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', None)
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', None)
+AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME', None)
+AWS_S3_ENCRYPTION = True
+
+if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'

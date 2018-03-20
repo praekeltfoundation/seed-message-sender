@@ -5,7 +5,9 @@ from django.core.paginator import Paginator
 from django.db import connections
 from django.utils.functional import cached_property
 
-from .models import Outbound, Inbound, Channel, AggregateOutbounds
+from .models import (
+    Outbound, Inbound, Channel, AggregateOutbounds, ArchivedOutbounds,
+)
 from .tasks import send_message
 
 
@@ -112,7 +114,17 @@ class AggregateOutboundsAdmin(admin.ModelAdmin):
     )
     paginator = EstimatedCountPaginator
 
+
+class ArchivedOutboundsAdmin(admin.ModelAdmin):
+    list_display = (
+        'date', 'archive',
+    )
+    list_filter = (
+        'date',
+    )
+
 admin.site.register(Outbound, OutboundAdmin)
 admin.site.register(Inbound, InboundAdmin)
 admin.site.register(Channel, ChannelAdmin)
 admin.site.register(AggregateOutbounds, AggregateOutboundsAdmin)
+admin.site.register(ArchivedOutbounds, ArchivedOutboundsAdmin)

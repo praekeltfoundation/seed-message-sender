@@ -36,12 +36,12 @@ setup(
     packages=find_packages(),
     include_package_data=True,
     install_requires=[
-        'Django==1.9.12',
-        'djangorestframework==3.3.2',
+        'Django==1.11.11',
+        'djangorestframework==3.4.7',
         'dj-database-url==0.3.0',
         'psycopg2==2.7.1',
         'raven==5.32.0',
-        'django-filter==0.12.0',
+        'django-filter==1.1.0',
         'whitenoise==2.0.6',
         'celery==3.1.24',
         'django-celery==3.1.17',
@@ -55,6 +55,7 @@ setup(
         'seed-services-client==0.31.0',
         'django-py-zipkin==0.2.5',
         'django-getenv==1.3.2',
+        'django-storages==1.6.5',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',
