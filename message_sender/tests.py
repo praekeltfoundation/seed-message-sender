@@ -2899,7 +2899,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         tasks.archive_outbound.dump_data('test.gz', Outbound.objects.all())
 
         with gzip.open('test.gz') as f:
-            [outbound] = map(json.loads, f)
+            [outbound] = map(lambda l: json.loads(l.decode('utf-8')), f)
 
         outbound.pop('created_at')
         outbound.pop('updated_at')
