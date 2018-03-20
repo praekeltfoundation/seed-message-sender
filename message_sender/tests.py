@@ -3003,7 +3003,10 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         self.assertEqual(Outbound.objects.count(), 0)
         [archive] = ArchivedOutbounds.objects.all()
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
-        [outbound] = map(json.loads, gzip.GzipFile(fileobj=archive.archive))
+        [outbound] = map(
+            lambda l: json.loads(l.decode('utf-8')),
+            gzip.GzipFile(fileobj=archive.archive)
+        )
         self.assertEqual(outbound, OutboundArchiveSerializer(o).data)
 
     @mock.patch('message_sender.views.archive_outbound')
