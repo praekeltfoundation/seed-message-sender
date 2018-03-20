@@ -1,4 +1,6 @@
+import gzip
 import json
+import os
 import random
 import requests
 import time
@@ -11,15 +13,21 @@ from datetime import datetime
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files import File
 from django.db.models import Count, Sum
 
 from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
+from rest_framework.renderers import JSONRenderer
 
 from .factory import MessageClientFactory
 
 
-from .models import Outbound, OutboundSendFailure, Channel, AggregateOutbounds
+from .models import (
+    Outbound, OutboundSendFailure, Channel, AggregateOutbounds,
+    ArchivedOutbounds,
+)
+from .serializers import OutboundArchiveSerializer
 from seed_message_sender.utils import (
     load_callable, get_identity_address, get_identity_by_address,
     create_identity)
@@ -404,3 +412,60 @@ class AggregateOutboundMessages(Task):
                 )
 
 aggregate_outbounds = AggregateOutboundMessages()
+
+
+class ArchiveOutboundMessages(Task):
+    """
+    Task to archive the outbound messages and store the messages in the
+    storage backend
+    """
+    name = "message_sender.tasks.archive_outbounds"
+
+    def filename(self, date):
+        """
+        Returns the filename for the provided date
+        """
+        return 'outbounds-{}.gz'.format(date.strftime('%Y-%m-%d'))
+
+    def dump_data(self, filename, queryset):
+        """
+        Serializes the queryset into a newline separated JSON format, and
+        places it into a gzipped file
+        """
+        with gzip.open(filename, 'wb') as f:
+            for outbound in queryset.iterator():
+                data = OutboundArchiveSerializer(outbound).data
+                data = JSONRenderer().render(data)
+                f.write(data)
+                f.write('\n')
+
+    def create_archived_outbound(self, date, filename):
+        """
+        Creates the required ArchivedOutbound entry with the file specified
+        at `filename`
+        """
+        with open(filename) as f:
+            f = File(f)
+            ArchivedOutbounds.objects.create(date=date, archive=f)
+
+    def run(self, start_date, end_date):
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        for d in daterange(start_date, end_date):
+            if ArchivedOutbounds.objects.filter(date=d).exists():
+                continue
+
+            query = Outbound.objects.filter(created_at__date=d)
+
+            if not query.exists():
+                continue
+
+            filename = self.filename(d)
+            self.dump_data(filename, query)
+            self.create_archived_outbound(d, filename)
+
+            os.remove(filename)
+            query.delete()
+
+archive_outbound = ArchiveOutboundMessages()

@@ -36,6 +36,17 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
         validators = [OneFieldRequiredValidator(['to_addr', 'to_identity'])]
 
 
+class OutboundArchiveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Outbound
+        fields = (
+            'id', 'to_addr', 'to_identity', 'version', 'content',
+            'vumi_message_id', 'delivered', 'resend', 'call_answered',
+            'attempts', 'metadata', 'channel', 'updated_at', 'created_at',
+            'last_sent_time', 'created_by', 'updated_by',
+        )
+
+
 class InboundSerializer(serializers.HyperlinkedModelSerializer):
 
     class Meta:
@@ -97,3 +108,8 @@ class OutboundSendFailureSerializer(serializers.HyperlinkedModelSerializer):
 class AggregateOutboundSerializer(serializers.Serializer):
     start = serializers.DateField(required=False)
     end = serializers.DateField(required=False)
+
+
+class ArchivedOutboundSerializer(serializers.Serializer):
+    start = serializers.DateField()
+    end = serializers.DateField()

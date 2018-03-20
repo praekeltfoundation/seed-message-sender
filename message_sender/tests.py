@@ -1,4 +1,6 @@
+import gzip
 import json
+import os
 import uuid
 import logging
 import mock
@@ -35,7 +37,8 @@ from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
     HttpApiSenderException)
 from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
-                     IdentityLookup, AggregateOutbounds)
+                     IdentityLookup, AggregateOutbounds, ArchivedOutbounds)
+from .serializers import OutboundArchiveSerializer
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
 from .tasks import (SendMessage, send_message, fire_metric,
                     ConcurrencyLimiter, requeue_failed_tasks)
@@ -2875,3 +2878,131 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
         )
         self.assertEqual(response.status_code, 202)
         task.delay.assert_called_once_with('2017-01-01', '2017-01-03')
+
+
+class ArchivedOutboundsTests(AuthenticatedAPITestCase):
+    def test_task_filename(self):
+        """
+        The filename function should return the appropriate filename
+        """
+        filename = tasks.archive_outbound.filename(
+            datetime(2017, 8, 9).date())
+        self.assertEqual(filename, 'outbounds-2017-08-09.gz')
+
+    def test_dump_data(self):
+        """
+        Serializes outbound messages into a gzipped file
+        """
+        o = self.make_outbound()
+        o = Outbound.objects.get(id=o)
+
+        tasks.archive_outbound.dump_data('test.gz', Outbound.objects.all())
+
+        with gzip.open('test.gz') as f:
+            outbounds = map(json.loads, f)
+        os.remove('test.gz')
+
+        [outbound] = outbounds
+        outbound.pop('created_at')
+        outbound.pop('updated_at')
+        self.assertEqual(outbounds, [{
+            'attempts': o.attempts,
+            'call_answered': o.call_answered,
+            'channel': o.channel_id,
+            'content': o.content,
+            'created_by': o.created_by_id,
+            'delivered': o.delivered,
+            'id': str(o.id),
+            'last_sent_time': o.last_sent_time,
+            'metadata': o.metadata,
+            'resend': o.resend,
+            'to_addr': o.to_addr,
+            'to_identity': o.to_identity,
+            'updated_by': o.updated_by_id,
+            'version': o.version,
+            'vumi_message_id': o.vumi_message_id,
+        }])
+
+    def test_create_archived_outbound(self):
+        """
+        Creates the model with the attached file
+        """
+        with open('test', 'w') as f:
+            f.write('test')
+
+        tasks.archive_outbound.create_archived_outbound(
+            datetime(2017, 8, 9).date(), 'test')
+
+        os.remove('test')
+
+        [archive] = ArchivedOutbounds.objects.all()
+
+        self.assertEqual(archive.date, datetime(2017, 8, 9).date())
+        self.assertEqual(archive.archive.read(), 'test')
+
+    def test_task_skips_already_archived(self):
+        """
+        If there is already an ArchivedOutbounds for the given date, then the
+        task should skip processing that date
+        """
+        with open('test', 'w') as f:
+            f.write('test')
+        tasks.archive_outbound.create_archived_outbound(
+            datetime(2017, 8, 9).date(), 'test')
+        os.remove('test')
+
+        o = self.make_outbound()
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 8, 9)
+        o.save()
+
+        tasks.archive_outbound('2017-08-09', '2017-08-09')
+
+        [archive] = ArchivedOutbounds.objects.all()
+        self.assertEqual(archive.date, datetime(2017, 8, 9).date())
+        self.assertEqual(archive.archive.read(), 'test')
+        self.assertEqual(Outbound.objects.count(), 1)
+
+    def test_task_skips_empty_dates(self):
+        """
+        If there are no outbounds for the date, then no archive should be
+        created
+        """
+        tasks.archive_outbound('2017-08-09', '2017-08-09')
+        self.assertEqual(ArchivedOutbounds.objects.count(), 0)
+
+    def test_task_only_archives_outbounds_for_date(self):
+        """
+        Only outbounds in the specified date range should be archived
+        """
+        o = self.make_outbound()
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 8, 9)
+        o.save()
+
+        o = self.make_outbound()
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 8, 10)
+        o.save()
+
+        self.assertEqual(Outbound.objects.count(), 2)
+        tasks.archive_outbound('2017-08-09', '2017-08-09')
+        self.assertEqual(Outbound.objects.count(), 1)
+
+    def test_task_creates_archive(self):
+        """
+        The task should serialize the appropriate messages into a gzipped file
+        """
+        o = self.make_outbound()
+        o = Outbound.objects.get(id=o)
+        o.created_at = datetime(2017, 8, 9)
+        o.save()
+        o.refresh_from_db()
+
+        tasks.archive_outbound('2017-08-09', '2017-08-09')
+
+        self.assertEqual(Outbound.objects.count(), 0)
+        [archive] = ArchivedOutbounds.objects.all()
+        self.assertEqual(archive.date, datetime(2017, 8, 9).date())
+        outbounds = map(json.loads, gzip.GzipFile(fileobj=archive.archive))
+        self.assertEqual(outbounds, [OutboundArchiveSerializer(o).data])
