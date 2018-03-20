@@ -2899,13 +2899,11 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         tasks.archive_outbound.dump_data('test.gz', Outbound.objects.all())
 
         with gzip.open('test.gz') as f:
-            outbounds = map(json.loads, f)
-        os.remove('test.gz')
+            [outbound] = map(json.loads, f)
 
-        [outbound] = outbounds
         outbound.pop('created_at')
         outbound.pop('updated_at')
-        self.assertEqual(outbounds, [{
+        self.assertEqual(outbound, {
             'attempts': o.attempts,
             'call_answered': o.call_answered,
             'channel': o.channel_id,
@@ -2921,7 +2919,8 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
             'updated_by': o.updated_by_id,
             'version': o.version,
             'vumi_message_id': o.vumi_message_id,
-        }])
+        })
+        os.remove('test.gz')
 
     def test_create_archived_outbound(self):
         """
@@ -3004,8 +3003,8 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         self.assertEqual(Outbound.objects.count(), 0)
         [archive] = ArchivedOutbounds.objects.all()
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
-        outbounds = map(json.loads, gzip.GzipFile(fileobj=archive.archive))
-        self.assertEqual(outbounds, [OutboundArchiveSerializer(o).data])
+        [outbound] = map(json.loads, gzip.GzipFile(fileobj=archive.archive))
+        self.assertEqual(outbound, OutboundArchiveSerializer(o).data)
 
     @mock.patch('message_sender.views.archive_outbound')
     def test_view(self, task):
