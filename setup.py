@@ -55,6 +55,7 @@ setup(
         'seed-services-client==0.31.0',
         'django-py-zipkin==0.2.5',
         'django-getenv==1.3.2',
+        'django-storages==1.6.5',
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

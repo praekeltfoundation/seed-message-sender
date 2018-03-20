@@ -1,5 +1,7 @@
 import os
+from django.conf import settings
 from django.conf.urls import include, url
+from django.conf.urls.static import static
 from django.contrib import admin
 from message_sender import views
 from rest_framework.authtoken.views import obtain_auth_token
@@ -18,3 +20,10 @@ urlpatterns = [
     url(r'^', include('message_sender.urls')),
     url(r'^docs/', include('rest_framework_docs.urls')),
 ]
+
+
+if settings.DEBUG is True:
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT,
+    )
