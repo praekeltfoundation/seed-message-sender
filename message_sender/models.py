@@ -113,7 +113,9 @@ class Inbound(models.Model):
 
 @python_2_unicode_compatible
 class OutboundSendFailure(models.Model):
-    outbound = models.ForeignKey(Outbound, on_delete=models.CASCADE)
+    # We have an ON DELETE CASCADE at the DB level, so that a .delete on a
+    # large Outbound queryset doesn't load the entire queryset into memory
+    outbound = models.ForeignKey(Outbound, on_delete=models.DO_NOTHING)
     task_id = models.UUIDField()
     initiated_at = models.DateTimeField()
     reason = models.TextField()
