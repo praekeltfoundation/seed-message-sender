@@ -18,7 +18,7 @@ def modify_fk_constraint(apps, schema_editor):
     with schema_editor.connection.cursor() as cursor:
         constraints = schema_editor.connection.introspection.get_constraints(
             cursor, table)
-        [constraint] = filter(lambda (_, v): v['foreign_key'], constraints.items())
+        [constraint] = filter(lambda c: c[1]['foreign_key'], constraints.items())
         [name, _] = constraint
     sql_delete_fk = (
         "SET CONSTRAINTS {name} IMMEDIATE; "
