@@ -16,10 +16,12 @@ from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.files import File
 from django.db.models import Count, Sum
+from django.db.models.signals import post_delete
 
 from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
 from rest_framework.renderers import JSONRenderer
+from rest_hooks.models import model_deleted
 
 from .factory import MessageClientFactory
 
@@ -477,6 +479,17 @@ class ArchiveOutboundMessages(Task):
             self.create_archived_outbound(d, filename)
 
             os.remove(filename)
+
+            # Remove the post_delete hook from rest_hooks, otherwise we'll have
+            # to load all of the outbounds into memory
+            post_delete.disconnect(
+                receiver=model_deleted,
+                dispatch_uid='instance-deleted-hook',
+            )
             query.delete()
+            post_delete.connect(
+                receiver=model_deleted,
+                dispatch_uid='instance-deleted-hook',
+            )
 
 archive_outbound = ArchiveOutboundMessages()
