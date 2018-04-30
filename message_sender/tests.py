@@ -5,6 +5,7 @@ import uuid
 import logging
 import mock
 import responses
+from io import StringIO
 
 try:
     from urllib.parse import urlparse, urlencode
@@ -35,7 +36,7 @@ from seed_services_client.metrics import MetricsApiClient
 
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
-    HttpApiSenderException)
+    HttpApiSenderException, WassupApiSenderException)
 from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
                      IdentityLookup, AggregateOutbounds, ArchivedOutbounds)
 from .serializers import OutboundArchiveSerializer
@@ -157,6 +158,22 @@ def make_channels():
         'message_delay': 10
     }
     Channel.objects.create(**http_channel_voice)
+
+    wassup_channel_text = {
+        'channel_id': 'WASSUP_API',
+        'channel_type': Channel.WASSUP_API_TYPE,
+        'default': False,
+        'configuration': {
+            'WASSUP_API_URL': 'http://example.com/',
+            'WASSUP_API_TOKEN': 'http-api-token',
+            'WASSUP_API_HSM_UUID': 'the-uuid',
+            'WASSUP_API_NUMBER': '+4321',
+        },
+        'concurrency_limit': 0,
+        'message_timeout': 0,
+        'message_delay': 0
+    }
+    Channel.objects.create(**wassup_channel_text)
 
 
 class RecordingAdapter(TestAdapter):
@@ -2190,6 +2207,76 @@ class TestJunebugAPISender(TestCase):
         message_sender = MessageClientFactory.create(channel)
         self.assertRaises(
             HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
+            3.0, agg='sum')
+
+
+class TestWassupAPISender(TestCase):
+
+    def setUp(self):
+        super(TestWassupAPISender, self).setUp()
+        make_channels()
+
+    @responses.activate
+    def test_send_text(self):
+        '''
+        Using the send_text function should send a request to Junebug with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/api/v1/hsms/the-uuid/send/",
+            json={"uuid": "message-uuid"}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_text('+1234', 'Test', session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body)
+        self.assertEqual(r['to_addr'], '+1234')
+        self.assertEqual(r['localizable_params'], [{"default": "Test"}])
+
+    @responses.activate
+    def test_send_voice(self):
+        '''
+        Using the send_voice function should send a request to Junebug with the
+        correct JSON data.
+        '''
+
+        responses.add(
+            responses.GET, "http://test.mp3", body='', status=200,
+            content_type='audio/mp3', stream=True)
+
+        responses.add(
+            responses.POST, "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', 'Test', speech_url='http://test.mp3', wait_for='#',
+            session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [mp3, r] = responses.calls
+        body = r.request.body
+        self.assertTrue('+1234' in body)
+        self.assertTrue('+4321' in body)
+        self.assertTrue('audio_attachment' in body)
+
+    def test_fire_metric(self):
+        '''
+        Using the fire_metric function should result in an exception being
+        raised, since Junebug doesn't support metrics sending.
+        '''
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertRaises(
+            WassupApiSenderException, message_sender.fire_metric, 'foo.bar',
             3.0, agg='sum')
 
 

@@ -257,7 +257,8 @@ class MessageClientFactory(object):
         return WassupApiSender(
             channel.configuration.get('WASSUP_API_URL'),
             channel.configuration.get('WASSUP_API_TOKEN'),
-            channel.configuration.get('WASSUP_API_HSM_UUID'))
+            channel.configuration.get('WASSUP_API_HSM_UUID'),
+            number=channel.configuration.get('WASSUP_API_NUMBER'))
 
     @classmethod
     def create_vumi_client(cls, channel):

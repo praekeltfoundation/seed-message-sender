@@ -12,6 +12,7 @@ class Channel(models.Model):
     VUMI_TYPE = 'vumi'
     JUNEBUG_TYPE = 'junebug'
     HTTP_API_TYPE = 'http_api'
+    WASSUP_API_TYPE = 'wassup'
 
     CHANNEL_TYPES = (
         (JUNEBUG_TYPE, 'Junebug'),
