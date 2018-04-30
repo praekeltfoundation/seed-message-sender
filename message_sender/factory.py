@@ -7,7 +7,7 @@ from django.conf import settings
 from django.core.urlresolvers import reverse
 
 import requests
-from urlparse import urljoin
+from six.moves import urllib_parse
 
 from go_http.send import HttpApiSender
 
@@ -177,7 +177,8 @@ class WassupApiSender(object):
 
     def send_text(self, to_addr, content, session_event=None):
         response = self.session.post(
-            urljoin(self.api_url, '/api/v1/hsms/%s/send/' % (self.hsm_uuid,)),
+            urllib_parse.urljoin(
+                self.api_url, '/api/v1/hsms/%s/send/' % (self.hsm_uuid,)),
             json={
                 "to_addr": to_addr,
                 "localizable_params": [{"default": content}]
@@ -202,7 +203,8 @@ class WassupApiSender(object):
         audio_file.raise_for_status()
 
         response = self.session.post(
-            urljoin(self.api_url, '/api/v1/messages/'),
+            urllib_parse.urljoin(
+                self.api_url, '/api/v1/messages/'),
             files={
                 'audio_attachment': audio_file.raw,
             },
