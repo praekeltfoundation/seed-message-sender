@@ -5,7 +5,6 @@ import uuid
 import logging
 import mock
 import responses
-from io import StringIO
 
 try:
     from urllib.parse import urlparse, urlencode
