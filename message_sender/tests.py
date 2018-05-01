@@ -2233,7 +2233,7 @@ class TestWassupAPISender(TestCase):
         self.assertEqual(res['message_id'], 'message-uuid')
 
         [r] = responses.calls
-        r = json.loads(r.request.body)
+        r = json.loads(r.request.body.decode())
         self.assertEqual(r['to_addr'], '+1234')
         self.assertEqual(r['localizable_params'], [{"default": "Test"}])
 
@@ -2262,7 +2262,7 @@ class TestWassupAPISender(TestCase):
         self.assertEqual(res['message_id'], 'message-uuid')
 
         [mp3, r] = responses.calls
-        body = r.request.body
+        body = r.request.body.decode()
         self.assertTrue('+1234' in body)
         self.assertTrue('+4321' in body)
         self.assertTrue('audio_attachment' in body)
