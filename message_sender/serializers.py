@@ -87,6 +87,50 @@ class JunebugInboundSerializer(serializers.HyperlinkedModelSerializer):
             [OneFieldRequiredValidator(['from', 'from_identity'])]
 
 
+class WassupHookSerializer(serializers.Serializer):
+    event = serializers.CharField()
+
+
+class WassupDataSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    from_addr = serializers.CharField()
+    from_identity = serializers.CharField()
+    to_addr = serializers.CharField()
+    in_reply_to = serializers.CharField(allow_null=True)
+    content = serializers.CharField()
+    metadata = serializers.JSONField()
+
+    class Meta:
+        fields = (
+            'uuid', 'from_addr', 'from_identity',
+            'to_addr', 'in_reply_to', 'content', 'metadata')
+        validators = \
+            [OneFieldRequiredValidator(['from_addr', 'from_identity'])]
+
+
+class WassupInboundSerializer(serializers.Serializer):
+    """
+    Maps fields from Junebug onto fields expected by the Inbound model.
+    """
+    hook = WassupHookSerializer()
+    data = WassupDataSerializer()
+
+    class Meta:
+        fields = ('hook', 'data')
+
+    def create(self, validated_data):
+        data = validated_data['data']
+        Inbound.objects.create(
+            message_id=data['uuid'],
+            in_reply_to=data['in_reply_to'],
+            to_addr=data['to_addr'],
+            from_addr=data['from_addr'],
+            from_identity=data['from_identity'],
+            content=data['content'],
+            helper_metadata=data['metadata'])
+        return validated_data
+
+
 class HookSerializer(serializers.ModelSerializer):
 
     class Meta:
