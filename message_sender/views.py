@@ -1,5 +1,3 @@
-import logging
-
 from datetime import datetime, timedelta
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
@@ -31,7 +29,6 @@ from seed_message_sender.utils import (
 from seed_papertrail.decorators import papertrail
 import django_filters
 
-logger = logging.getLogger(__name__)
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics

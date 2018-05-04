@@ -2218,7 +2218,7 @@ class TestWassupAPISender(TestCase):
     @responses.activate
     def test_send_text(self):
         '''
-        Using the send_text function should send a request to Junebug with the
+        Using the send_text function should send a request to wassup with the
         correct JSON data.
         '''
         responses.add(
@@ -2240,7 +2240,7 @@ class TestWassupAPISender(TestCase):
     @responses.activate
     def test_send_voice(self):
         '''
-        Using the send_voice function should send a request to Junebug with the
+        Using the send_voice function should send a request to wassup with the
         correct JSON data.
         '''
 
@@ -2270,7 +2270,7 @@ class TestWassupAPISender(TestCase):
     def test_fire_metric(self):
         '''
         Using the fire_metric function should result in an exception being
-        raised, since Junebug doesn't support metrics sending.
+        raised, since wassup doesn't support metrics sending.
         '''
         channel = Channel.objects.get(channel_id="WASSUP_API")
         message_sender = MessageClientFactory.create(channel)
@@ -2503,7 +2503,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
     @responses.activate
     def test_create_inbound_wassup_unknown_msisdn(self):
         """
-        If Junebug sends a new inbound message to the inbound endpoint, for
+        If wassup sends a new inbound message to the inbound endpoint, for
         an address that doesn't exist in the identity store, then a new
         identity should be created for that address.
         """
