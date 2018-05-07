@@ -163,8 +163,6 @@ WASSUP_SESSIONS = {}
 
 class WassupApiSender(object):
 
-    default_session = requests.Session()
-
     def __init__(self, api_url, token, hsm_uuid, number=None, session=None):
         self.api_url = api_url
         self.token = token
