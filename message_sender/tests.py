@@ -35,7 +35,7 @@ from seed_services_client.metrics import MetricsApiClient
 
 from .factory import (
     MessageClientFactory, JunebugApiSender, HttpApiSender,
-    HttpApiSenderException)
+    HttpApiSenderException, WassupApiSenderException)
 from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
                      IdentityLookup, AggregateOutbounds, ArchivedOutbounds)
 from .serializers import OutboundArchiveSerializer
@@ -157,6 +157,22 @@ def make_channels():
         'message_delay': 10
     }
     Channel.objects.create(**http_channel_voice)
+
+    wassup_channel_text = {
+        'channel_id': 'WASSUP_API',
+        'channel_type': Channel.WASSUP_API_TYPE,
+        'default': False,
+        'configuration': {
+            'WASSUP_API_URL': 'http://example.com/',
+            'WASSUP_API_TOKEN': 'http-api-token',
+            'WASSUP_API_HSM_UUID': 'the-uuid',
+            'WASSUP_API_NUMBER': '+4321',
+        },
+        'concurrency_limit': 0,
+        'message_timeout': 0,
+        'message_delay': 0
+    }
+    Channel.objects.create(**wassup_channel_text)
 
 
 class RecordingAdapter(TestAdapter):
@@ -2191,6 +2207,343 @@ class TestJunebugAPISender(TestCase):
         self.assertRaises(
             HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
             3.0, agg='sum')
+
+
+class TestWassupAPISender(TestCase):
+
+    def setUp(self):
+        super(TestWassupAPISender, self).setUp()
+        make_channels()
+
+    @responses.activate
+    def test_send_text(self):
+        '''
+        Using the send_text function should send a request to wassup with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/api/v1/hsms/the-uuid/send/",
+            json={"uuid": "message-uuid"}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_text('+1234', 'Test', session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body.decode())
+        self.assertEqual(r['to_addr'], '+1234')
+        self.assertEqual(r['localizable_params'], [{"default": "Test"}])
+
+    @responses.activate
+    def test_send_voice(self):
+        '''
+        Using the send_voice function should send a request to wassup with the
+        correct JSON data.
+        '''
+
+        responses.add(
+            responses.GET, "http://test.mp3", body='', status=200,
+            content_type='audio/mp3', stream=True)
+
+        responses.add(
+            responses.POST, "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_voice(
+            '+1234', 'Test', speech_url='http://test.mp3', wait_for='#',
+            session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [mp3, r] = responses.calls
+        body = r.request.body.decode()
+        self.assertTrue('+1234' in body)
+        self.assertTrue('+4321' in body)
+        self.assertTrue('audio_attachment' in body)
+
+    def test_fire_metric(self):
+        '''
+        Using the fire_metric function should result in an exception being
+        raised, since wassup doesn't support metrics sending.
+        '''
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertRaises(
+            WassupApiSenderException, message_sender.fire_metric, 'foo.bar',
+            3.0, agg='sum')
+
+
+class TestWassupEventsApi(AuthenticatedAPITestCase):
+
+    def test_event_missing_fields(self):
+        '''
+        If there are missing fields in the request, and error response should
+        be returned.
+        '''
+        response = self.client.post(
+            reverse('wassup-events'), json.dumps({}),
+            content_type='application/json')
+        self.assertEqual(json.loads(response.content.decode()), {
+            'accepted': False,
+            'reason': 'Unable to handle hook None',
+        })
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_no_message(self):
+        '''
+        If we cannot find the message for the event, and error response should
+        be returned.
+        '''
+        event = {
+            'hook': {
+                'event': 'message.outbound.status',
+            },
+            'data': {
+                'message_uuid': 'bad-message-id',
+                'status': 'sent',
+            }
+        }
+        response = self.client.post(
+            reverse('wassup-events'), json.dumps(event),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(json.loads(response.content.decode()), {
+            'accepted': False,
+            'reason': 'Unable to find message for message_uuid',
+        })
+
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_ack(self, mock_hook):
+        '''A submitted event should update the message object accordingly.'''
+        existing = self.make_outbound()
+
+        d = Outbound.objects.get(pk=existing)
+        event = {
+            "hook": {
+                "event": "message.outbound.status"
+            },
+            "data": {
+                "message_uuid": d.vumi_message_id,
+                "status": "sent",
+                "timestamp": "2018-05-04T16:00:18Z",
+            }
+        }
+        response = self.client.post(
+            reverse('wassup-events'), json.dumps(event),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(
+            d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(d)
+
+    @responses.activate
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_nack(self, mock_hook):
+        '''
+        A rejected event should retry and update the message object accordingly
+        '''
+        self.add_metrics_response()
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid='psh_fire_msg_action_if_new'
+        )
+        event = {
+            'hook': {
+                'event': 'message.outbound.status',
+            },
+            'data': {
+                'status': 'unsent',
+                'message_uuid': d.vumi_message_id,
+                'timestamp': "2018-05-04T16:00:18Z",
+                'description': 'stars not aligned',
+            }
+        }
+
+        response = self.client.post(
+            reverse('wassup-events'), json.dumps(event),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        c = Outbound.objects.get(pk=existing)
+        self.assertEqual(c.delivered, False)
+        self.assertEqual(c.attempts, 2)
+        self.assertEqual(
+            c.metadata["nack_reason"], {"description": "stars not aligned"})
+        self.assertEquals(True, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123' "
+            "[session_event: new]"))
+        mock_hook.assert_called_once_with(d)
+
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_delivery_succeeded(self, mock_hook):
+        '''A successful delivery should update the message accordingly.'''
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        event = {
+            "hook": {
+                "event": "message.outbound.status",
+            },
+            "data": {
+                "status": "delivered",
+                "message_uuid": d.vumi_message_id,
+                'timestamp': "2018-05-04T16:00:18Z",
+            }
+        }
+        response = self.client.post(
+            reverse('wassup-events'), json.dumps(event),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(
+            d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(d)
+
+    @responses.activate
+    @patch('message_sender.views.fire_delivery_hook')
+    def test_event_delivery_failed(self, mock_hook):
+        '''
+        A failed delivery should retry and update the message accordingly.
+        '''
+        self.add_metrics_response()
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        event = {
+            "hook": {
+                "event": "message.outbound.status",
+            },
+            "data": {
+                "message_uuid": d.vumi_message_id,
+                "status": "failed",
+                "description": "computer said no",
+                "timestamp": "2018-05-04T16:00:18Z",
+            }
+        }
+
+        response = self.client.post(
+            reverse('wassup-events'), json.dumps(event),
+            content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, False)
+        self.assertEqual(d.attempts, 2)
+        self.assertEqual(
+            d.metadata["delivery_failed_reason"], {
+                "description": "computer said no"
+            })
+        self.assertEquals(False, self.check_logs(
+            "Message: 'Simple outbound message' sent to '+27123'"))
+        mock_hook.assert_called_once_with(d)
+
+    @responses.activate
+    def test_create_inbound_wassup_message(self):
+        """
+        If wassup send an inbound message to the inbound endpoint, then a
+        new Inbound should be created with the specified parameters.
+        """
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+
+        self.add_metrics_response()
+        message_id = str(uuid.uuid4())
+
+        event = {
+            "hook": {
+                "event": "message.inbound",
+            },
+            "data": {
+                "uuid": message_id,
+                "content": "the content",
+                "in_reply_to": None,
+                "metadata": {},
+                "from_addr": "+27123456789",
+                "to_addr": "+27000000000",
+            }
+        }
+
+        self.add_identity_search_response("+27123456789", '0c03d360')
+        response = self.client.post(
+            reverse('channels-inbound', kwargs={
+                'channel_id': channel.channel_id,
+            }),
+            json.dumps(event), content_type='application/json')
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.to_addr, "+27000000000")
+        self.assertEqual(d.from_addr, "+27123456789")
+        self.assertEqual(d.from_identity, "0c03d360")
+        self.assertEqual(d.content, "the content")
+        self.assertEqual(d.transport_name, '')
+        self.assertEqual(d.transport_type, None)
+        self.assertEqual(d.helper_metadata, {})
+
+    @responses.activate
+    def test_create_inbound_wassup_unknown_msisdn(self):
+        """
+        If wassup sends a new inbound message to the inbound endpoint, for
+        an address that doesn't exist in the identity store, then a new
+        identity should be created for that address.
+        """
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+
+        self.add_metrics_response()
+        message_id = str(uuid.uuid4())
+
+        event = {
+            "hook": {
+                "event": "message.inbound",
+            },
+            "data": {
+                "uuid": message_id,
+                "content": "the content",
+                "in_reply_to": None,
+                "metadata": {},
+                "from_addr": "+27123456789",
+                "to_addr": "+27000000000",
+            }
+        }
+
+        self.add_identity_search_response("+27123456789", '0c03d360')
+        self.add_create_identity_response('0c03d360', "+27123456789")
+        response = self.client.post(
+            reverse('channels-inbound', kwargs={
+                'channel_id': channel.channel_id,
+            }), json.dumps(event), content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.to_addr, "+27000000000")
+        self.assertEqual(d.from_addr, "+27123456789")
+        self.assertEqual(d.from_identity, "0c03d360")
+        self.assertEqual(d.content, "the content")
+        self.assertEqual(d.transport_name, "")
+        self.assertEqual(d.transport_type, None)
+        self.assertEqual(d.helper_metadata, {})
 
 
 class TestConcurrencyLimiter(AuthenticatedAPITestCase):

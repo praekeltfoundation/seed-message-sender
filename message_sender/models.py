@@ -12,11 +12,13 @@ class Channel(models.Model):
     VUMI_TYPE = 'vumi'
     JUNEBUG_TYPE = 'junebug'
     HTTP_API_TYPE = 'http_api'
+    WASSUP_API_TYPE = 'wassup'
 
     CHANNEL_TYPES = (
         (JUNEBUG_TYPE, 'Junebug'),
         (VUMI_TYPE, 'Vumi'),
-        (HTTP_API_TYPE, 'HTTP API')
+        (HTTP_API_TYPE, 'HTTP API'),
+        (WASSUP_API_TYPE, 'Wassup API'),
     )
 
     channel_id = models.CharField(primary_key=True, editable=True,

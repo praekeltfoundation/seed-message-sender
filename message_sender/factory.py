@@ -1,12 +1,14 @@
 import json
 import os
 import re
+import pkg_resources
 
 from copy import deepcopy
 from django.conf import settings
 from django.core.urlresolvers import reverse
 
 import requests
+from six.moves import urllib_parse
 
 from go_http.send import HttpApiSender
 
@@ -153,6 +155,81 @@ class JunebugApiSender(GenericHttpApiSender):
         return res.get('result', {})
 
 
+class WassupApiSenderException(Exception):
+    pass
+
+
+WASSUP_SESSIONS = {}
+
+
+class WassupApiSender(object):
+
+    def __init__(self, api_url, token, hsm_uuid, number=None, session=None):
+        self.api_url = api_url
+        self.token = token
+        self.hsm_uuid = hsm_uuid
+        self.number = number
+
+        distribution = pkg_resources.get_distribution('seed_message_sender')
+
+        # reuse sessions on tokens to make use of SSL keep-alive
+        # but keep some separation around auth
+        self.session = (
+            session or WASSUP_SESSIONS.setdefault(token, requests.Session()))
+        self.session.headers.update({
+            'User-Agent': 'SeedMessageSender/%s' % (
+                distribution.version,)
+        })
+
+    def send_text(self, to_addr, content, session_event=None):
+        response = self.session.post(
+            urllib_parse.urljoin(
+                self.api_url, '/api/v1/hsms/%s/send/' % (self.hsm_uuid,)),
+            json={
+                "to_addr": to_addr,
+                "localizable_params": [{"default": content}]
+            })
+        response.raise_for_status()
+        data = response.json()
+        # the SendMessage task expects the sender to return a dict with
+        # a ``message_id`` field set. I'm injecting that here manually to
+        # comply
+        data.update({
+            "message_id": data["uuid"],
+        })
+        return data
+
+    def send_voice(self, to_addr, content, speech_url=None, wait_for=None,
+                   session_event=None):
+        if not self.number:
+            raise WassupApiSenderException(
+                'Cannot send an audio file if a number is not specified.')
+
+        audio_file = requests.get(speech_url, stream=True)
+        audio_file.raise_for_status()
+
+        response = self.session.post(
+            urllib_parse.urljoin(
+                self.api_url, '/api/v1/messages/'),
+            files={
+                'audio_attachment': audio_file.raw,
+            },
+            data={
+                'to_addr': to_addr,
+                'number': self.number,
+            })
+        response.raise_for_status()
+        data = response.json()
+        data.update({
+            "message_id": data["uuid"]
+        })
+        return data
+
+    def fire_metric(self, metric, value, agg="last"):
+        raise WassupApiSenderException(
+            'Metrics sending not supported')
+
+
 class MessageClientFactory(object):
 
     @classmethod
@@ -180,6 +257,14 @@ class MessageClientFactory(object):
             channel.configuration.get("JUNEBUG_API_AUTH"),
             channel.configuration.get("JUNEBUG_API_FROM")
         )
+
+    @classmethod
+    def create_wassup_client(cls, channel):
+        return WassupApiSender(
+            channel.configuration.get('WASSUP_API_URL'),
+            channel.configuration.get('WASSUP_API_TOKEN'),
+            channel.configuration.get('WASSUP_API_HSM_UUID'),
+            number=channel.configuration.get('WASSUP_API_NUMBER'))
 
     @classmethod
     def create_vumi_client(cls, channel):
