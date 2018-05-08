@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import pkg_resources
 
 from copy import deepcopy
 from django.conf import settings
@@ -168,10 +169,17 @@ class WassupApiSender(object):
         self.token = token
         self.hsm_uuid = hsm_uuid
         self.number = number
+
+        distribution = pkg_resources.get_distribution('seed_message_sender')
+
         # reuse sessions on tokens to make use of SSL keep-alive
         # but keep some separation around auth
         self.session = (
             session or WASSUP_SESSIONS.setdefault(token, requests.Session()))
+        self.session.headers.update({
+            'User-Agent': 'SeedMessageSender/%s' % (
+                distribution.version,)
+        })
 
     def send_text(self, to_addr, content, session_event=None):
         response = self.session.post(
