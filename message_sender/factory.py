@@ -177,6 +177,7 @@ class WassupApiSender(object):
         self.session = (
             session or WASSUP_SESSIONS.setdefault(token, requests.Session()))
         self.session.headers.update({
+            'Authorization': 'Token %s' % (self.token,),
             'User-Agent': 'SeedMessageSender/%s' % (
                 distribution.version,)
         })
