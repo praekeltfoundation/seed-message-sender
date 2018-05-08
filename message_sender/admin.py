@@ -80,8 +80,8 @@ class ChannelAdminForm(forms.ModelForm):
         elif channel_type == Channel.HTTP_API_TYPE:
             keys = ('HTTP_API_URL', 'HTTP_API_AUTH', 'HTTP_API_FROM')
         elif channel_type == Channel.WASSUP_API_TYPE:
-            keys = ('WASSUP_API_URL', 'WASSUP_API_TOKEN', 'WASSUP_API_HSM_UUID',
-                    'WASSUP_API_NUMBER')
+            keys = ('WASSUP_API_URL', 'WASSUP_API_TOKEN',
+                    'WASSUP_API_HSM_UUID', 'WASSUP_API_NUMBER')
 
         for key in keys:
             if key not in config.keys():
