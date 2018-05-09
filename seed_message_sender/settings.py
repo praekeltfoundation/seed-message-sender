@@ -14,6 +14,7 @@ import dj_database_url
 
 from kombu import Exchange, Queue
 import djcelery
+from getenv import env
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -25,7 +26,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 SECRET_KEY = os.environ.get('SECRET_KEY', 'REPLACEME')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.environ.get('DEBUG', False)
+DEBUG = env('DEBUG', False)
 
 ALLOWED_HOSTS = ['*']
 
@@ -51,6 +52,8 @@ INSTALLED_APPS = (
     'django_filters',
     'rest_hooks',
     'djcelery',
+    'django_py_zipkin',
+    'storages',
     # us
     'message_sender',
 
@@ -110,6 +113,9 @@ STATICFILES_FINDERS = (
 STATIC_ROOT = 'static'
 STATIC_URL = '/static/'
 
+MEDIA_ROOT = 'media'
+MEDIA_URL = '/media/'
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -154,7 +160,7 @@ RAVEN_CONFIG = {
 REST_FRAMEWORK = {
     'PAGE_SIZE': 1000,
     'DEFAULT_PAGINATION_CLASS':
-        'rest_framework.pagination.LimitOffsetPagination',
+        'rest_framework.pagination.CursorPagination',
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework.authentication.BasicAuthentication',
         'rest_framework.authentication.TokenAuthentication',
@@ -297,7 +303,10 @@ MESSAGE_SENDER_MAX_FAILURES = \
     int(os.environ.get('MESSAGE_SENDER_MAX_FAILURES', 5))
 
 METRICS_URL = os.environ.get("METRICS_URL", None)
-METRICS_AUTH_TOKEN = os.environ.get("METRICS_AUTH_TOKEN", "REPLACEME")
+METRICS_AUTH = (
+    os.environ.get("METRICS_AUTH_USER", "REPLACEME"),
+    os.environ.get("METRICS_AUTH_PASSWORD", "REPLACEME"),
+)
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
@@ -336,3 +345,26 @@ IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
                                     'http://is/api/v1')
 IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
                                       'REPLACEME')
+
+ZIPKIN_TRACING_ENABLED = env('ZIPKIN_TRACING_ENABLED', False)
+ZIPKIN_SERVICE_NAME = env('ZIPKIN_SERVICE_NAME', 'message_sender')
+ZIPKIN_HTTP_ENDPOINT = env('ZIPKIN_HTTP_ENDPOINT', None)
+ZIPKIN_BLACKLISTED_PATHS = filter(
+    None, env('ZIPKIN_BLACKLISTED_PATHS', '').split(','))
+ZIPKIN_TRACING_SAMPLING = env('ZIPKIN_TRACING_SAMPLING', 1.00)
+if ZIPKIN_HTTP_ENDPOINT is not None:
+    MIDDLEWARE_CLASSES = (
+        ('django_py_zipkin.middleware.ZipkinMiddleware',) + MIDDLEWARE_CLASSES)
+
+
+AGGREGATE_OUTBOUND_BACKTRACK = os.environ.get(
+    'AGGREGATE_OUTBOUND_BACKTRACK', 30)
+
+
+AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', None)
+AWS_SECRET_ACCESS_KEY = env('AWS_SECRET_ACCESS_KEY', None)
+AWS_STORAGE_BUCKET_NAME = env('AWS_STORAGE_BUCKET_NAME', None)
+AWS_S3_ENCRYPTION = True
+
+if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY and AWS_STORAGE_BUCKET_NAME:
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'

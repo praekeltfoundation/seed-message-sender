@@ -32,8 +32,19 @@ class OutboundSerializer(serializers.HyperlinkedModelSerializer):
         fields = (
             'url', 'id', 'version', 'to_addr', 'vumi_message_id', 'content',
             'delivered', 'attempts', 'metadata', 'created_at', 'updated_at',
-            'channel', 'to_identity')
+            'channel', 'to_identity', 'resend')
         validators = [OneFieldRequiredValidator(['to_addr', 'to_identity'])]
+
+
+class OutboundArchiveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Outbound
+        fields = (
+            'id', 'to_addr', 'to_identity', 'version', 'content',
+            'vumi_message_id', 'delivered', 'resend', 'call_answered',
+            'attempts', 'metadata', 'channel', 'updated_at', 'created_at',
+            'last_sent_time', 'created_by', 'updated_by',
+        )
 
 
 class InboundSerializer(serializers.HyperlinkedModelSerializer):
@@ -76,6 +87,50 @@ class JunebugInboundSerializer(serializers.HyperlinkedModelSerializer):
             [OneFieldRequiredValidator(['from', 'from_identity'])]
 
 
+class WassupHookSerializer(serializers.Serializer):
+    event = serializers.CharField()
+
+
+class WassupDataSerializer(serializers.Serializer):
+    uuid = serializers.CharField()
+    from_addr = serializers.CharField()
+    from_identity = serializers.CharField()
+    to_addr = serializers.CharField()
+    in_reply_to = serializers.CharField(allow_null=True)
+    content = serializers.CharField()
+    metadata = serializers.JSONField()
+
+    class Meta:
+        fields = (
+            'uuid', 'from_addr', 'from_identity',
+            'to_addr', 'in_reply_to', 'content', 'metadata')
+        validators = \
+            [OneFieldRequiredValidator(['from_addr', 'from_identity'])]
+
+
+class WassupInboundSerializer(serializers.Serializer):
+    """
+    Maps fields from Junebug onto fields expected by the Inbound model.
+    """
+    hook = WassupHookSerializer()
+    data = WassupDataSerializer()
+
+    class Meta:
+        fields = ('hook', 'data')
+
+    def create(self, validated_data):
+        data = validated_data['data']
+        Inbound.objects.create(
+            message_id=data['uuid'],
+            in_reply_to=data['in_reply_to'],
+            to_addr=data['to_addr'],
+            from_addr=data['from_addr'],
+            from_identity=data['from_identity'],
+            content=data['content'],
+            helper_metadata=data['metadata'])
+        return validated_data
+
+
 class HookSerializer(serializers.ModelSerializer):
 
     class Meta:
@@ -92,3 +147,13 @@ class OutboundSendFailureSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
         model = OutboundSendFailure
         fields = ('url', 'id', 'outbound', 'task_id', 'initiated_at', 'reason')
+
+
+class AggregateOutboundSerializer(serializers.Serializer):
+    start = serializers.DateField(required=False)
+    end = serializers.DateField(required=False)
+
+
+class ArchivedOutboundSerializer(serializers.Serializer):
+    start = serializers.DateField()
+    end = serializers.DateField()

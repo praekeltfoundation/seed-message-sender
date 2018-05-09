@@ -11,10 +11,14 @@ class Channel(models.Model):
 
     VUMI_TYPE = 'vumi'
     JUNEBUG_TYPE = 'junebug'
+    HTTP_API_TYPE = 'http_api'
+    WASSUP_API_TYPE = 'wassup'
 
     CHANNEL_TYPES = (
         (JUNEBUG_TYPE, 'Junebug'),
-        (VUMI_TYPE, 'Vumi')
+        (VUMI_TYPE, 'Vumi'),
+        (HTTP_API_TYPE, 'HTTP API'),
+        (WASSUP_API_TYPE, 'Wassup API'),
     )
 
     channel_id = models.CharField(primary_key=True, editable=True,
@@ -57,6 +61,9 @@ class Outbound(models.Model):
     vumi_message_id = models.CharField(null=True, blank=True, max_length=36,
                                        db_index=True)
     delivered = models.BooleanField(default=False)
+    resend = models.NullBooleanField(
+        default=None, null=True, blank=True, help_text="True if this is a "
+        "resend requested by the user.")
     call_answered = models.NullBooleanField(
         default=None, null=True, blank=True, help_text="True if the call has "
         "been answered. Not used for text messages")
@@ -108,7 +115,9 @@ class Inbound(models.Model):
 
 @python_2_unicode_compatible
 class OutboundSendFailure(models.Model):
-    outbound = models.ForeignKey(Outbound, on_delete=models.CASCADE)
+    # We have an ON DELETE CASCADE at the DB level, so that a .delete on a
+    # large Outbound queryset doesn't load the entire queryset into memory
+    outbound = models.ForeignKey(Outbound, on_delete=models.DO_NOTHING)
     task_id = models.UUIDField()
     initiated_at = models.DateTimeField()
     reason = models.TextField()
@@ -125,3 +134,46 @@ class IdentityLookup(models.Model):
 
     def __str__(self):  # __unicode__ on Python 2
         return str(self.identity)
+
+
+@python_2_unicode_compatible
+class AggregateOutbounds(models.Model):
+    date = models.DateField(
+        help_text="The date that the aggregate is for")
+    delivered = models.BooleanField(
+        help_text="Whether this is for delivery passed or failed messages")
+    channel = models.ForeignKey(
+        to=Channel, on_delete=models.SET_NULL, null=True,
+        help_text="Which channel this is for")
+    attempts = models.IntegerField(
+        help_text="The total number of attempts")
+    total = models.IntegerField(
+        help_text="The total number of messages")
+
+    class Meta:
+        unique_together = [
+            ['date', 'delivered', 'channel'],
+        ]
+        verbose_name = "aggregate outbounds"
+        verbose_name_plural = "aggregate outbounds"
+
+    def __str__(self):
+        return "{}: {} {}".format(
+            self.date, self.channel_id,
+            "delivered" if self.delivered else "not delivered",
+        )
+
+
+@python_2_unicode_compatible
+class ArchivedOutbounds(models.Model):
+    date = models.DateField(
+        help_text="The date that the archive is for", primary_key=True)
+    archive = models.FileField(
+        help_text="The file for the archive")
+
+    class Meta:
+        verbose_name = "archived outbounds"
+        verbose_name_plural = "archived outbounds"
+
+    def __str__(self):
+        return "{}: {}".format(self.date, self.archive)

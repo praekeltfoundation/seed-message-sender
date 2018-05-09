@@ -1,4 +1,7 @@
+import gzip
 import json
+import os
+import pytz
 import random
 import requests
 import time
@@ -7,21 +10,31 @@ from celery.exceptions import MaxRetriesExceededError
 from celery.task import Task
 from celery.utils.log import get_task_logger
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
+from django.core.files import File
+from django.db.models import Count, Sum
+from django.db.models.signals import post_delete
 
-from go_http.metrics import MetricsApiClient
+from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
+from rest_framework.renderers import JSONRenderer
+from rest_hooks.models import model_deleted
 
 from .factory import MessageClientFactory
 
 
-from .models import Outbound, OutboundSendFailure, Channel
+from .models import (
+    Outbound, OutboundSendFailure, Channel, AggregateOutbounds,
+    ArchivedOutbounds,
+)
+from .serializers import OutboundArchiveSerializer
 from seed_message_sender.utils import (
     load_callable, get_identity_address, get_identity_by_address,
     create_identity)
+from message_sender.utils import daterange
 from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
@@ -71,8 +84,8 @@ def deliver_hook_wrapper(target, payload, instance, hook):
 
 def get_metric_client(session=None):
     return MetricsApiClient(
-        auth_token=settings.METRICS_AUTH_TOKEN,
-        api_url=settings.METRICS_URL,
+        url=settings.METRICS_URL,
+        auth=settings.METRICS_AUTH,
         session=session)
 
 
@@ -89,7 +102,7 @@ class FireMetric(Task):
             metric_name: metric_value
         }
         metric_client = get_metric_client(session=session)
-        metric_client.fire(metric)
+        metric_client.fire_metrics(**metric)
         return "Fired metric <%s> with value <%s>" % (
             metric_name, metric_value)
 
@@ -137,6 +150,7 @@ class ConcurrencyLimiter(object):
             return
 
         # Convert from datetime to seconds since epoch
+        msg_time = msg_time.replace(tzinfo=None) - msg_time.utcoffset()
         msg_time = (msg_time - datetime(1970, 1, 1)).total_seconds()
 
         time_since = time.time() - msg_time
@@ -147,7 +161,7 @@ class ConcurrencyLimiter(object):
         key = cls.get_key(channel.channel_id, bucket)
         # Set the expiry time to the timeout minus the time passed since
         # the message was sent.
-        if int(cache.get_or_set(key, 0, timeout - time_since)) > 0:
+        if int(cache.get_or_set(key, lambda: 0, timeout - time_since)) > 0:
             cache.decr(key)
 
     @classmethod
@@ -227,7 +241,7 @@ class SendMessage(Task):
                     result = get_identity_by_address(message.to_addr)
 
                     if result:
-                        message.to_identity = result['results'][0]['id']
+                        message.to_identity = result[0]['id']
                     else:
                         identity = {
                             'details': {
@@ -366,3 +380,116 @@ class RequeueFailedTasks(Task):
 
 
 requeue_failed_tasks = RequeueFailedTasks()
+
+
+class AggregateOutboundMessages(Task):
+    """
+    Task to aggregate the outbound messages and store the results in the
+    aggregate table
+    """
+    name = "message_sender.tasks.aggregate_outbounds"
+
+    def run(self, start_date, end_date):
+        start_date = datetime.strptime(
+            start_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
+        end_date = datetime.strptime(
+            end_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
+
+        # Delete any existing aggregates for these dates. This is necessary
+        # to avoid having leftovers from changed objects. eg. There were
+        # undelivered messages, but now they're all delivered, so we don't want
+        # the undelivered aggregate to still be there, but an update won't set
+        # the undelivered aggregate to 0.
+        AggregateOutbounds.objects.filter(
+            date__gte=start_date.date(), date__lte=end_date.date()).delete()
+
+        for d in daterange(start_date, end_date):
+            query = Outbound.objects.filter(
+                created_at__gte=d,
+                created_at__lt=(d + timedelta(1))
+            )
+            query = query.values('delivered', 'channel')
+            query = query.annotate(attempts=Sum('attempts'), total=Count('*'))
+            for aggregate in query.iterator():
+                AggregateOutbounds.objects.create(
+                    date=d,
+                    delivered=aggregate['delivered'],
+                    channel_id=aggregate['channel'],
+                    attempts=aggregate['attempts'],
+                    total=aggregate['total'],
+                )
+
+aggregate_outbounds = AggregateOutboundMessages()
+
+
+class ArchiveOutboundMessages(Task):
+    """
+    Task to archive the outbound messages and store the messages in the
+    storage backend
+    """
+    name = "message_sender.tasks.archive_outbounds"
+
+    def filename(self, date):
+        """
+        Returns the filename for the provided date
+        """
+        return 'outbounds-{}.gz'.format(date.strftime('%Y-%m-%d'))
+
+    def dump_data(self, filename, queryset):
+        """
+        Serializes the queryset into a newline separated JSON format, and
+        places it into a gzipped file
+        """
+        with gzip.open(filename, 'wb') as f:
+            for outbound in queryset.iterator():
+                data = OutboundArchiveSerializer(outbound).data
+                data = JSONRenderer().render(data)
+                f.write(data)
+                f.write('\n'.encode('utf-8'))
+
+    def create_archived_outbound(self, date, filename):
+        """
+        Creates the required ArchivedOutbound entry with the file specified
+        at `filename`
+        """
+        with open(filename, 'rb') as f:
+            f = File(f)
+            ArchivedOutbounds.objects.create(date=date, archive=f)
+
+    def run(self, start_date, end_date):
+        start_date = datetime.strptime(
+            start_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
+        end_date = datetime.strptime(
+            end_date, '%Y-%m-%d').replace(tzinfo=pytz.UTC)
+
+        for d in daterange(start_date, end_date):
+            if ArchivedOutbounds.objects.filter(date=d.date()).exists():
+                continue
+
+            query = Outbound.objects.filter(
+                created_at__gte=d,
+                created_at__lt=(d + timedelta(1))
+            )
+
+            if not query.exists():
+                continue
+
+            filename = self.filename(d)
+            self.dump_data(filename, query)
+            self.create_archived_outbound(d, filename)
+
+            os.remove(filename)
+
+            # Remove the post_delete hook from rest_hooks, otherwise we'll have
+            # to load all of the outbounds into memory
+            post_delete.disconnect(
+                receiver=model_deleted,
+                dispatch_uid='instance-deleted-hook',
+            )
+            query.delete()
+            post_delete.connect(
+                receiver=model_deleted,
+                dispatch_uid='instance-deleted-hook',
+            )
+
+archive_outbound = ArchiveOutboundMessages()
