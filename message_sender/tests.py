@@ -2302,7 +2302,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         '''
         event = {
             'hook': {
-                'event': 'message.outbound.status',
+                'event': 'message.direct_outbound.status',
             },
             'data': {
                 'message_uuid': 'bad-message-id',
@@ -2326,7 +2326,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         d = Outbound.objects.get(pk=existing)
         event = {
             "hook": {
-                "event": "message.outbound.status"
+                "event": "message.direct_outbound.status"
             },
             "data": {
                 "message_uuid": d.vumi_message_id,
@@ -2364,7 +2364,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         )
         event = {
             'hook': {
-                'event': 'message.outbound.status',
+                'event': 'message.direct_outbound.status',
             },
             'data': {
                 'status': 'unsent',
@@ -2396,7 +2396,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         d = Outbound.objects.get(pk=existing)
         event = {
             "hook": {
-                "event": "message.outbound.status",
+                "event": "message.direct_outbound.status",
             },
             "data": {
                 "status": "delivered",
@@ -2429,7 +2429,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         d = Outbound.objects.get(pk=existing)
         event = {
             "hook": {
-                "event": "message.outbound.status",
+                "event": "message.direct_outbound.status",
             },
             "data": {
                 "message_uuid": d.vumi_message_id,

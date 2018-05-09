@@ -434,7 +434,7 @@ class WassupEventListener(APIView):
         data = request.data.get('data', {})
 
         dispatcher = {
-            'message.outbound.status': self.handle_status,
+            'message.direct_outbound.status': self.handle_status,
         }
         handler = dispatcher.get(hook.get('event'), self.noop)
         return handler(hook, data)
