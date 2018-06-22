@@ -224,7 +224,7 @@ class WassupApiSender(object):
             data={
                 'to_addr': to_addr,
                 'number': self.number,
-                'image_caption': content,
+                'image_attachment_caption': content,
             })
         response.raise_for_status()
         data = response.json()
