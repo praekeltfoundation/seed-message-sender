@@ -47,7 +47,14 @@ from . import tasks
 
 from seed_message_sender.utils import load_callable
 
-SendMessage.get_client = lambda x, y: LoggingSender('go_http.test')
+
+class VumiLoggingSender(LoggingSender):
+
+    def send_image(self, to_addr, content, image_url=None):
+        raise HttpApiSenderException(
+            'Sending images not available on this channel.')
+
+SendMessage.get_client = lambda x, y: VumiLoggingSender('go_http.test')
 
 
 def make_channels():
@@ -439,6 +446,37 @@ class AuthenticatedAPITestCase(APITestCase):
     def add_metrics_response(self):
         responses.add(
             responses.POST, 'http://metrics-url/metrics/', json={}, status=201)
+
+
+class TestWassupMessagesAPI(AuthenticatedAPITestCase):
+
+    @responses.activate
+    @patch('message_sender.tests.VumiLoggingSender.send_image')
+    def test_create_outbound_image(self, mock_send_image):
+        """
+        When creating a outbound with a image_url in the metadata, the
+        send_image function should be called with the correct parameters.
+        """
+        mock_send_image.return_value = {"message_id": str(uuid.uuid4())}
+        self.add_metrics_response()
+        self.add_identity_search_response('+27123', '0c03d360')
+
+        post_outbound = {
+            "to_addr": "+27123",
+            "delivered": "false",
+            "metadata": {
+                "image_url": "https://foo.com/file.jpg"
+            },
+            "channel": "WASSUP_API",
+            "content": "Check this image"
+        }
+        response = self.client.post('/api/v1/outbound/',
+                                    json.dumps(post_outbound),
+                                    content_type='application/json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        mock_send_image.assert_called_with(
+            "+27123", "Check this image", image_url="https://foo.com/file.jpg")
 
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
@@ -2133,6 +2171,17 @@ class TestGenericHttpApiSender(TestCase):
             HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
             3.0, agg='sum')
 
+    def test_send_image(self):
+        '''
+        Using the send_image function should result in an exception being
+        raised, since the generic http api doesn't support image sending.
+        '''
+        channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertRaises(
+            HttpApiSenderException, message_sender.send_image, '+1234', 'Test',
+            image_url='http://test.jpg')
+
 
 class TestJunebugAPISender(TestCase):
 
@@ -2236,6 +2285,34 @@ class TestWassupAPISender(TestCase):
         r = json.loads(r.request.body.decode())
         self.assertEqual(r['to_addr'], '+1234')
         self.assertEqual(r['localizable_params'], [{"default": "Test"}])
+
+    @responses.activate
+    def test_send_image(self):
+        '''
+        Using the send_image function should send a request to wassup with the
+        correct JSON data.
+        '''
+        responses.add(
+            responses.GET, "http://test.jpg", body='', status=200,
+            content_type='image/jpeg', stream=True)
+
+        responses.add(
+            responses.POST, "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="WASSUP_API")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_image(
+            '+1234', 'Test', image_url='http://test.jpg')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [jpg, r] = responses.calls
+        body = r.request.body.decode()
+        self.assertTrue('+1234' in body)
+        self.assertTrue('+4321' in body)
+        self.assertTrue('image_attachment' in body)
 
     @responses.activate
     def test_send_voice(self):

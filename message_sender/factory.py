@@ -24,7 +24,14 @@ class HttpApiSenderException(Exception):
     pass
 
 
-class GenericHttpApiSender(HttpApiSender):
+class VumiHttpApiSender(HttpApiSender):
+
+    def send_image(self, to_addr, content, image_url=None):
+        raise HttpApiSenderException(
+            'Sending images not available on this channel.')
+
+
+class GenericHttpApiSender(VumiHttpApiSender):
 
     def __init__(self, url, auth=None, from_addr=None, session=None,
                  override_payload=None, strip_filepath=False):
@@ -200,6 +207,32 @@ class WassupApiSender(object):
         })
         return data
 
+    def send_image(self, to_addr, content, image_url=None):
+        if not self.number:
+            raise WassupApiSenderException(
+                'Cannot send a image file if a number is not specified.')
+
+        image_file = requests.get(image_url, stream=True)
+        image_file.raise_for_status()
+
+        response = self.session.post(
+            urllib_parse.urljoin(
+                self.api_url, '/api/v1/messages/'),
+            files={
+                'image_attachment': image_file.raw,
+            },
+            data={
+                'to_addr': to_addr,
+                'number': self.number,
+                'image_caption': content,
+            })
+        response.raise_for_status()
+        data = response.json()
+        data.update({
+            "message_id": data["uuid"]
+        })
+        return data
+
     def send_voice(self, to_addr, content, speech_url=None, wait_for=None,
                    session_event=None):
         if not self.number:
@@ -269,7 +302,7 @@ class MessageClientFactory(object):
 
     @classmethod
     def create_vumi_client(cls, channel):
-        return HttpApiSender(
+        return VumiHttpApiSender(
             channel.configuration.get("VUMI_ACCOUNT_KEY"),
             channel.configuration.get("VUMI_CONVERSATION_KEY"),
             channel.configuration.get("VUMI_ACCOUNT_TOKEN"),
