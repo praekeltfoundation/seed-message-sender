@@ -272,7 +272,7 @@ class SendMessage(Task):
                         session_event="new")
                     l.info("Sent voice message to <%s>" % message.to_addr)
 
-                if "image_url" in message.metadata:
+                elif "image_url" in message.metadata:
                     # Image message
                     image_url = message.metadata["image_url"]
                     vumiresponse = sender.send_image(
