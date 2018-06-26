@@ -215,11 +215,16 @@ class WassupApiSender(object):
         image_file = requests.get(image_url, stream=True)
         image_file.raise_for_status()
 
+        content_type = image_file.headers['content-type']
+        image_stream = image_file.raw
+        image_name = image_url.split('/')[-1]
+
         response = self.session.post(
             urllib_parse.urljoin(
                 self.api_url, '/api/v1/messages/'),
             files={
-                'image_attachment': image_file.raw,
+                'image_attachment': (
+                    image_name, image_stream, content_type, {})
             },
             data={
                 'to_addr': to_addr,
