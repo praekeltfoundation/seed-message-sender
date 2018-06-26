@@ -2313,6 +2313,8 @@ class TestWassupAPISender(TestCase):
         self.assertTrue('+1234' in body)
         self.assertTrue('+4321' in body)
         self.assertTrue('image_attachment' in body)
+        self.assertTrue('filename="test.jpg"' in body)
+        self.assertTrue('Content-Type: image/jpeg' in body)
 
     @responses.activate
     def test_send_voice(self):
