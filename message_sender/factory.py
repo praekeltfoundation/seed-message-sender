@@ -171,10 +171,12 @@ WASSUP_SESSIONS = {}
 
 class WassupApiSender(object):
 
-    def __init__(self, api_url, token, hsm_uuid, number=None, session=None):
+    def __init__(self, api_url, token, hsm_uuid, hsm_disabled, number=None,
+                 session=None):
         self.api_url = api_url
         self.token = token
         self.hsm_uuid = hsm_uuid
+        self.hsm_disabled = hsm_disabled
         self.number = number
 
         distribution = pkg_resources.get_distribution('seed_message_sender')
@@ -190,13 +192,29 @@ class WassupApiSender(object):
         })
 
     def send_text(self, to_addr, content, session_event=None):
-        response = self.session.post(
-            urllib_parse.urljoin(
-                self.api_url, '/api/v1/hsms/%s/send/' % (self.hsm_uuid,)),
-            json={
-                "to_addr": to_addr,
-                "localizable_params": [{"default": content}]
-            })
+        if self.hsm_disabled:
+            if not self.number:
+                raise WassupApiSenderException(
+                    'Cannot send a non hsm message if a number is not '
+                    'specified.')
+
+            response = self.session.post(
+                urllib_parse.urljoin(
+                    self.api_url, '/api/v1/messages/'),
+                json={
+                    "number": self.number,
+                    "content": content,
+                    "to_addr": to_addr
+                })
+        else:
+            response = self.session.post(
+                urllib_parse.urljoin(
+                    self.api_url, '/api/v1/hsms/%s/send/' % (self.hsm_uuid,)),
+                json={
+                    "to_addr": to_addr,
+                    "localizable_params": [{"default": content}]
+                })
+
         response.raise_for_status()
         data = response.json()
         # the SendMessage task expects the sender to return a dict with
@@ -303,6 +321,7 @@ class MessageClientFactory(object):
             channel.configuration.get('WASSUP_API_URL'),
             channel.configuration.get('WASSUP_API_TOKEN'),
             channel.configuration.get('WASSUP_API_HSM_UUID'),
+            channel.configuration.get('WASSUP_API_HSM_DISABLED', False),
             number=channel.configuration.get('WASSUP_API_NUMBER'))
 
     @classmethod
