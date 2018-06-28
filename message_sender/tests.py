@@ -173,7 +173,24 @@ def make_channels():
             'WASSUP_API_URL': 'http://example.com/',
             'WASSUP_API_TOKEN': 'http-api-token',
             'WASSUP_API_HSM_UUID': 'the-uuid',
+            'WASSUP_API_NUMBER': '+4321'
+        },
+        'concurrency_limit': 0,
+        'message_timeout': 0,
+        'message_delay': 0
+    }
+    Channel.objects.create(**wassup_channel_text)
+
+    wassup_channel_text = {
+        'channel_id': 'WASSUP_API_NON_HSM',
+        'channel_type': Channel.WASSUP_API_TYPE,
+        'default': False,
+        'configuration': {
+            'WASSUP_API_URL': 'http://example.com/',
+            'WASSUP_API_TOKEN': 'http-api-token',
+            'WASSUP_API_HSM_UUID': 'the-uuid',
             'WASSUP_API_NUMBER': '+4321',
+            'WASSUP_API_HSM_DISABLED': True
         },
         'concurrency_limit': 0,
         'message_timeout': 0,
@@ -2285,6 +2302,30 @@ class TestWassupAPISender(TestCase):
         r = json.loads(r.request.body.decode())
         self.assertEqual(r['to_addr'], '+1234')
         self.assertEqual(r['localizable_params'], [{"default": "Test"}])
+
+    @responses.activate
+    def test_send_non_hsm_text(self):
+        '''
+        Using the send_text function should send a non hsm request to wassup
+        with the correct JSON data.
+        '''
+        responses.add(
+            responses.POST, "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"}, status=200,
+            content_type='application/json')
+
+        channel = Channel.objects.get(channel_id="WASSUP_API_NON_HSM")
+        message_sender = MessageClientFactory.create(channel)
+        res = message_sender.send_text(
+            '+1234', 'Test non HSM message', session_event='resume')
+
+        self.assertEqual(res['message_id'], 'message-uuid')
+
+        [r] = responses.calls
+        r = json.loads(r.request.body.decode())
+        self.assertEqual(r['to_addr'], '+1234')
+        self.assertEqual(r['number'], '+4321')
+        self.assertEqual(r['content'], 'Test non HSM message')
 
     @responses.activate
     def test_send_image(self):
