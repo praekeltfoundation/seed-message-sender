@@ -3,8 +3,10 @@ from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
 from django.contrib.auth.models import User
 from django import forms
+from django_filters import rest_framework as filters
 from rest_hooks.models import Hook
-from rest_framework import viewsets, status, filters, mixins
+from rest_framework import viewsets, status, mixins
+from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
 from rest_framework.views import APIView
@@ -27,7 +29,6 @@ from .tasks import (
 from seed_message_sender.utils import (
     get_available_metrics, get_identity_by_address, create_identity)
 from seed_papertrail.decorators import papertrail
-import django_filters
 
 
 # Uncomment line below if scheduled metrics are added
@@ -82,7 +83,7 @@ class MultipleField(forms.Field):
         return [super(MultipleField, self).clean(v) for v in value]
 
 
-class MultipleFilter(django_filters.Filter):
+class MultipleFilter(filters.Filter):
     field_class = MultipleField
 
     def __init__(self, *args, **kwargs):
@@ -91,10 +92,10 @@ class MultipleFilter(django_filters.Filter):
 
 
 class OutboundFilter(filters.FilterSet):
-    before = django_filters.IsoDateTimeFilter(name="created_at",
-                                              lookup_expr='lte')
-    after = django_filters.IsoDateTimeFilter(name="created_at",
-                                             lookup_expr='gte')
+    before = filters.IsoDateTimeFilter(
+        name="created_at", lookup_expr='lte')
+    after = filters.IsoDateTimeFilter(name="created_at",
+                                      lookup_expr='gte')
     to_addr = MultipleFilter(name='to_addr')
     to_identity = MultipleFilter(name='to_identity')
 
@@ -114,7 +115,7 @@ class OutboundViewSet(viewsets.ModelViewSet):
     queryset = Outbound.objects.all()
     serializer_class = OutboundSerializer
     filter_class = OutboundFilter
-    filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
+    filter_backends = (filters.DjangoFilterBackend, OrderingFilter)
     ordering_fields = ('created_at',)
     ordering = ('-created_at',)
 
@@ -142,7 +143,7 @@ class InboundViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
     queryset = Inbound.objects.all()
     filter_class = InboundFilter
-    filter_backends = (filters.DjangoFilterBackend, filters.OrderingFilter)
+    filter_backends = (filters.DjangoFilterBackend, OrderingFilter)
     ordering_fields = ('created_at',)
     ordering = ('-created_at',)
 

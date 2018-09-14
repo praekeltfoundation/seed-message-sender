@@ -17,6 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files import File
 from django.db.models import Count, Sum
 from django.db.models.signals import post_delete
+from django.utils import timezone
 
 from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
@@ -290,7 +291,7 @@ class SendMessage(Task):
                     l.info("Sent text message to <%s>" % (
                         message.to_addr,))
 
-                message.last_sent_time = datetime.now()
+                message.last_sent_time = timezone.now()
                 message.attempts += 1
                 message.vumi_message_id = vumiresponse["message_id"]
                 message.save()

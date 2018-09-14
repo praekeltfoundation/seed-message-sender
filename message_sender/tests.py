@@ -3,14 +3,10 @@ import json
 import os
 import uuid
 import logging
-import mock
+from unittest import mock
 import responses
 
-try:
-    from urllib.parse import urlparse, urlencode
-except ImportError:
-    from urlparse import urlparse
-    from urllib import urlencode
+from urllib.parse import urlparse, urlencode
 
 from datetime import timedelta
 
@@ -18,13 +14,12 @@ from celery.exceptions import Retry
 from datetime import datetime, date
 from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
-from django.core.urlresolvers import reverse
 from django.db.models.signals import post_save
 from django.conf import settings
+from django.urls import reverse
 from django.utils import timezone
 from django.core.management import call_command
-from mock import MagicMock
-from mock import patch
+from unittest.mock import MagicMock, patch
 from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework.authtoken.models import Token
@@ -3243,29 +3238,29 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
 
         o = self.make_outbound(channel=c1)
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 1, 1)
+        o.created_at = datetime(2017, 1, 1, tzinfo=timezone.utc)
         o.attempts = 2
         o.save()
 
         o = self.make_outbound(channel=c1)
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 1, 1)
+        o.created_at = datetime(2017, 1, 1, tzinfo=timezone.utc)
         o.save()
 
         o = self.make_outbound(channel=c2)
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 1, 1)
+        o.created_at = datetime(2017, 1, 1, tzinfo=timezone.utc)
         o.save()
 
         o = self.make_outbound(channel=c2)
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 1, 1)
+        o.created_at = datetime(2017, 1, 1, tzinfo=timezone.utc)
         o.delivered = True
         o.save()
 
         o = self.make_outbound(channel=c2)
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 1, 3)
+        o.created_at = datetime(2017, 1, 3, tzinfo=timezone.utc)
         o.save()
 
         self.assertNumQueries(
@@ -3300,7 +3295,7 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
         for i in range(10):
             o = self.make_outbound(channel=c)
             o = Outbound.objects.get(id=o)
-            o.created_at = datetime(2017, 1, 1)
+            o.created_at = datetime(2017, 1, 1, tzinfo=timezone.utc)
             o.save()
 
         self.assertNumQueries(
@@ -3425,7 +3420,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
 
         o = self.make_outbound()
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 8, 9)
+        o.created_at = datetime(2017, 8, 9, tzinfo=timezone.utc)
         o.save()
 
         tasks.archive_outbound('2017-08-09', '2017-08-09')
@@ -3449,12 +3444,12 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         """
         o = self.make_outbound()
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 8, 9)
+        o.created_at = datetime(2017, 8, 9, tzinfo=timezone.utc)
         o.save()
 
         o = self.make_outbound()
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 8, 10)
+        o.created_at = datetime(2017, 8, 10, tzinfo=timezone.utc)
         o.save()
 
         self.assertEqual(Outbound.objects.count(), 2)
@@ -3467,7 +3462,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         """
         o = self.make_outbound()
         o = Outbound.objects.get(id=o)
-        o.created_at = datetime(2017, 8, 9)
+        o.created_at = datetime(2017, 8, 9, tzinfo=timezone.utc)
         o.save()
         o.refresh_from_db()
 

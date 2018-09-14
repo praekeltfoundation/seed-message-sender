@@ -13,7 +13,6 @@ import os
 import dj_database_url
 
 from kombu import Exchange, Queue
-import djcelery
 from getenv import env
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -51,8 +50,6 @@ INSTALLED_APPS = (
     'rest_framework.authtoken',
     'django_filters',
     'rest_hooks',
-    'djcelery',
-    'django_py_zipkin',
     'storages',
     # us
     'message_sender',
@@ -62,12 +59,11 @@ INSTALLED_APPS = (
 SITE_ID = 1
 USE_SSL = os.environ.get('USE_SSL', 'false').lower() == 'true'
 
-MIDDLEWARE_CLASSES = (
+MIDDLEWARE = (
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    'django.contrib.auth.middleware.SessionAuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 )
@@ -168,7 +164,9 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
-    'DEFAULT_FILTER_BACKENDS': ('rest_framework.filters.DjangoFilterBackend',)
+    'DEFAULT_FILTER_BACKENDS': (
+        'django_filters.rest_framework.DjangoFilterBackend',
+    ),
 }
 
 # Webhook event definition
@@ -181,10 +179,6 @@ HOOK_EVENTS = {
 HOOK_DELIVERER = 'message_sender.tasks.deliver_hook_wrapper'
 
 HOOK_AUTH_TOKEN = os.environ.get('HOOK_AUTH_TOKEN', 'REPLACEME')
-
-# Celery configuration options
-CELERY_RESULT_BACKEND = 'djcelery.backends.database:DatabaseBackend'
-CELERYBEAT_SCHEDULER = 'djcelery.schedulers.DatabaseScheduler'
 
 BROKER_URL = os.environ.get('BROKER_URL', 'redis://localhost:6379/0')
 
@@ -248,8 +242,6 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_IGNORE_RESULT = True
 CELERYD_MAX_TASKS_PER_CHILD = 50
-
-djcelery.setup_loader()
 
 MESSAGE_BACKEND_VOICE = os.environ.get(
     'MESSAGE_SENDER_MESSAGE_BACKEND_VOICE', 'vumi')
@@ -345,17 +337,6 @@ IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
                                     'http://is/api/v1')
 IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
                                       'REPLACEME')
-
-ZIPKIN_TRACING_ENABLED = env('ZIPKIN_TRACING_ENABLED', False)
-ZIPKIN_SERVICE_NAME = env('ZIPKIN_SERVICE_NAME', 'message_sender')
-ZIPKIN_HTTP_ENDPOINT = env('ZIPKIN_HTTP_ENDPOINT', None)
-ZIPKIN_BLACKLISTED_PATHS = filter(
-    None, env('ZIPKIN_BLACKLISTED_PATHS', '').split(','))
-ZIPKIN_TRACING_SAMPLING = env('ZIPKIN_TRACING_SAMPLING', 1.00)
-if ZIPKIN_HTTP_ENDPOINT is not None:
-    MIDDLEWARE_CLASSES = (
-        ('django_py_zipkin.middleware.ZipkinMiddleware',) + MIDDLEWARE_CLASSES)
-
 
 AGGREGATE_OUTBOUND_BACKTRACK = os.environ.get(
     'AGGREGATE_OUTBOUND_BACKTRACK', 30)

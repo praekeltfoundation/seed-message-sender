@@ -69,14 +69,14 @@ class Outbound(models.Model):
         "been answered. Not used for text messages")
     attempts = models.IntegerField(default=0)
     metadata = JSONField()
-    channel = models.ForeignKey(Channel, null=True)
+    channel = models.ForeignKey(Channel, null=True, on_delete=models.SET_NULL)
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     last_sent_time = models.DateTimeField(null=True, blank=True)
     created_by = models.ForeignKey(User, related_name='outbounds_created',
-                                   null=True)
+                                   null=True, on_delete=models.SET_NULL)
     updated_by = models.ForeignKey(User, related_name='outbounds_updated',
-                                   null=True)
+                                   null=True, on_delete=models.SET_NULL)
     user = property(lambda self: self.created_by)
 
     def __str__(self):  # __unicode__ on Python 2
@@ -104,9 +104,9 @@ class Inbound(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     created_by = models.ForeignKey(User, related_name='inbounds_created',
-                                   null=True)
+                                   null=True, on_delete=models.SET_NULL)
     updated_by = models.ForeignKey(User, related_name='inbounds_updated',
-                                   null=True)
+                                   null=True, on_delete=models.SET_NULL)
     user = property(lambda self: self.created_by)
 
     def __str__(self):  # __unicode__ on Python 2
