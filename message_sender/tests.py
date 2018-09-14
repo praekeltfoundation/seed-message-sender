@@ -1217,7 +1217,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata["ack_timestamp"],
                          "2015-10-28 16:19:37.485612")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -1244,7 +1244,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(d.metadata["delivery_timestamp"],
                          "2015-10-28 16:20:37.485612")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -1279,7 +1279,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(c.attempts, 2)
         self.assertEqual(c.metadata["nack_reason"],
                          "no answer")
-        self.assertEquals(True, self.check_logs(
+        self.assertEqual(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
         mock_hook.assert_called_once_with(d)
@@ -1328,7 +1328,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
         self.assertEqual(d.metadata["nack_reason"],
                          "no answer")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"
             "[session_event: new]"))
         # TODO: Bring metrics back
@@ -1456,7 +1456,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(
             d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -1491,7 +1491,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(c.attempts, 2)
         self.assertEqual(
             c.metadata["nack_reason"], {"reason": "No answer"})
-        self.assertEquals(True, self.check_logs(
+        self.assertEqual(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
         mock_hook.assert_called_once_with(d)
@@ -1518,7 +1518,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(
             d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -1548,7 +1548,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 2)
         self.assertEqual(
             d.metadata["delivery_failed_reason"], {})
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -2459,7 +2459,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(
             d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -2499,7 +2499,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(c.attempts, 2)
         self.assertEqual(
             c.metadata["nack_reason"], {"description": "stars not aligned"})
-        self.assertEquals(True, self.check_logs(
+        self.assertEqual(True, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123' "
             "[session_event: new]"))
         mock_hook.assert_called_once_with(d)
@@ -2529,7 +2529,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 1)
         self.assertEqual(
             d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -2566,7 +2566,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
             d.metadata["delivery_failed_reason"], {
                 "description": "computer said no"
             })
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"))
         mock_hook.assert_called_once_with(d)
 
@@ -2877,7 +2877,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
         self.assertEqual(d.metadata["nack_reason"],
                          "no answer")
-        self.assertEquals(False, self.check_logs(
+        self.assertEqual(False, self.check_logs(
             "Message: 'Simple outbound message' sent to '+27123'"
             "[session_event: new]"))
 

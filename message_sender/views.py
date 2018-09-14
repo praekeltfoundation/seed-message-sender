@@ -28,8 +28,6 @@ from .tasks import (
 )
 from seed_message_sender.utils import (
     get_available_metrics, get_identity_by_address, create_identity)
-from seed_papertrail.decorators import papertrail
-
 
 # Uncomment line below if scheduled metrics are added
 # from .tasks import scheduled_metrics
@@ -93,11 +91,11 @@ class MultipleFilter(filters.Filter):
 
 class OutboundFilter(filters.FilterSet):
     before = filters.IsoDateTimeFilter(
-        name="created_at", lookup_expr='lte')
-    after = filters.IsoDateTimeFilter(name="created_at",
-                                      lookup_expr='gte')
-    to_addr = MultipleFilter(name='to_addr')
-    to_identity = MultipleFilter(name='to_identity')
+        field_name="created_at", lookup_expr='lte')
+    after = filters.IsoDateTimeFilter(
+        field_name="created_at", lookup_expr='gte')
+    to_addr = MultipleFilter(field_name='to_addr')
+    to_identity = MultipleFilter(field_name='to_identity')
 
     class Meta:
         model = Outbound
@@ -114,19 +112,18 @@ class OutboundViewSet(viewsets.ModelViewSet):
     permission_classes = (IsAuthenticated,)
     queryset = Outbound.objects.all()
     serializer_class = OutboundSerializer
-    filter_class = OutboundFilter
+    filterset_class = OutboundFilter
     filter_backends = (filters.DjangoFilterBackend, OrderingFilter)
     ordering_fields = ('created_at',)
     ordering = ('-created_at',)
 
-    @papertrail.debug('api_outbound_create', sample=0.1)
     def create(self, *args, **kwargs):
         return super(OutboundViewSet, self).create(*args, **kwargs)
 
 
 class InboundFilter(filters.FilterSet):
-    from_addr = MultipleFilter(name='from_addr')
-    from_identity = MultipleFilter(name='from_identity')
+    from_addr = MultipleFilter(field_name='from_addr')
+    from_identity = MultipleFilter(field_name='from_identity')
 
     class Meta:
         model = Inbound
@@ -142,16 +139,21 @@ class InboundViewSet(viewsets.ModelViewSet):
     """
     permission_classes = (IsAuthenticated,)
     queryset = Inbound.objects.all()
-    filter_class = InboundFilter
+    filterset_class = InboundFilter
     filter_backends = (filters.DjangoFilterBackend, OrderingFilter)
     ordering_fields = ('created_at',)
     ordering = ('-created_at',)
 
     def get_serializer_class(self):
+        try:
+            data = self.request.data
+        except AttributeError:
+            # No data object for docs
+            data = {}
         if self.action == 'create':
-            if "channel_data" in self.request.data:
+            if "channel_data" in data:
                 return JunebugInboundSerializer
-            elif "hook" in self.request.data:
+            elif "hook" in data:
                 return WassupInboundSerializer
         return InboundSerializer
 

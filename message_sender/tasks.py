@@ -36,7 +36,6 @@ from seed_message_sender.utils import (
     load_callable, get_identity_address, get_identity_by_address,
     create_identity)
 from message_sender.utils import daterange
-from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
 
@@ -96,7 +95,6 @@ class FireMetric(Task):
     """
     name = "message_sender.tasks.fire_metric"
 
-    @papertrail.debug(name, sample=0.1)
     def run(self, metric_name, metric_value, session=None, **kwargs):
         metric_value = float(metric_value)
         metric = {
@@ -197,7 +195,6 @@ class SendMessage(Task):
     def get_client(self, channel=None):
         return MessageClientFactory.create(channel)
 
-    @papertrail.debug(name, sample=0.1)
     def run(self, message_id, **kwargs):
         """
         Load and contruct message and send them off

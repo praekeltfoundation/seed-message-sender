@@ -22,7 +22,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 # See https://docs.djangoproject.com/en/1.9/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.environ.get('SECRET_KEY', 'REPLACEME')
+SECRET_KEY = env('SECRET_KEY', 'REPLACEME')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = env('DEBUG', False)
@@ -42,8 +42,6 @@ INSTALLED_APPS = (
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django.contrib.sites',
-    # documentation
-    'rest_framework_docs',
     # 3rd party
     'raven.contrib.django.raven_compat',
     'rest_framework',
@@ -58,6 +56,7 @@ INSTALLED_APPS = (
 
 SITE_ID = 1
 USE_SSL = os.environ.get('USE_SSL', 'false').lower() == 'true'
+USE_SSL = env('USE_SSL', False)
 
 MIDDLEWARE = (
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -78,7 +77,7 @@ WSGI_APPLICATION = 'seed_message_sender.wsgi.application'
 
 DATABASES = {
     'default': dj_database_url.config(
-        default=os.environ.get(
+        default=env(
             'MESSAGE_SENDER_DATABASE',
             'postgres://postgres:@localhost/seed_message_sender')),
 }
@@ -130,26 +129,10 @@ TEMPLATES = [
     },
 ]
 
-PAPERTRAIL = os.environ.get('PAPERTRAIL')
-if PAPERTRAIL:
-    import seed_papertrail  # noqa
-    PAPERTRAIL_HOST, _, PAPERTRAIL_PORT = PAPERTRAIL.partition(':')
-    LOGGING = seed_papertrail.auto_configure(
-        host=PAPERTRAIL_HOST,
-        port=int(PAPERTRAIL_PORT),
-        system=os.environ.get('MARATHON_APP_DOCKER_IMAGE', 'seed'),
-        program=os.environ.get('MESOS_TASK_ID', 'message_sender'))
-    LOGGING['loggers']['celery.app'] = {
-        'handlers': ['papertrail'],
-        'level': 'DEBUG',
-        'propagate': True,
-    }
-
-
 # Sentry configuration
 RAVEN_CONFIG = {
     # DevOps will supply you with this.
-    'dsn': os.environ.get('MESSAGE_SENDER_SENTRY_DSN', None),
+    'dsn': env('MESSAGE_SENDER_SENTRY_DSN', None),
 }
 
 # REST Framework conf defaults
@@ -178,9 +161,9 @@ HOOK_EVENTS = {
 
 HOOK_DELIVERER = 'message_sender.tasks.deliver_hook_wrapper'
 
-HOOK_AUTH_TOKEN = os.environ.get('HOOK_AUTH_TOKEN', 'REPLACEME')
+HOOK_AUTH_TOKEN = env('HOOK_AUTH_TOKEN', 'REPLACEME')
 
-BROKER_URL = os.environ.get('BROKER_URL', 'redis://localhost:6379/0')
+BROKER_URL = env('BROKER_URL', 'redis://localhost:6379/0')
 
 CELERY_DEFAULT_QUEUE = 'seed_message_sender'
 CELERY_QUEUES = (
@@ -243,103 +226,99 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_IGNORE_RESULT = True
 CELERYD_MAX_TASKS_PER_CHILD = 50
 
-MESSAGE_BACKEND_VOICE = os.environ.get(
+MESSAGE_BACKEND_VOICE = env(
     'MESSAGE_SENDER_MESSAGE_BACKEND_VOICE', 'vumi')
-MESSAGE_BACKEND_TEXT = os.environ.get(
+MESSAGE_BACKEND_TEXT = env(
     'MESSAGE_SENDER_MESSAGE_BACKEND_TEXT', 'vumi')
 
 VUMI_API_URL_VOICE = \
-    os.environ.get('MESSAGE_SENDER_VUMI_API_URL_VOICE',
-                   'http://example.com/api/v1/go/http_api_nostream')
+    env('MESSAGE_SENDER_VUMI_API_URL_VOICE',
+        'http://example.com/api/v1/go/http_api_nostream')
 VUMI_ACCOUNT_KEY_VOICE = \
-    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_KEY_VOICE', 'acc-key')
+    env('MESSAGE_SENDER_VUMI_ACCOUNT_KEY_VOICE', 'acc-key')
 VUMI_CONVERSATION_KEY_VOICE = \
-    os.environ.get('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_VOICE', 'conv-key')
+    env('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_VOICE', 'conv-key')
 VUMI_ACCOUNT_TOKEN_VOICE = \
-    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_VOICE', 'conv-token')
+    env('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_VOICE', 'conv-token')
 
-VOICE_TO_ADDR_FORMATTER = os.environ.get(
+VOICE_TO_ADDR_FORMATTER = env(
     'VOICE_TO_ADDR_FORMATTER', 'message_sender.formatters.noop')
-TEXT_TO_ADDR_FORMATTER = os.environ.get(
+TEXT_TO_ADDR_FORMATTER = env(
     'TEXT_TO_ADDR_FORMATTER', 'message_sender.formatters.noop')
 
 VUMI_API_URL_TEXT = \
-    os.environ.get('MESSAGE_SENDER_VUMI_API_URL_TEXT',
-                   'http://example.com/api/v1/go/http_api_nostream')
+    env('MESSAGE_SENDER_VUMI_API_URL_TEXT',
+        'http://example.com/api/v1/go/http_api_nostream')
 VUMI_ACCOUNT_KEY_TEXT = \
-    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_KEY_TEXT', 'acc-key')
+    env('MESSAGE_SENDER_VUMI_ACCOUNT_KEY_TEXT', 'acc-key')
 VUMI_CONVERSATION_KEY_TEXT = \
-    os.environ.get('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_TEXT', 'conv-key')
+    env('MESSAGE_SENDER_VUMI_CONVERSATION_KEY_TEXT', 'conv-key')
 VUMI_ACCOUNT_TOKEN_TEXT = \
-    os.environ.get('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_TEXT', 'conv-token')
+    env('MESSAGE_SENDER_VUMI_ACCOUNT_TOKEN_TEXT', 'conv-token')
 
 JUNEBUG_API_URL_VOICE = \
-    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_URL_VOICE',
-                   'http://example.com/jb/channels/abc-def/messages')
+    env('MESSAGE_SENDER_JUNEBUG_API_URL_VOICE',
+        'http://example.com/jb/channels/abc-def/messages')
 JUNEBUG_API_AUTH_VOICE = \
-    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_AUTH_VOICE', None)
+    env('MESSAGE_SENDER_JUNEBUG_API_AUTH_VOICE', None)
 JUNEBUG_API_FROM_VOICE = \
-    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_FROM_VOICE', None)
+    env('MESSAGE_SENDER_JUNEBUG_API_FROM_VOICE', None)
 
 JUNEBUG_API_URL_TEXT = \
-    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_URL_TEXT',
-                   'http://example.com/jb/channels/def-abc/messages')
+    env('MESSAGE_SENDER_JUNEBUG_API_URL_TEXT',
+        'http://example.com/jb/channels/def-abc/messages')
 JUNEBUG_API_AUTH_TEXT = \
-    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_AUTH_TEXT', None)
+    env('MESSAGE_SENDER_JUNEBUG_API_AUTH_TEXT', None)
 JUNEBUG_API_FROM_TEXT = \
-    os.environ.get('MESSAGE_SENDER_JUNEBUG_API_FROM_TEXT', None)
+    env('MESSAGE_SENDER_JUNEBUG_API_FROM_TEXT', None)
 
 MESSAGE_SENDER_MAX_RETRIES = \
-    int(os.environ.get('MESSAGE_SENDER_MAX_RETRIES', 3))
+    env('MESSAGE_SENDER_MAX_RETRIES', 3)
 MESSAGE_SENDER_MAX_FAILURES = \
-    int(os.environ.get('MESSAGE_SENDER_MAX_FAILURES', 5))
+    env('MESSAGE_SENDER_MAX_FAILURES', 5)
 
-METRICS_URL = os.environ.get("METRICS_URL", None)
+METRICS_URL = env("METRICS_URL", None)
 METRICS_AUTH = (
-    os.environ.get("METRICS_AUTH_USER", "REPLACEME"),
-    os.environ.get("METRICS_AUTH_PASSWORD", "REPLACEME"),
+    env("METRICS_AUTH_USER", "REPLACEME"),
+    env("METRICS_AUTH_PASSWORD", "REPLACEME"),
 )
 
-REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
-REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
-REDIS_DB = os.environ.get("REDIS_DB", 0)
+REDIS_HOST = env("REDIS_HOST", "localhost")
+REDIS_PORT = env("REDIS_PORT", 6379)
+REDIS_DB = env("REDIS_DB", 0)
 
 # A value of 0 disables cuncurrency limiter
-CONCURRENT_VOICE_LIMIT = os.environ.get("CONCURRENT_VOICE_LIMIT", 0)
+CONCURRENT_VOICE_LIMIT = env("CONCURRENT_VOICE_LIMIT", 0)
 # Seconds to wait before retrying a waiting message
-VOICE_MESSAGE_DELAY = os.environ.get("VOICE_MESSAGE_DELAY", 0)
+VOICE_MESSAGE_DELAY = env("VOICE_MESSAGE_DELAY", 0)
 # Seconds until we assume a message has finished
-VOICE_MESSAGE_TIMEOUT = os.environ.get("VOICE_MESSAGE_TIMEOUT", 0)
+VOICE_MESSAGE_TIMEOUT = env("VOICE_MESSAGE_TIMEOUT", 0)
 # A value of 0 disables cuncurrency limiter
-CONCURRENT_TEXT_LIMIT = os.environ.get("CONCURRENT_TEXT_LIMIT", 0)
+CONCURRENT_TEXT_LIMIT = env("CONCURRENT_TEXT_LIMIT", 0)
 # Seconds to wait before retrying a waiting message
-TEXT_MESSAGE_DELAY = os.environ.get("TEXT_MESSAGE_DELAY", 0)
+TEXT_MESSAGE_DELAY = env("TEXT_MESSAGE_DELAY", 0)
 # Seconds until we assume a message has finished
-TEXT_MESSAGE_TIMEOUT = os.environ.get("TEXT_MESSAGE_TIMEOUT", 0)
+TEXT_MESSAGE_TIMEOUT = env("TEXT_MESSAGE_TIMEOUT", 0)
 
 CACHES = {
     'default': {
         'BACKEND': 'redis_cache.RedisCache',
-        'LOCATION': ['%s:%s' % (os.environ.get("REDIS_HOST", "localhost"),
-                                os.environ.get("REDIS_PORT", 6379))],
+        'LOCATION': ['%s:%s' % (REDIS_HOST, REDIS_POST)],
         'OPTIONS': {
-            'DB': os.environ.get("REDIS_DB", 0),
+            'DB': REDIS_DB,
         }
     },
 }
-REDIS_PASSWORD = os.environ.get("REDIS_PASSWORD", None)
+REDIS_PASSWORD = env("REDIS_PASSWORD", None)
 if REDIS_PASSWORD:
     CACHES['default']['OPTIONS']['PASSWORD'] = REDIS_PASSWORD
 
-DEFAULT_REQUEST_TIMEOUT = float(os.environ.get("DEFAULT_REQUEST_TIMEOUT", 30))
+DEFAULT_REQUEST_TIMEOUT = env("DEFAULT_REQUEST_TIMEOUT", 30))
 
-IDENTITY_STORE_URL = os.environ.get('IDENTITY_STORE_URL',
-                                    'http://is/api/v1')
-IDENTITY_STORE_TOKEN = os.environ.get('IDENTITY_STORE_TOKEN',
-                                      'REPLACEME')
+IDENTITY_STORE_URL = env('IDENTITY_STORE_URL', 'http://is/api/v1')
+IDENTITY_STORE_TOKEN = env('IDENTITY_STORE_TOKEN', 'REPLACEME')
 
-AGGREGATE_OUTBOUND_BACKTRACK = os.environ.get(
-    'AGGREGATE_OUTBOUND_BACKTRACK', 30)
+AGGREGATE_OUTBOUND_BACKTRACK = env('AGGREGATE_OUTBOUND_BACKTRACK', 30)
 
 
 AWS_ACCESS_KEY_ID = env('AWS_ACCESS_KEY_ID', None)
