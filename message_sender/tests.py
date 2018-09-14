@@ -49,6 +49,7 @@ class VumiLoggingSender(LoggingSender):
         raise HttpApiSenderException(
             'Sending images not available on this channel.')
 
+
 SendMessage.get_client = lambda x, y: VumiLoggingSender('go_http.test')
 
 

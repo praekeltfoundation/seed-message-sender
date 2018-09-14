@@ -126,6 +126,7 @@ class ArchivedOutboundsAdmin(admin.ModelAdmin):
         'date',
     )
 
+
 admin.site.register(Outbound, OutboundAdmin)
 admin.site.register(Inbound, InboundAdmin)
 admin.site.register(Channel, ChannelAdmin)
