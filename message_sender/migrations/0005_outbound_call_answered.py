@@ -7,14 +7,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0004_outbound_last_sent_time'),
-    ]
+    dependencies = [("message_sender", "0004_outbound_last_sent_time")]
 
     operations = [
         migrations.AddField(
-            model_name='outbound',
-            name='call_answered',
-            field=models.NullBooleanField(default=None, help_text=b'True if the call has been answered. Not used for text messages'),
-        ),
+            model_name="outbound",
+            name="call_answered",
+            field=models.NullBooleanField(
+                default=None,
+                help_text=b"True if the call has been answered. Not used for text messages",
+            ),
+        )
     ]

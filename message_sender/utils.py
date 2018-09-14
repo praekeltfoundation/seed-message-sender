@@ -13,9 +13,8 @@ def make_absolute_url(path):
     #       settings.SITE_ID and the Sites framework
     site = get_current_site(None)
     return urlunparse(
-        ('https' if settings.USE_SSL else 'http',
-         site.domain, path,
-         '', '', ''))
+        ("https" if settings.USE_SSL else "http", site.domain, path, "", "", "")
+    )
 
 
 def daterange(start_date, end_date):

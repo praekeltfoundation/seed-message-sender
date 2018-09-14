@@ -7,24 +7,21 @@ from message_sender import views
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.documentation import include_docs_urls
 
-admin.site.site_header = os.environ.get('MESSAGE_SENDER_TITLE',
-                                        'Seed Message Sender Admin')
+admin.site.site_header = os.environ.get(
+    "MESSAGE_SENDER_TITLE", "Seed Message Sender Admin"
+)
 
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/auth/',
-         include('rest_framework.urls', namespace='rest_framework')),
-    path('api/token-auth/', obtain_auth_token),
-    path('api/metrics/', views.MetricsView.as_view()),
-    path('api/health/', views.HealthcheckView.as_view()),
-    path('', include('message_sender.urls')),
-    path('docs/', include_docs_urls()),
+    path("admin/", admin.site.urls),
+    path("api/auth/", include("rest_framework.urls", namespace="rest_framework")),
+    path("api/token-auth/", obtain_auth_token),
+    path("api/metrics/", views.MetricsView.as_view()),
+    path("api/health/", views.HealthcheckView.as_view()),
+    path("", include("message_sender.urls")),
+    path("docs/", include_docs_urls()),
 ]
 
 
 if settings.DEBUG is True:
-    urlpatterns += static(
-        settings.MEDIA_URL,
-        document_root=settings.MEDIA_ROOT,
-    )
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

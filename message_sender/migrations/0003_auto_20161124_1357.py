@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0002_auto_20161124_1150'),
-    ]
+    dependencies = [("message_sender", "0002_auto_20161124_1150")]
 
     operations = [
         migrations.AlterField(
-            model_name='inbound',
-            name='transport_type',
+            model_name="inbound",
+            name="transport_type",
             field=models.CharField(blank=True, max_length=200, null=True),
-        ),
+        )
     ]

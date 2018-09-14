@@ -8,13 +8,22 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('message_sender', '0020_outboundsendfailure_db_backed_fk_constraint'),
+        ("message_sender", "0020_outboundsendfailure_db_backed_fk_constraint")
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='channel',
-            name='channel_type',
-            field=models.CharField(choices=[(b'junebug', b'Junebug'), (b'vumi', b'Vumi'), (b'http_api', b'HTTP API'), (b'wassup', b'Wassup API')], default=b'junebug', max_length=20),
-        ),
+            model_name="channel",
+            name="channel_type",
+            field=models.CharField(
+                choices=[
+                    (b"junebug", b"Junebug"),
+                    (b"vumi", b"Vumi"),
+                    (b"http_api", b"HTTP API"),
+                    (b"wassup", b"Wassup API"),
+                ],
+                default=b"junebug",
+                max_length=20,
+            ),
+        )
     ]

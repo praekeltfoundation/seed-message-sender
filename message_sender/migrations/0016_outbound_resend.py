@@ -7,14 +7,15 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0015_identitylookup'),
-    ]
+    dependencies = [("message_sender", "0015_identitylookup")]
 
     operations = [
         migrations.AddField(
-            model_name='outbound',
-            name='resend',
-            field=models.NullBooleanField(default=None, help_text=b'True if this is a resend requested by the user.'),
-        ),
+            model_name="outbound",
+            name="resend",
+            field=models.NullBooleanField(
+                default=None,
+                help_text=b"True if this is a resend requested by the user.",
+            ),
+        )
     ]

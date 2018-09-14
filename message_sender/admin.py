@@ -5,9 +5,7 @@ from django.core.paginator import Paginator
 from django.db import connections
 from django.utils.functional import cached_property
 
-from .models import (
-    Outbound, Inbound, Channel, AggregateOutbounds, ArchivedOutbounds,
-)
+from .models import Outbound, Inbound, Channel, AggregateOutbounds, ArchivedOutbounds
 from .tasks import send_message
 
 
@@ -23,8 +21,7 @@ class EstimatedCountPaginator(Paginator):
 
         db_table = self.object_list.model._meta.db_table
         cursor = connections[self.object_list.db].cursor()
-        cursor.execute(
-            "SELECT reltuples FROM pg_class WHERE relname = %s", (db_table, ))
+        cursor.execute("SELECT reltuples FROM pg_class WHERE relname = %s", (db_table,))
         result = cursor.fetchone()
         if not result:
             return 0
@@ -32,11 +29,19 @@ class EstimatedCountPaginator(Paginator):
 
 
 class OutboundAdmin(admin.ModelAdmin):
-    list_display = ('to_addr', 'to_identity', 'delivered', 'attempts',
-                    'vumi_message_id', 'created_at', 'updated_at', 'content', )
-    list_display_links = ('to_addr', 'to_identity')
-    list_filter = ('delivered', 'attempts', 'created_at', 'updated_at', )
-    search_fields = ['to_addr', 'to_identity']
+    list_display = (
+        "to_addr",
+        "to_identity",
+        "delivered",
+        "attempts",
+        "vumi_message_id",
+        "created_at",
+        "updated_at",
+        "content",
+    )
+    list_display_links = ("to_addr", "to_identity")
+    list_filter = ("delivered", "attempts", "created_at", "updated_at")
+    search_fields = ["to_addr", "to_identity"]
     actions = ["resend_outbound"]
     paginator = EstimatedCountPaginator
 
@@ -49,39 +54,55 @@ class OutboundAdmin(admin.ModelAdmin):
             output_text = "message"
         else:
             output_text = "messages"
-        self.message_user(request, "Attempting to resend %s %s." % (
-                          resent, output_text))
+        self.message_user(
+            request, "Attempting to resend %s %s." % (resent, output_text)
+        )
 
-    resend_outbound.short_description = (
-        "Resend selected outbounds")
+    resend_outbound.short_description = "Resend selected outbounds"
 
 
 class InboundAdmin(admin.ModelAdmin):
-    list_display = ('message_id', 'in_reply_to', 'to_addr', 'from_addr',
-                    'from_identity', 'created_at', 'updated_at', 'content', )
-    list_filter = ('in_reply_to', 'from_addr', 'created_at', 'updated_at', )
-    search_fields = ['to_addr', 'from_identity']
+    list_display = (
+        "message_id",
+        "in_reply_to",
+        "to_addr",
+        "from_addr",
+        "from_identity",
+        "created_at",
+        "updated_at",
+        "content",
+    )
+    list_filter = ("in_reply_to", "from_addr", "created_at", "updated_at")
+    search_fields = ["to_addr", "from_identity"]
     paginator = EstimatedCountPaginator
 
 
 class ChannelAdminForm(forms.ModelForm):
     def clean(self):
-        channel_id = self.cleaned_data['channel_id']
-        channel_type = self.cleaned_data['channel_type']
-        config = self.cleaned_data['configuration']
+        channel_id = self.cleaned_data["channel_id"]
+        channel_type = self.cleaned_data["channel_type"]
+        config = self.cleaned_data["configuration"]
 
         missing = []
         if channel_type == Channel.JUNEBUG_TYPE:
-            keys = ('JUNEBUG_API_URL', 'JUNEBUG_API_AUTH', 'JUNEBUG_API_FROM')
+            keys = ("JUNEBUG_API_URL", "JUNEBUG_API_AUTH", "JUNEBUG_API_FROM")
 
         elif channel_type == Channel.VUMI_TYPE:
-            keys = ('VUMI_CONVERSATION_KEY', 'VUMI_ACCOUNT_KEY',
-                    'VUMI_ACCOUNT_TOKEN', 'VUMI_API_URL')
+            keys = (
+                "VUMI_CONVERSATION_KEY",
+                "VUMI_ACCOUNT_KEY",
+                "VUMI_ACCOUNT_TOKEN",
+                "VUMI_API_URL",
+            )
         elif channel_type == Channel.HTTP_API_TYPE:
-            keys = ('HTTP_API_URL', 'HTTP_API_AUTH', 'HTTP_API_FROM')
+            keys = ("HTTP_API_URL", "HTTP_API_AUTH", "HTTP_API_FROM")
         elif channel_type == Channel.WASSUP_API_TYPE:
-            keys = ('WASSUP_API_URL', 'WASSUP_API_TOKEN',
-                    'WASSUP_API_HSM_UUID', 'WASSUP_API_NUMBER')
+            keys = (
+                "WASSUP_API_URL",
+                "WASSUP_API_TOKEN",
+                "WASSUP_API_HSM_UUID",
+                "WASSUP_API_NUMBER",
+            )
 
         for key in keys:
             if key not in config.keys():
@@ -89,42 +110,36 @@ class ChannelAdminForm(forms.ModelForm):
 
         if missing:
             raise ValidationError(
-                "Configuration keys missing: {}".format(', '.join(missing)))
+                "Configuration keys missing: {}".format(", ".join(missing))
+            )
 
-        if not self.cleaned_data['default']:
-            if not Channel.objects.filter(default=True).exclude(
-                    channel_id=channel_id).exists():
-                raise ValidationError(
-                    "Please make sure there is a default channel.")
+        if not self.cleaned_data["default"]:
+            if (
+                not Channel.objects.filter(default=True)
+                .exclude(channel_id=channel_id)
+                .exists()
+            ):
+                raise ValidationError("Please make sure there is a default channel.")
 
         return self.cleaned_data
 
 
 class ChannelAdmin(admin.ModelAdmin):
-    list_display = ('channel_id', 'channel_type', 'concurrency_limit',
-                    'default')
-    list_filter = ('channel_type', 'default')
-    search_fields = ['channel_id']
+    list_display = ("channel_id", "channel_type", "concurrency_limit", "default")
+    list_filter = ("channel_type", "default")
+    search_fields = ["channel_id"]
     form = ChannelAdminForm
 
 
 class AggregateOutboundsAdmin(admin.ModelAdmin):
-    list_display = (
-        'date', 'delivered', 'channel', 'attempts', 'total',
-    )
-    list_filter = (
-        'date', 'delivered', 'channel',
-    )
+    list_display = ("date", "delivered", "channel", "attempts", "total")
+    list_filter = ("date", "delivered", "channel")
     paginator = EstimatedCountPaginator
 
 
 class ArchivedOutboundsAdmin(admin.ModelAdmin):
-    list_display = (
-        'date', 'archive',
-    )
-    list_filter = (
-        'date',
-    )
+    list_display = ("date", "archive")
+    list_filter = ("date",)
 
 
 admin.site.register(Outbound, OutboundAdmin)

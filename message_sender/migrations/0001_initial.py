@@ -13,44 +13,93 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-        migrations.swappable_dependency(settings.AUTH_USER_MODEL),
-    ]
+    dependencies = [migrations.swappable_dependency(settings.AUTH_USER_MODEL)]
 
     operations = [
         migrations.CreateModel(
-            name='Inbound',
+            name="Inbound",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('message_id', models.CharField(max_length=36)),
-                ('in_reply_to', models.CharField(blank=True, max_length=36, null=True)),
-                ('to_addr', models.CharField(max_length=255)),
-                ('from_addr', models.CharField(max_length=255)),
-                ('content', models.CharField(blank=True, max_length=1000, null=True)),
-                ('transport_name', models.CharField(max_length=200)),
-                ('transport_type', models.CharField(max_length=200)),
-                ('helper_metadata', django.contrib.postgres.fields.jsonb.JSONField()),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('created_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='inbounds_created', to=settings.AUTH_USER_MODEL)),
-                ('updated_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='inbounds_updated', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("message_id", models.CharField(max_length=36)),
+                ("in_reply_to", models.CharField(blank=True, max_length=36, null=True)),
+                ("to_addr", models.CharField(max_length=255)),
+                ("from_addr", models.CharField(max_length=255)),
+                ("content", models.CharField(blank=True, max_length=1000, null=True)),
+                ("transport_name", models.CharField(max_length=200)),
+                ("transport_type", models.CharField(max_length=200)),
+                ("helper_metadata", django.contrib.postgres.fields.jsonb.JSONField()),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="inbounds_created",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "updated_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="inbounds_updated",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='Outbound',
+            name="Outbound",
             fields=[
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('to_addr', models.CharField(max_length=500)),
-                ('version', models.IntegerField(default=1)),
-                ('content', models.CharField(blank=True, max_length=1000, null=True)),
-                ('vumi_message_id', models.CharField(blank=True, max_length=36, null=True)),
-                ('delivered', models.BooleanField(default=False)),
-                ('attempts', models.IntegerField(default=0)),
-                ('metadata', django.contrib.postgres.fields.jsonb.JSONField()),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('created_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='outbounds_created', to=settings.AUTH_USER_MODEL)),
-                ('updated_by', models.ForeignKey(null=True, on_delete=django.db.models.deletion.CASCADE, related_name='outbounds_updated', to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("to_addr", models.CharField(max_length=500)),
+                ("version", models.IntegerField(default=1)),
+                ("content", models.CharField(blank=True, max_length=1000, null=True)),
+                (
+                    "vumi_message_id",
+                    models.CharField(blank=True, max_length=36, null=True),
+                ),
+                ("delivered", models.BooleanField(default=False)),
+                ("attempts", models.IntegerField(default=0)),
+                ("metadata", django.contrib.postgres.fields.jsonb.JSONField()),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "created_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="outbounds_created",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
+                (
+                    "updated_by",
+                    models.ForeignKey(
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="outbounds_updated",
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
         ),
     ]

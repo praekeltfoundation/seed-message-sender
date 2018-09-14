@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0008_auto_20170323_1042'),
-    ]
+    dependencies = [("message_sender", "0008_auto_20170323_1042")]
 
     operations = [
         migrations.AlterField(
-            model_name='inbound',
-            name='created_at',
+            model_name="inbound",
+            name="created_at",
             field=models.DateTimeField(auto_now_add=True, db_index=True),
-        ),
+        )
     ]

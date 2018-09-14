@@ -8,19 +8,31 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0006_add_created_at_index'),
-    ]
+    dependencies = [("message_sender", "0006_add_created_at_index")]
 
     operations = [
         migrations.CreateModel(
-            name='OutboundSendFailure',
+            name="OutboundSendFailure",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('task_id', models.UUIDField()),
-                ('initiated_at', models.DateTimeField()),
-                ('reason', models.TextField()),
-                ('outbound', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='message_sender.Outbound')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("task_id", models.UUIDField()),
+                ("initiated_at", models.DateTimeField()),
+                ("reason", models.TextField()),
+                (
+                    "outbound",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="message_sender.Outbound",
+                    ),
+                ),
             ],
-        ),
+        )
     ]

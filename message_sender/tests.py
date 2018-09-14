@@ -29,14 +29,30 @@ from go_http.send import LoggingSender
 from seed_services_client.metrics import MetricsApiClient
 
 from .factory import (
-    MessageClientFactory, JunebugApiSender, HttpApiSender,
-    HttpApiSenderException, WassupApiSenderException)
-from .models import (Inbound, Outbound, OutboundSendFailure, Channel,
-                     IdentityLookup, AggregateOutbounds, ArchivedOutbounds)
+    MessageClientFactory,
+    JunebugApiSender,
+    HttpApiSender,
+    HttpApiSenderException,
+    WassupApiSenderException,
+)
+from .models import (
+    Inbound,
+    Outbound,
+    OutboundSendFailure,
+    Channel,
+    IdentityLookup,
+    AggregateOutbounds,
+    ArchivedOutbounds,
+)
 from .serializers import OutboundArchiveSerializer
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
-from .tasks import (SendMessage, send_message, fire_metric,
-                    ConcurrencyLimiter, requeue_failed_tasks)
+from .tasks import (
+    SendMessage,
+    send_message,
+    fire_metric,
+    ConcurrencyLimiter,
+    requeue_failed_tasks,
+)
 from .views import fire_delivery_hook
 from . import tasks
 
@@ -44,153 +60,151 @@ from seed_message_sender.utils import load_callable
 
 
 class VumiLoggingSender(LoggingSender):
-
     def send_image(self, to_addr, content, image_url=None):
-        raise HttpApiSenderException(
-            'Sending images not available on this channel.')
+        raise HttpApiSenderException("Sending images not available on this channel.")
 
 
-SendMessage.get_client = lambda x, y: VumiLoggingSender('go_http.test')
+SendMessage.get_client = lambda x, y: VumiLoggingSender("go_http.test")
 
 
 def make_channels():
     vumi_channel = {
-        'channel_id': 'VUMI_TEXT',
-        'channel_type': Channel.VUMI_TYPE,
-        'default': False,
-        'configuration': {
-            'VUMI_CONVERSATION_KEY': 'conv-key',
-            'VUMI_ACCOUNT_KEY': 'account-key',
-            'VUMI_ACCOUNT_TOKEN': 'account-token',
-            'VUMI_API_URL': 'http://example.com/'
+        "channel_id": "VUMI_TEXT",
+        "channel_type": Channel.VUMI_TYPE,
+        "default": False,
+        "configuration": {
+            "VUMI_CONVERSATION_KEY": "conv-key",
+            "VUMI_ACCOUNT_KEY": "account-key",
+            "VUMI_ACCOUNT_TOKEN": "account-token",
+            "VUMI_API_URL": "http://example.com/",
         },
-        'concurrency_limit': 1,
-        'message_timeout': 20,
-        'message_delay': 10
+        "concurrency_limit": 1,
+        "message_timeout": 20,
+        "message_delay": 10,
     }
     Channel.objects.create(**vumi_channel)
 
     vumi_channel2 = {
-        'channel_id': 'VUMI_VOICE',
-        'channel_type': Channel.VUMI_TYPE,
-        'default': False,
-        'configuration': {
-            'VUMI_CONVERSATION_KEY': 'conv-key',
-            'VUMI_ACCOUNT_KEY': 'account-key',
-            'VUMI_ACCOUNT_TOKEN': 'account-token',
-            'VUMI_API_URL': 'http://example.com/'
+        "channel_id": "VUMI_VOICE",
+        "channel_type": Channel.VUMI_TYPE,
+        "default": False,
+        "configuration": {
+            "VUMI_CONVERSATION_KEY": "conv-key",
+            "VUMI_ACCOUNT_KEY": "account-key",
+            "VUMI_ACCOUNT_TOKEN": "account-token",
+            "VUMI_API_URL": "http://example.com/",
         },
-        'concurrency_limit': 1,
-        'message_timeout': 20,
-        'message_delay': 10
+        "concurrency_limit": 1,
+        "message_timeout": 20,
+        "message_delay": 10,
     }
     Channel.objects.create(**vumi_channel2)
 
     june_channel = {
-        'channel_id': 'JUNE_VOICE',
-        'channel_type': Channel.JUNEBUG_TYPE,
-        'default': False,
-        'configuration': {
-            'JUNEBUG_API_URL': 'http://example.com/',
-            'JUNEBUG_API_AUTH': ('username', 'password'),
-            'JUNEBUG_API_FROM': '+4321'
+        "channel_id": "JUNE_VOICE",
+        "channel_type": Channel.JUNEBUG_TYPE,
+        "default": False,
+        "configuration": {
+            "JUNEBUG_API_URL": "http://example.com/",
+            "JUNEBUG_API_AUTH": ("username", "password"),
+            "JUNEBUG_API_FROM": "+4321",
         },
-        'concurrency_limit': 1,
-        'message_timeout': 120,
-        'message_delay': 100
+        "concurrency_limit": 1,
+        "message_timeout": 120,
+        "message_delay": 100,
     }
     Channel.objects.create(**june_channel)
 
     june_channel2 = {
-        'channel_id': 'JUNE_TEXT',
-        'channel_type': Channel.JUNEBUG_TYPE,
-        'default': True,
-        'configuration': {
-            'JUNEBUG_API_URL': 'http://example.com/',
-            'JUNEBUG_API_AUTH': ('username', 'password'),
-            'JUNEBUG_API_FROM': '+4321'
+        "channel_id": "JUNE_TEXT",
+        "channel_type": Channel.JUNEBUG_TYPE,
+        "default": True,
+        "configuration": {
+            "JUNEBUG_API_URL": "http://example.com/",
+            "JUNEBUG_API_AUTH": ("username", "password"),
+            "JUNEBUG_API_FROM": "+4321",
         },
-        'concurrency_limit': 0,
-        'message_timeout': 0,
-        'message_delay': 0
+        "concurrency_limit": 0,
+        "message_timeout": 0,
+        "message_delay": 0,
     }
     Channel.objects.create(**june_channel2)
 
     june_channel2 = {
-        'channel_id': 'JUNE_VOICE2',
-        'channel_type': Channel.JUNEBUG_TYPE,
-        'default': False,
-        'configuration': {
-            'JUNEBUG_API_URL': 'http://example.com/',
-            'JUNEBUG_API_AUTH': ('username', 'password'),
-            'JUNEBUG_API_FROM': '+4321'
+        "channel_id": "JUNE_VOICE2",
+        "channel_type": Channel.JUNEBUG_TYPE,
+        "default": False,
+        "configuration": {
+            "JUNEBUG_API_URL": "http://example.com/",
+            "JUNEBUG_API_AUTH": ("username", "password"),
+            "JUNEBUG_API_FROM": "+4321",
         },
-        'concurrency_limit': 2,
-        'message_timeout': 20,
-        'message_delay': 10
+        "concurrency_limit": 2,
+        "message_timeout": 20,
+        "message_delay": 10,
     }
     Channel.objects.create(**june_channel2)
 
     http_channel_text = {
-        'channel_id': 'HTTP_API_TEXT',
-        'channel_type': Channel.HTTP_API_TYPE,
-        'default': False,
-        'configuration': {
-            'HTTP_API_URL': 'http://example.com/',
-            'HTTP_API_AUTH': ('username', 'password'),
-            'HTTP_API_FROM': '+4321'
+        "channel_id": "HTTP_API_TEXT",
+        "channel_type": Channel.HTTP_API_TYPE,
+        "default": False,
+        "configuration": {
+            "HTTP_API_URL": "http://example.com/",
+            "HTTP_API_AUTH": ("username", "password"),
+            "HTTP_API_FROM": "+4321",
         },
-        'concurrency_limit': 0,
-        'message_timeout': 0,
-        'message_delay': 0
+        "concurrency_limit": 0,
+        "message_timeout": 0,
+        "message_delay": 0,
     }
     Channel.objects.create(**http_channel_text)
 
     http_channel_voice = {
-        'channel_id': 'HTTP_API_VOICE',
-        'channel_type': Channel.HTTP_API_TYPE,
-        'default': False,
-        'configuration': {
-            'HTTP_API_URL': 'http://example.com/',
-            'HTTP_API_AUTH': ('username', 'password'),
-            'HTTP_API_FROM': '+4321'
+        "channel_id": "HTTP_API_VOICE",
+        "channel_type": Channel.HTTP_API_TYPE,
+        "default": False,
+        "configuration": {
+            "HTTP_API_URL": "http://example.com/",
+            "HTTP_API_AUTH": ("username", "password"),
+            "HTTP_API_FROM": "+4321",
         },
-        'concurrency_limit': 2,
-        'message_timeout': 20,
-        'message_delay': 10
+        "concurrency_limit": 2,
+        "message_timeout": 20,
+        "message_delay": 10,
     }
     Channel.objects.create(**http_channel_voice)
 
     wassup_channel_text = {
-        'channel_id': 'WASSUP_API',
-        'channel_type': Channel.WASSUP_API_TYPE,
-        'default': False,
-        'configuration': {
-            'WASSUP_API_URL': 'http://example.com/',
-            'WASSUP_API_TOKEN': 'http-api-token',
-            'WASSUP_API_HSM_UUID': 'the-uuid',
-            'WASSUP_API_NUMBER': '+4321'
+        "channel_id": "WASSUP_API",
+        "channel_type": Channel.WASSUP_API_TYPE,
+        "default": False,
+        "configuration": {
+            "WASSUP_API_URL": "http://example.com/",
+            "WASSUP_API_TOKEN": "http-api-token",
+            "WASSUP_API_HSM_UUID": "the-uuid",
+            "WASSUP_API_NUMBER": "+4321",
         },
-        'concurrency_limit': 0,
-        'message_timeout': 0,
-        'message_delay': 0
+        "concurrency_limit": 0,
+        "message_timeout": 0,
+        "message_delay": 0,
     }
     Channel.objects.create(**wassup_channel_text)
 
     wassup_channel_text = {
-        'channel_id': 'WASSUP_API_NON_HSM',
-        'channel_type': Channel.WASSUP_API_TYPE,
-        'default': False,
-        'configuration': {
-            'WASSUP_API_URL': 'http://example.com/',
-            'WASSUP_API_TOKEN': 'http-api-token',
-            'WASSUP_API_HSM_UUID': 'the-uuid',
-            'WASSUP_API_NUMBER': '+4321',
-            'WASSUP_API_HSM_DISABLED': True
+        "channel_id": "WASSUP_API_NON_HSM",
+        "channel_type": Channel.WASSUP_API_TYPE,
+        "default": False,
+        "configuration": {
+            "WASSUP_API_URL": "http://example.com/",
+            "WASSUP_API_TOKEN": "http-api-token",
+            "WASSUP_API_HSM_UUID": "the-uuid",
+            "WASSUP_API_NUMBER": "+4321",
+            "WASSUP_API_HSM_DISABLED": True,
         },
-        'concurrency_limit': 0,
-        'message_timeout': 0,
-        'message_delay': 0
+        "concurrency_limit": 0,
+        "message_timeout": 0,
+        "message_delay": 0,
     }
     Channel.objects.create(**wassup_channel_text)
 
@@ -199,6 +213,7 @@ class RecordingAdapter(TestAdapter):
 
     """ Record the request that was handled by the adapter.
     """
+
     request = None
 
     def send(self, request, *args, **kw):
@@ -209,6 +224,7 @@ class RecordingAdapter(TestAdapter):
 class RecordingHandler(logging.Handler):
 
     """ Record logs. """
+
     logs = None
 
     def emit(self, record):
@@ -239,17 +255,16 @@ class MockCache(object):
 
     def incr(self, key, value=1):
         if key not in self.cache_data:
-            raise(ValueError)
+            raise (ValueError)
         self.cache_data[key] += value
 
     def decr(self, key, value=1):
         if key not in self.cache_data:
-            raise(ValueError)
+            raise (ValueError)
         self.cache_data[key] -= value
 
 
 class APITestCase(TestCase):
-
     def setUp(self):
         self.client = APIClient()
         self.adminclient = APIClient()
@@ -257,9 +272,7 @@ class APITestCase(TestCase):
 
 
 class AuthenticatedAPITestCase(APITestCase):
-
-    def make_outbound(self, to_addr='+27123', to_identity='0c03d360',
-                      channel=None):
+    def make_outbound(self, to_addr="+27123", to_identity="0c03d360", channel=None):
 
         if channel:
             channel = Channel.objects.get(channel_id=channel)
@@ -273,13 +286,13 @@ class AuthenticatedAPITestCase(APITestCase):
             "delivered": False,
             "attempts": 1,
             "metadata": {},
-            "channel": channel
+            "channel": channel,
         }
         outbound = Outbound.objects.create(**outbound_message)
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return str(outbound.id)
 
-    def make_inbound(self, in_reply_to, from_addr='020', from_identity=''):
+    def make_inbound(self, in_reply_to, from_addr="020", from_identity=""):
         self._replace_post_save_hooks_inbound()
         inbound_message = {
             "message_id": str(uuid.uuid4()),
@@ -290,7 +303,7 @@ class AuthenticatedAPITestCase(APITestCase):
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
-            "helper_metadata": {}
+            "helper_metadata": {},
         }
         inbound = Inbound.objects.create(**inbound_message)
         self._restore_post_save_hooks_inbound()
@@ -298,46 +311,43 @@ class AuthenticatedAPITestCase(APITestCase):
 
     def _replace_get_metric_client(self, session=None):
         return MetricsApiClient(
-            url=settings.METRICS_URL,
-            auth=settings.METRICS_AUTH,
-            session=session)
+            url=settings.METRICS_URL, auth=settings.METRICS_AUTH, session=session
+        )
 
     def _restore_get_metric_client(self, session=None):
         return MetricsApiClient(
-            url=settings.METRICS_URL,
-            auth=settings.METRICS_AUTH,
-            session=session)
+            url=settings.METRICS_URL, auth=settings.METRICS_AUTH, session=session
+        )
 
     def _replace_post_save_hooks_outbound(self):
         post_save.disconnect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
 
     def _replace_post_save_hooks_inbound(self):
         post_save.disconnect(
             psh_fire_metrics_if_new,
             sender=Inbound,
-            dispatch_uid='psh_fire_metrics_if_new'
+            dispatch_uid="psh_fire_metrics_if_new",
         )
 
     def _restore_post_save_hooks_outbound(self):
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
 
     def _restore_post_save_hooks_inbound(self):
         post_save.connect(
             psh_fire_metrics_if_new,
             sender=Inbound,
-            dispatch_uid='psh_fire_metrics_if_new'
+            dispatch_uid="psh_fire_metrics_if_new",
         )
 
-    def check_request(
-            self, request, method, params=None, data=None, headers=None):
+    def check_request(self, request, method, params=None, data=None, headers=None):
         self.assertEqual(request.method, method)
         if params is not None:
             url = urlparse.urlparse(request.url)
@@ -352,14 +362,9 @@ class AuthenticatedAPITestCase(APITestCase):
             self.assertEqual(json.loads(request.body), data)
 
     def _mount_session(self):
-        response = [{
-            'name': 'foo',
-            'value': 9000,
-            'aggregator': 'bar',
-        }]
-        adapter = RecordingAdapter(json.dumps(response).encode('utf-8'))
-        self.session.mount(
-            "http://metrics-url/metrics/", adapter)
+        response = [{"name": "foo", "value": 9000, "aggregator": "bar"}]
+        adapter = RecordingAdapter(json.dumps(response).encode("utf-8"))
+        self.session.mount("http://metrics-url/metrics/", adapter)
         return adapter
 
     def setUp(self):
@@ -368,23 +373,22 @@ class AuthenticatedAPITestCase(APITestCase):
         tasks.get_metric_client = self._replace_get_metric_client
         self.adapter = self._mount_session()
 
-        self.username = 'testuser'
-        self.password = 'testpass'
-        self.user = User.objects.create_user(self.username,
-                                             'testuser@example.com',
-                                             self.password)
+        self.username = "testuser"
+        self.password = "testpass"
+        self.user = User.objects.create_user(
+            self.username, "testuser@example.com", self.password
+        )
         token = Token.objects.create(user=self.user)
         self.token = token.key
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.token)
-        self.superuser = User.objects.create_superuser('testsu',
-                                                       'su@example.com',
-                                                       'dummypwd')
+        self.client.credentials(HTTP_AUTHORIZATION="Token " + self.token)
+        self.superuser = User.objects.create_superuser(
+            "testsu", "su@example.com", "dummypwd"
+        )
         sutoken = Token.objects.create(user=self.superuser)
-        self.adminclient.credentials(
-            HTTP_AUTHORIZATION='Token %s' % sutoken)
+        self.adminclient.credentials(HTTP_AUTHORIZATION="Token %s" % sutoken)
 
         self.handler = RecordingHandler()
-        logger = logging.getLogger('go_http.test')
+        logger = logging.getLogger("go_http.test")
         logger.setLevel(logging.INFO)
         logger.addHandler(self.handler)
         make_channels()
@@ -407,29 +411,26 @@ class AuthenticatedAPITestCase(APITestCase):
         return False
 
     def add_identity_search_response(self, msisdn, identity, count=1):
-        msisdn = msisdn.replace('+', '%2B')
-        results = [{
-            "id": identity,
-            "version": 1,
-            "details": {
-                "default_addr_type": "msisdn",
-                "addresses": {
-                  "msisdn": {
-                      msisdn: {}
-                  }
-                }
+        msisdn = msisdn.replace("+", "%2B")
+        results = [
+            {
+                "id": identity,
+                "version": 1,
+                "details": {
+                    "default_addr_type": "msisdn",
+                    "addresses": {"msisdn": {msisdn: {}}},
+                },
             }
-        }] * count
-        response = {
-            "next": None,
-            "previous": None,
-            "results": results
-        }
+        ] * count
+        response = {"next": None, "previous": None, "results": results}
         qs = "?details__addresses__msisdn=%s" % msisdn
-        responses.add(responses.GET,
-                      "%s/identities/search/%s" % (settings.IDENTITY_STORE_URL, qs),  # noqa
-                      json=response, status=200,
-                      match_querystring=True)
+        responses.add(
+            responses.GET,
+            "%s/identities/search/%s" % (settings.IDENTITY_STORE_URL, qs),  # noqa
+            json=response,
+            status=200,
+            match_querystring=True,
+        )
 
     def add_create_identity_response(self, identity, msisdn):
         # Setup
@@ -438,33 +439,32 @@ class AuthenticatedAPITestCase(APITestCase):
             "version": 1,
             "details": {
                 "default_addr_type": "msisdn",
-                "addresses": {
-                    "msisdn": {
-                        msisdn: {}
-                    }
-                },
-                "risk": "high"
+                "addresses": {"msisdn": {msisdn: {}}},
+                "risk": "high",
             },
             "communicate_through": None,
             "operator": None,
             "created_at": "2016-04-21T09:11:05.725680Z",
             "created_by": 2,
             "updated_at": "2016-06-15T15:09:05.333526Z",
-            "updated_by": 2
+            "updated_by": 2,
         }
-        responses.add(responses.POST,
-                      "%s/identities/" % settings.IDENTITY_STORE_URL,
-                      json=identity, status=201)
+        responses.add(
+            responses.POST,
+            "%s/identities/" % settings.IDENTITY_STORE_URL,
+            json=identity,
+            status=201,
+        )
 
     def add_metrics_response(self):
         responses.add(
-            responses.POST, 'http://metrics-url/metrics/', json={}, status=201)
+            responses.POST, "http://metrics-url/metrics/", json={}, status=201
+        )
 
 
 class TestWassupMessagesAPI(AuthenticatedAPITestCase):
-
     @responses.activate
-    @patch('message_sender.tests.VumiLoggingSender.send_image')
+    @patch("message_sender.tests.VumiLoggingSender.send_image")
     def test_create_outbound_image(self, mock_send_image):
         """
         When creating a outbound with a image_url in the metadata, the
@@ -472,38 +472,38 @@ class TestWassupMessagesAPI(AuthenticatedAPITestCase):
         """
         mock_send_image.return_value = {"message_id": str(uuid.uuid4())}
         self.add_metrics_response()
-        self.add_identity_search_response('+27123', '0c03d360')
+        self.add_identity_search_response("+27123", "0c03d360")
 
         post_outbound = {
             "to_addr": "+27123",
             "delivered": "false",
-            "metadata": {
-                "image_url": "https://foo.com/file.jpg"
-            },
+            "metadata": {"image_url": "https://foo.com/file.jpg"},
             "channel": "WASSUP_API",
-            "content": "Check this image"
+            "content": "Check this image",
         }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         mock_send_image.assert_called_with(
-            "+27123", "Check this image", image_url="https://foo.com/file.jpg")
+            "+27123", "Check this image", image_url="https://foo.com/file.jpg"
+        )
 
 
 class TestVumiMessagesAPI(AuthenticatedAPITestCase):
-
     def test_list_pagination_one_page(self):
         outbound = self.make_outbound()
 
-        response = self.client.get('/api/v1/outbound/')
+        response = self.client.get("/api/v1/outbound/")
 
         body = response.json()
-        self.assertEqual(len(body['results']), 1)
-        self.assertEqual(body['results'][0]['id'], outbound)
-        self.assertIsNone(body['previous'])
-        self.assertIsNone(body['next'])
+        self.assertEqual(len(body["results"]), 1)
+        self.assertEqual(body["results"][0]["id"], outbound)
+        self.assertIsNone(body["previous"])
+        self.assertIsNone(body["next"])
 
     def test_list_pagination_two_pages(self):
         outbounds = []
@@ -511,33 +511,33 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             outbounds.append(self.make_outbound())
 
         # Test first page
-        response = self.client.get('/api/v1/outbound/')
+        response = self.client.get("/api/v1/outbound/")
 
         body = response.json()
-        self.assertEqual(len(body['results']), 2)
-        self.assertEqual(body['results'][0]['id'], outbounds[2])
-        self.assertEqual(body['results'][1]['id'], outbounds[1])
-        self.assertIsNone(body['previous'])
-        self.assertIsNotNone(body['next'])
+        self.assertEqual(len(body["results"]), 2)
+        self.assertEqual(body["results"][0]["id"], outbounds[2])
+        self.assertEqual(body["results"][1]["id"], outbounds[1])
+        self.assertIsNone(body["previous"])
+        self.assertIsNotNone(body["next"])
 
         # Test next page
-        response = self.client.get(body['next'])
+        response = self.client.get(body["next"])
 
         body = response.json()
-        self.assertEqual(len(body['results']), 1)
-        self.assertEqual(body['results'][0]['id'], outbounds[0])
-        self.assertIsNotNone(body['previous'])
-        self.assertIsNone(body['next'])
+        self.assertEqual(len(body["results"]), 1)
+        self.assertEqual(body["results"][0]["id"], outbounds[0])
+        self.assertIsNotNone(body["previous"])
+        self.assertIsNone(body["next"])
 
         # Test going back to previous page works
-        response = self.client.get(body['previous'])
+        response = self.client.get(body["previous"])
 
         body = response.json()
-        self.assertEqual(len(body['results']), 2)
-        self.assertEqual(body['results'][0]['id'], outbounds[2])
-        self.assertEqual(body['results'][1]['id'], outbounds[1])
-        self.assertIsNone(body['previous'])
-        self.assertIsNotNone(body['next'])
+        self.assertEqual(len(body["results"]), 2)
+        self.assertEqual(body["results"][0]["id"], outbounds[2])
+        self.assertEqual(body["results"][1]["id"], outbounds[1])
+        self.assertIsNone(body["previous"])
+        self.assertIsNotNone(body["next"])
 
     @responses.activate
     def test_create_outbound_data(self):
@@ -546,7 +546,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         object with the correct specified values.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('+27123', '0c03d360')
+        self.add_identity_search_response("+27123", "0c03d360")
 
         post_outbound = {
             "to_addr": "+27123",
@@ -555,11 +555,13 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "delivered": False,
             "attempts": 0,
             "metadata": {},
-            "resend": True
+            "resend": True,
         }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Outbound.objects.last()
@@ -580,18 +582,18 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         in the request should still create an Outbound object.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('+27123', '0c03d360')
+        self.add_identity_search_response("+27123", "0c03d360")
 
         post_outbound = {
             "to_addr": "+27123",
             "delivered": "false",
-            "metadata": {
-                "voice_speech_url": "https://foo.com/file.mp3"
-            }
+            "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
         }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Outbound.objects.last()
@@ -601,9 +603,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata, {
-            "voice_speech_url": "https://foo.com/file.mp3"
-        })
+        self.assertEqual(d.metadata, {"voice_speech_url": "https://foo.com/file.mp3"})
         self.assertEqual(d.channel, None)
 
     @responses.activate
@@ -614,19 +614,19 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         should be created on the identity store for that address.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('+2712345', None, 0)
-        self.add_create_identity_response('0c03d360123', '+2712345')
+        self.add_identity_search_response("+2712345", None, 0)
+        self.add_create_identity_response("0c03d360123", "+2712345")
 
         post_outbound = {
             "to_addr": "+2712345",
             "delivered": "false",
-            "metadata": {
-                "voice_speech_url": "https://foo.com/file.mp3"
-            }
+            "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
         }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Outbound.objects.last()
@@ -636,9 +636,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(str(d.to_identity), "0c03d360123")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata, {
-            "voice_speech_url": "https://foo.com/file.mp3"
-        })
+        self.assertEqual(d.metadata, {"voice_speech_url": "https://foo.com/file.mp3"})
         self.assertEqual(d.channel, None)
 
         create_id_post = responses.calls[1]
@@ -648,13 +646,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             {
                 "details": {
                     "default_addr_type": "msisdn",
-                    "addresses": {
-                        "msisdn": {
-                            "+2712345": {"default": True}
-                        }
-                    }
+                    "addresses": {"msisdn": {"+2712345": {"default": True}}},
                 }
-            })
+            },
+        )
 
     @responses.activate
     def test_create_outbound_data_with_channel(self):
@@ -663,19 +658,19 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         that Outbound should have the specified channel.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('+27123', '0c03d360')
+        self.add_identity_search_response("+27123", "0c03d360")
 
         post_outbound = {
             "to_addr": "+27123",
             "delivered": "false",
-            "metadata": {
-                "voice_speech_url": "https://foo.com/file.mp3"
-            },
-            "channel": "JUNE_TEXT"
+            "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
+            "channel": "JUNE_TEXT",
         }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Outbound.objects.last()
@@ -685,9 +680,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata, {
-            "voice_speech_url": "https://foo.com/file.mp3"
-        })
+        self.assertEqual(d.metadata, {"voice_speech_url": "https://foo.com/file.mp3"})
         self.assertEqual(d.channel.channel_id, "JUNE_TEXT")
 
     def test_create_outbound_data_with_channel_unknown(self):
@@ -695,25 +688,24 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_outbound = {
             "to_addr": "+27123",
             "delivered": "false",
-            "metadata": {
-                "voice_speech_url": "https://foo.com/file.mp3"
-            },
-            "channel": "JUNE_VOICE_TEST"
+            "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
+            "channel": "JUNE_VOICE_TEST",
         }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_create_outbound_without_recipient(self):
 
-        post_outbound = {
-            "delivered": "false",
-            "metadata": {}
-        }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        post_outbound = {"delivered": "false", "metadata": {}}
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     @responses.activate
@@ -729,30 +721,30 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         # mock identity address lookup
         responses.add(
             responses.GET,
-            "%s/identities/%s/addresses/msisdn?default=True&use_communicate_through=True" % (settings.IDENTITY_STORE_URL, uid),  # noqa
+            "%s/identities/%s/addresses/msisdn?default=True&use_communicate_through=True"
+            % (settings.IDENTITY_STORE_URL, uid),  # noqa
             json={
                 "next": None,
                 "previous": None,
-                "results": [{"address": "+26773000000"}]
+                "results": [{"address": "+26773000000"}],
             },
-            status=200, content_type='application/json',
-            match_querystring=True
+            status=200,
+            content_type="application/json",
+            match_querystring=True,
         )
 
-        post_outbound = {
-            "to_identity": uid,
-            "delivered": "false",
-            "metadata": {}
-        }
-        response = self.client.post('/api/v1/outbound/',
-                                    json.dumps(post_outbound),
-                                    content_type='application/json')
+        post_outbound = {"to_identity": uid, "delivered": "false", "metadata": {}}
+        response = self.client.post(
+            "/api/v1/outbound/",
+            json.dumps(post_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Outbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
-        self.assertEqual(d.to_addr, '+26773000000')
+        self.assertEqual(d.to_addr, "+26773000000")
         self.assertEqual(d.to_identity, uid)
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
@@ -761,14 +753,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     def test_update_outbound_data(self):
         existing = self.make_outbound()
-        patch_outbound = {
-            "delivered": "true",
-            "attempts": 2
-        }
-        response = self.client.patch('/api/v1/outbound/%s/' %
-                                     existing,
-                                     json.dumps(patch_outbound),
-                                     content_type='application/json')
+        patch_outbound = {"delivered": "true", "attempts": 2}
+        response = self.client.patch(
+            "/api/v1/outbound/%s/" % existing,
+            json.dumps(patch_outbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -779,9 +769,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     def test_delete_outbound_data(self):
         existing = self.make_outbound()
-        response = self.client.delete('/api/v1/outbound/%s/' %
-                                      existing,
-                                      content_type='application/json')
+        response = self.client.delete(
+            "/api/v1/outbound/%s/" % existing, content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
         d = Outbound.objects.filter(id=existing).count()
@@ -789,20 +779,34 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     def test_created_at_filter_outbound_exists(self):
         existing = Outbound.objects.get(pk=self.make_outbound())
-        response = self.client.get('/api/v1/outbound/?%s' % (urlencode({
-            'before': (existing.created_at + timedelta(days=1)).isoformat(),
-            'after': (existing.created_at - timedelta(days=1)).isoformat(),
-        })))
+        response = self.client.get(
+            "/api/v1/outbound/?%s"
+            % (
+                urlencode(
+                    {
+                        "before": (existing.created_at + timedelta(days=1)).isoformat(),
+                        "after": (existing.created_at - timedelta(days=1)).isoformat(),
+                    }
+                )
+            )
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
         self.assertEqual(response.data["results"][0]["id"], str(existing.id))
 
     def test_created_at_filter_outbound_not_exists(self):
         existing = Outbound.objects.get(pk=self.make_outbound())
-        response = self.client.get('/api/v1/outbound/?%s' % (urlencode({
-            'before': (existing.created_at - timedelta(days=1)).isoformat(),
-            'after': (existing.created_at + timedelta(days=1)).isoformat(),
-        })))
+        response = self.client.get(
+            "/api/v1/outbound/?%s"
+            % (
+                urlencode(
+                    {
+                        "before": (existing.created_at - timedelta(days=1)).isoformat(),
+                        "after": (existing.created_at + timedelta(days=1)).isoformat(),
+                    }
+                )
+            )
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["results"], [])
 
@@ -811,11 +815,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         When filtering on to_addr, only the outbound with the specified to
         address should be returned.
         """
-        self.make_outbound(to_addr='+1234')
-        self.make_outbound(to_addr='+4321')
+        self.make_outbound(to_addr="+1234")
+        self.make_outbound(to_addr="+4321")
 
-        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode({
-            'to_addr': '+1234'}))
+        response = self.client.get(
+            "/api/v1/outbound/?{}".format(urlencode({"to_addr": "+1234"}))
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -827,13 +831,14 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         to address, we should return all outbound messages that match one of
         the to addresses.
         """
-        self.make_outbound(to_addr='+1234')
-        self.make_outbound(to_addr='+4321')
-        self.make_outbound(to_addr='+1111')
+        self.make_outbound(to_addr="+1234")
+        self.make_outbound(to_addr="+4321")
+        self.make_outbound(to_addr="+1111")
 
-        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
-            ('to_addr', '+1234'),
-            ('to_addr', '+4321'))))
+        response = self.client.get(
+            "/api/v1/outbound/?{}".format(
+                urlencode((("to_addr", "+1234"), ("to_addr", "+4321")))
+            )
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -844,12 +849,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         When filtering on to_identity, only outbound messages with that
         identity id should be returned.
         """
-        self.make_outbound(to_identity='1234')
-        self.make_outbound(to_identity='4321')
+        self.make_outbound(to_identity="1234")
+        self.make_outbound(to_identity="4321")
 
-        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
-            ('to_identity', '1234'),
-        ))))
+        response = self.client.get(
+            "/api/v1/outbound/?{}".format(urlencode((("to_identity", "1234"),)))
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 1)
@@ -860,14 +865,15 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         identity ID, we should return all outbound messages that match one of
         the identity IDs.
         """
-        self.make_outbound(to_identity='1234')
-        self.make_outbound(to_identity='4321')
-        self.make_outbound(to_identity='1111')
+        self.make_outbound(to_identity="1234")
+        self.make_outbound(to_identity="4321")
+        self.make_outbound(to_identity="1111")
 
-        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode((
-            ('to_identity', '1234'),
-            ('to_identity', '4321'),
-        ))))
+        response = self.client.get(
+            "/api/v1/outbound/?{}".format(
+                urlencode((("to_identity", "1234"), ("to_identity", "4321")))
+            )
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data["results"]), 2)
@@ -880,32 +886,26 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         out1 = self.make_outbound()
         out2 = self.make_outbound()
 
-        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode({
-            'ordering': 'created_at'}))
+        response = self.client.get(
+            "/api/v1/outbound/?{}".format(urlencode({"ordering": "created_at"}))
         )
-        self.assertEqual(
-            [o['id'] for o in response.data["results"]],
-            [out1, out2]
-        )
+        self.assertEqual([o["id"] for o in response.data["results"]], [out1, out2])
 
-        response = self.client.get('/api/v1/outbound/?{}'.format(urlencode({
-            'ordering': '-created_at'}))
+        response = self.client.get(
+            "/api/v1/outbound/?{}".format(urlencode({"ordering": "-created_at"}))
         )
-        self.assertEqual(
-            [o['id'] for o in response.data["results"]],
-            [out2, out1]
-        )
+        self.assertEqual([o["id"] for o in response.data["results"]], [out2, out1])
 
     def test_from_addr_filter_inbound(self):
         """
         When filtering on from_addr, only the inbounds with the specified from
         address should be returned.
         """
-        self.make_inbound('1234', from_addr='+1234')
-        self.make_inbound('1234', from_addr='+4321')
+        self.make_inbound("1234", from_addr="+1234")
+        self.make_inbound("1234", from_addr="+4321")
 
-        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
-            'from_addr': '+1234'}))
+        response = self.client.get(
+            "/api/v1/inbound/?{}".format(urlencode({"from_addr": "+1234"}))
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -917,13 +917,14 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         from address, we should return all inbound messages that match one of
         the from addresses.
         """
-        self.make_inbound('1234', from_addr='+1234')
-        self.make_inbound('1234', from_addr='+4321')
-        self.make_inbound('1234', from_addr='+1111')
+        self.make_inbound("1234", from_addr="+1234")
+        self.make_inbound("1234", from_addr="+4321")
+        self.make_inbound("1234", from_addr="+1111")
 
-        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode((
-            ('from_addr', '+1234'),
-            ('from_addr', '+4321'))))
+        response = self.client.get(
+            "/api/v1/inbound/?{}".format(
+                urlencode((("from_addr", "+1234"), ("from_addr", "+4321")))
+            )
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -934,11 +935,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         When filtering on from_identity, only the inbounds with the specified
         identity ID should be returned.
         """
-        self.make_inbound('1234', from_identity='1234')
-        self.make_inbound('1234', from_identity='4321')
+        self.make_inbound("1234", from_identity="1234")
+        self.make_inbound("1234", from_identity="4321")
 
-        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
-            'from_identity': '1234'}))
+        response = self.client.get(
+            "/api/v1/inbound/?{}".format(urlencode({"from_identity": "1234"}))
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -950,13 +951,14 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         the from identity IDs, we should return all inbound messages that match
         one of the from identity IDs.
         """
-        self.make_inbound('1234', from_identity='1234')
-        self.make_inbound('1234', from_identity='4321')
-        self.make_inbound('1234', from_identity='1111')
+        self.make_inbound("1234", from_identity="1234")
+        self.make_inbound("1234", from_identity="4321")
+        self.make_inbound("1234", from_identity="1111")
 
-        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode((
-            ('from_identity', '1234'),
-            ('from_identity', '4321'))))
+        response = self.client.get(
+            "/api/v1/inbound/?{}".format(
+                urlencode((("from_identity", "1234"), ("from_identity", "4321")))
+            )
         )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -967,24 +969,18 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         We should be able to order the results of the Inbound list endpoint
         by the created_at timestamp.
         """
-        in1 = self.make_inbound('1234')
-        in2 = self.make_inbound('1234')
+        in1 = self.make_inbound("1234")
+        in2 = self.make_inbound("1234")
 
-        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
-            'ordering': 'created_at'}))
+        response = self.client.get(
+            "/api/v1/inbound/?{}".format(urlencode({"ordering": "created_at"}))
         )
-        self.assertEqual(
-            [i['id'] for i in response.data["results"]],
-            [in1, in2]
-        )
+        self.assertEqual([i["id"] for i in response.data["results"]], [in1, in2])
 
-        response = self.client.get('/api/v1/inbound/?{}'.format(urlencode({
-            'ordering': '-created_at'}))
+        response = self.client.get(
+            "/api/v1/inbound/?{}".format(urlencode({"ordering": "-created_at"}))
         )
-        self.assertEqual(
-            [i['id'] for i in response.data["results"]],
-            [in2, in1]
-        )
+        self.assertEqual([i["id"] for i in response.data["results"]], [in2, in1])
 
     @responses.activate
     def test_create_inbound_data_no_limit(self):
@@ -993,7 +989,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         the concurrency limiter should not decrement.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('020', '0c03d360')
+        self.add_identity_search_response("020", "0c03d360")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1006,13 +1002,14 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
-            "helper_metadata": {}
+            "helper_metadata": {},
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
+            response = self.client.post(
+                "/api/v1/inbound/",
+                json.dumps(post_inbound),
+                content_type="application/json",
+            )
             mock_method.assert_not_called()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1035,8 +1032,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         address in the identity store.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('020', '0c03d360', 0)
-        self.add_create_identity_response('0c03d360', '020')
+        self.add_identity_search_response("020", "0c03d360", 0)
+        self.add_create_identity_response("0c03d360", "020")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1049,13 +1046,14 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
-            "helper_metadata": {}
+            "helper_metadata": {},
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
+            response = self.client.post(
+                "/api/v1/inbound/",
+                json.dumps(post_inbound),
+                content_type="application/json",
+            )
             mock_method.assert_not_called()
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1077,7 +1075,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         URL is linked to should be set on the message.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('020', '0c03d360')
+        self.add_identity_search_response("020", "0c03d360")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1093,14 +1091,15 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "transport_name": "test_voice",
             "transport_type": "voice",
             "helper_metadata": {},
-            "session_event": "close"
+            "session_event": "close",
         }
-        channel = Channel.objects.get(channel_id='VUMI_VOICE')
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/VUMI_VOICE/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
+            response = self.client.post(
+                "/api/v1/inbound/VUMI_VOICE/",
+                json.dumps(post_inbound),
+                content_type="application/json",
+            )
             mock_method.assert_called_once_with(channel, out.created_at)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1122,7 +1121,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         channel specified in the URL as the channel on the inbound message.
         """
         self.add_metrics_response()
-        self.add_identity_search_response('020', '0c03d360')
+        self.add_identity_search_response("020", "0c03d360")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1138,14 +1137,15 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "transport_name": "test_voice",
             "transport_type": "voice",
             "helper_metadata": {},
-            "session_event": "close"
+            "session_event": "close",
         }
-        channel = Channel.objects.get(channel_id='JUNE_VOICE')
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/inbound/JUNE_VOICE/',
-                                        json.dumps(post_inbound),
-                                        content_type='application/json')
+        channel = Channel.objects.get(channel_id="JUNE_VOICE")
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
+            response = self.client.post(
+                "/api/v1/inbound/JUNE_VOICE/",
+                json.dumps(post_inbound),
+                content_type="application/json",
+            )
             mock_method.assert_called_once_with(channel, out.created_at)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1165,13 +1165,12 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         out = Outbound.objects.get(pk=existing_outbound)
         existing = self.make_inbound(out.vumi_message_id)
 
-        patch_inbound = {
-            "content": "Opt out"
-        }
-        response = self.client.patch('/api/v1/inbound/%s/' %
-                                     existing,
-                                     json.dumps(patch_inbound),
-                                     content_type='application/json')
+        patch_inbound = {"content": "Opt out"}
+        response = self.client.patch(
+            "/api/v1/inbound/%s/" % existing,
+            json.dumps(patch_inbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Inbound.objects.get(pk=existing)
@@ -1186,15 +1185,15 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
         existing = self.make_inbound(out.vumi_message_id)
-        response = self.client.delete('/api/v1/inbound/%s/' %
-                                      existing,
-                                      content_type='application/json')
+        response = self.client.delete(
+            "/api/v1/inbound/%s/" % existing, content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_204_NO_CONTENT)
 
         d = Inbound.objects.filter(id=existing).count()
         self.assertEqual(d, 0)
 
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_ack(self, mock_hook):
         existing = self.make_outbound()
 
@@ -1206,23 +1205,24 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "user_message_id": d.vumi_message_id,
             "helper_metadata": {},
             "timestamp": "2015-10-28 16:19:37.485612",
-            "sent_message_id": "external-id"
+            "sent_message_id": "external-id",
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(ack),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/events", json.dumps(ack), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata["ack_timestamp"],
-                         "2015-10-28 16:19:37.485612")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+        self.assertEqual(d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
+        self.assertEqual(
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_delivery_report(self, mock_hook):
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
@@ -1233,24 +1233,25 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "user_message_id": d.vumi_message_id,
             "helper_metadata": {},
             "timestamp": "2015-10-28 16:20:37.485612",
-            "sent_message_id": "external-id"
+            "sent_message_id": "external-id",
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(dr),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/events", json.dumps(dr), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 1)
-        self.assertEqual(d.metadata["delivery_timestamp"],
-                         "2015-10-28 16:20:37.485612")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+        self.assertEqual(d.metadata["delivery_timestamp"], "2015-10-28 16:20:37.485612")
+        self.assertEqual(
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_nack_first(self, mock_hook):
         self.add_metrics_response()
         existing = self.make_outbound()
@@ -1258,7 +1259,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
         nack = {
             "message_type": "event",
@@ -1268,21 +1269,24 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "user_message_id": d.vumi_message_id,
             "helper_metadata": {},
             "timestamp": "2015-10-28 16:20:37.485612",
-            "sent_message_id": "external-id"
+            "sent_message_id": "external-id",
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(nack),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/events", json.dumps(nack), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         c = Outbound.objects.get(pk=existing)
         self.assertEqual(c.delivered, False)
         self.assertEqual(c.attempts, 2)
-        self.assertEqual(c.metadata["nack_reason"],
-                         "no answer")
-        self.assertEqual(True, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123' "
-            "[session_event: new]"))
+        self.assertEqual(c.metadata["nack_reason"], "no answer")
+        self.assertEqual(
+            True,
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27123' "
+                "[session_event: new]"
+            ),
+        )
         mock_hook.assert_called_once_with(d)
         # TODO: Bring metrics back
         # self.assertEquals(
@@ -1299,7 +1303,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "content": "Simple outbound message",
             "delivered": False,
             "attempts": 3,
-            "metadata": {}
+            "metadata": {},
         }
         failed = Outbound.objects.create(**outbound_message)
         failed.last_sent_time = failed.created_at
@@ -1307,7 +1311,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
         nack = {
             "message_type": "event",
@@ -1317,21 +1321,24 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             "user_message_id": failed.vumi_message_id,
             "helper_metadata": {},
             "timestamp": "2015-10-28 16:20:37.485612",
-            "sent_message_id": "external-id"
+            "sent_message_id": "external-id",
         }
-        response = self.client.post('/api/v1/events',
-                                    json.dumps(nack),
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/events", json.dumps(nack), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=failed.id)
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
-        self.assertEqual(d.metadata["nack_reason"],
-                         "no answer")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"
-            "[session_event: new]"))
+        self.assertEqual(d.metadata["nack_reason"], "no answer")
+        self.assertEqual(
+            False,
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27123'"
+                "[session_event: new]"
+            ),
+        )
         # TODO: Bring metrics back
         # self.assertEquals(
         #     False,
@@ -1342,15 +1349,21 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_fire_delivery_hook_max_retries_not_reached(self):
-        '''
+        """
         This should not fire the hook
-        '''
+        """
         Hook.objects.create(
-            user=self.user, event='outbound.delivery_report',
-            target='http://example.com')
+            user=self.user,
+            event="outbound.delivery_report",
+            target="http://example.com",
+        )
         d = Outbound.objects.get(pk=self.make_outbound())
-        responses.add(responses.POST, 'http://example.com',
-                      status=200, content_type='application/json')
+        responses.add(
+            responses.POST,
+            "http://example.com",
+            status=200,
+            content_type="application/json",
+        )
 
         fire_delivery_hook(d)
 
@@ -1358,84 +1371,110 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
     @responses.activate
     def test_fire_delivery_hook_max_retries_reached(self):
-        '''
+        """
         This should call deliver_hook_wrapper to send data to a web hook
-        '''
+        """
         hook = Hook.objects.create(
-            user=self.user, event='outbound.delivery_report',
-            target='http://example.com')
+            user=self.user,
+            event="outbound.delivery_report",
+            target="http://example.com",
+        )
         d = Outbound.objects.get(pk=self.make_outbound())
         d.attempts = 3
         d.save()
-        responses.add(responses.POST, 'http://example.com',
-                      status=200, content_type='application/json')
+        responses.add(
+            responses.POST,
+            "http://example.com",
+            status=200,
+            content_type="application/json",
+        )
 
         fire_delivery_hook(d)
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
-                                     "target": hook.target})
-        self.assertEqual(r['data'], {"delivered": False, "to_addr": d.to_addr,
-                                     "outbound_id": str(d.id),
-                                     "identity": d.to_identity})
+        self.assertEqual(
+            r["hook"], {"id": hook.id, "event": hook.event, "target": hook.target}
+        )
+        self.assertEqual(
+            r["data"],
+            {
+                "delivered": False,
+                "to_addr": d.to_addr,
+                "outbound_id": str(d.id),
+                "identity": d.to_identity,
+            },
+        )
 
     @responses.activate
     def test_fire_delivery_hook_when_delivered(self):
-        '''
+        """
         This should call deliver_hook_wrapper to send data to a web hook
-        '''
+        """
         hook = Hook.objects.create(
-            user=self.user, event='outbound.delivery_report',
-            target='http://example.com')
+            user=self.user,
+            event="outbound.delivery_report",
+            target="http://example.com",
+        )
         d = Outbound.objects.get(pk=self.make_outbound())
         d.delivered = True
         d.save()
-        responses.add(responses.POST, 'http://example.com',
-                      status=200, content_type='application/json')
+        responses.add(
+            responses.POST,
+            "http://example.com",
+            status=200,
+            content_type="application/json",
+        )
 
         fire_delivery_hook(d)
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['hook'], {"id": hook.id, "event": hook.event,
-                                     "target": hook.target})
-        self.assertEqual(r['data'], {"delivered": True, "to_addr": d.to_addr,
-                                     "outbound_id": str(d.id),
-                                     "identity": d.to_identity})
+        self.assertEqual(
+            r["hook"], {"id": hook.id, "event": hook.event, "target": hook.target}
+        )
+        self.assertEqual(
+            r["data"],
+            {
+                "delivered": True,
+                "to_addr": d.to_addr,
+                "outbound_id": str(d.id),
+                "identity": d.to_identity,
+            },
+        )
 
 
 class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
     def test_event_missing_fields(self):
-        '''
+        """
         If there are missing fields in the request, and error response should
         be returned.
-        '''
+        """
         response = self.client.post(
-            '/api/v1/events/junebug', json.dumps({}),
-            content_type='application/json')
+            "/api/v1/events/junebug", json.dumps({}), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_event_no_message(self):
-        '''
+        """
         If we cannot find the message for the event, and error response should
         be returned.
-        '''
+        """
         ack = {
             "event_type": "submitted",
-            "message_id": 'bad-message-id',
+            "message_id": "bad-message-id",
             "channel-id": "channel-uuid-1234",
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(ack),
-            content_type='application/json')
+            "/api/v1/events/junebug", json.dumps(ack), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_ack(self, mock_hook):
-        '''A submitted event should update the message object accordingly.'''
+        """A submitted event should update the message object accordingly."""
         existing = self.make_outbound()
 
         d = Outbound.objects.get(pk=existing)
@@ -1448,32 +1487,33 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         }
 
         response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(ack),
-            content_type='application/json')
+            "/api/v1/events/junebug", json.dumps(ack), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEqual(
-            d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_nack(self, mock_hook):
-        '''
+        """
         A rejected event should retry and update the message object accordingly
-        '''
+        """
         self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
         nack = {
             "event_type": "rejected",
@@ -1483,23 +1523,26 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {"reason": "No answer"},
         }
         response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(nack),
-            content_type='application/json')
+            "/api/v1/events/junebug", json.dumps(nack), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         c = Outbound.objects.get(pk=existing)
         self.assertEqual(c.delivered, False)
         self.assertEqual(c.attempts, 2)
+        self.assertEqual(c.metadata["nack_reason"], {"reason": "No answer"})
         self.assertEqual(
-            c.metadata["nack_reason"], {"reason": "No answer"})
-        self.assertEqual(True, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123' "
-            "[session_event: new]"))
+            True,
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27123' "
+                "[session_event: new]"
+            ),
+        )
         mock_hook.assert_called_once_with(d)
 
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_delivery_succeeded(self, mock_hook):
-        '''A successful delivery should update the message accordingly.'''
+        """A successful delivery should update the message accordingly."""
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         dr = {
@@ -1510,25 +1553,26 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(dr),
-            content_type='application/json')
+            "/api/v1/events/junebug", json.dumps(dr), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEqual(
-            d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_delivery_failed(self, mock_hook):
-        '''
+        """
         A failed delivery should retry and update the message accordingly.
-        '''
+        """
         self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
@@ -1540,17 +1584,18 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "event_details": {},
         }
         response = self.client.post(
-            '/api/v1/events/junebug', json.dumps(dr),
-            content_type='application/json')
+            "/api/v1/events/junebug", json.dumps(dr), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 2)
+        self.assertEqual(d.metadata["delivery_failed_reason"], {})
         self.assertEqual(
-            d.metadata["delivery_failed_reason"], {})
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
@@ -1572,12 +1617,14 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "from": out.to_addr,
             "content": "Call delivered",
             "channel_id": "test_voice",
-            "channel_data": {"session_event": "close"}
+            "channel_data": {"session_event": "close"},
         }
-        self.add_identity_search_response(out.to_addr, '0c03d360')
-        response = self.client.post('/api/v1/inbound/',
-                                    json.dumps(post_inbound),
-                                    content_type='application/json')
+        self.add_identity_search_response(out.to_addr, "0c03d360")
+        response = self.client.post(
+            "/api/v1/inbound/",
+            json.dumps(post_inbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Inbound.objects.last()
@@ -1611,13 +1658,15 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
             "from": out.to_addr,
             "content": "Call delivered",
             "channel_id": "test_voice",
-            "channel_data": {"session_event": "close"}
+            "channel_data": {"session_event": "close"},
         }
-        self.add_identity_search_response(out.to_addr, '0c03d360')
-        self.add_create_identity_response('0c03d360', out.to_addr)
-        response = self.client.post('/api/v1/inbound/',
-                                    json.dumps(post_inbound),
-                                    content_type='application/json')
+        self.add_identity_search_response(out.to_addr, "0c03d360")
+        self.add_create_identity_response("0c03d360", out.to_addr)
+        response = self.client.post(
+            "/api/v1/inbound/",
+            json.dumps(post_inbound),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Inbound.objects.last()
@@ -1633,32 +1682,31 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
 
 
 class TestMetricsAPI(AuthenticatedAPITestCase):
-
     def test_metrics_read(self):
         # Setup
         # Execute
-        response = self.client.get('/api/metrics/',
-                                   content_type='application/json')
+        response = self.client.get("/api/metrics/", content_type="application/json")
         # Check
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(
-            response.data["metrics_available"], [
-                'inbounds.created.sum',
-                'vumimessage.tries.sum',
-                'vumimessage.maxretries.sum',
-                'vumimessage.obd.tries.sum',
-                'vumimessage.obd.successful.sum',
-                'vumimessage.obd.unsuccessful.sum',
-                'message.failures.sum',
-                'message.sent.sum',
-                'sender.send_message.connection_error.sum',
-                'sender.send_message.http_error.400.sum',
-                'sender.send_message.http_error.401.sum',
-                'sender.send_message.http_error.403.sum',
-                'sender.send_message.http_error.404.sum',
-                'sender.send_message.http_error.500.sum',
-                'sender.send_message.timeout.sum',
-            ]
+            response.data["metrics_available"],
+            [
+                "inbounds.created.sum",
+                "vumimessage.tries.sum",
+                "vumimessage.maxretries.sum",
+                "vumimessage.obd.tries.sum",
+                "vumimessage.obd.successful.sum",
+                "vumimessage.obd.unsuccessful.sum",
+                "message.failures.sum",
+                "message.sent.sum",
+                "sender.send_message.connection_error.sum",
+                "sender.send_message.http_error.400.sum",
+                "sender.send_message.http_error.401.sum",
+                "sender.send_message.http_error.403.sum",
+                "sender.send_message.http_error.404.sum",
+                "sender.send_message.http_error.500.sum",
+                "sender.send_message.timeout.sum",
+            ],
         )
 
     @responses.activate
@@ -1666,20 +1714,21 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
         # Setup
         # deactivate Testsession for this test
         self.session = None
-        responses.add(responses.POST,
-                      "http://metrics-url/metrics/",
-                      json={"foo": "bar"},
-                      status=200, content_type='application/json')
+        responses.add(
+            responses.POST,
+            "http://metrics-url/metrics/",
+            json={"foo": "bar"},
+            status=200,
+            content_type="application/json",
+        )
         # Execute
-        response = self.client.post('/api/metrics/',
-                                    content_type='application/json')
+        response = self.client.post("/api/metrics/", content_type="application/json")
         # Check
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["scheduled_metrics_initiated"], True)
 
 
 class TestMetrics(AuthenticatedAPITestCase):
-
     @responses.activate
     def test_direct_fire(self):
         """
@@ -1689,18 +1738,13 @@ class TestMetrics(AuthenticatedAPITestCase):
         # Setup
         self.add_metrics_response()
         # Execute
-        result = fire_metric.apply_async(kwargs={
-            "metric_name": 'foo.last',
-            "metric_value": 1,
-        })
+        result = fire_metric.apply_async(
+            kwargs={"metric_name": "foo.last", "metric_value": 1}
+        )
         # Check
         request = responses.calls[-1].request
-        self.check_request(
-            request, 'POST',
-            data={"foo.last": 1.0}
-        )
-        self.assertEqual(result.get(),
-                         "Fired metric <foo.last> with value <1.0>")
+        self.check_request(request, "POST", data={"foo.last": 1.0})
+        self.assertEqual(result.get(), "Fired metric <foo.last> with value <1.0>")
 
     @responses.activate
     def test_created_metrics(self):
@@ -1714,7 +1758,7 @@ class TestMetrics(AuthenticatedAPITestCase):
         post_save.connect(
             psh_fire_metrics_if_new,
             sender=Inbound,
-            dispatch_uid='psh_fire_metrics_if_new'
+            dispatch_uid="psh_fire_metrics_if_new",
         )
         # make outbound
         existing_outbound = self.make_outbound()
@@ -1724,28 +1768,23 @@ class TestMetrics(AuthenticatedAPITestCase):
         Inbound.objects.create(
             message_id=str(uuid.uuid4()),
             in_reply_to=out.vumi_message_id,
-            to_addr='+27123',
-            transport_name='test_voice',
+            to_addr="+27123",
+            transport_name="test_voice",
             helper_metadata={},
         )
 
         # Check
         request = responses.calls[-1].request
-        self.check_request(
-            request, 'POST',
-            data={"inbounds.created.sum": 1.0}
-        )
+        self.check_request(request, "POST", data={"inbounds.created.sum": 1.0})
         # remove post_save hooks to prevent teardown errors
         post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
 
 
 class TestHealthcheckAPI(AuthenticatedAPITestCase):
-
     def test_healthcheck_read(self):
         # Setup
         # Execute
-        response = self.client.get('/api/health/',
-                                   content_type='application/json')
+        response = self.client.get("/api/health/", content_type="application/json")
         # Check
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data["up"], True)
@@ -1753,95 +1792,94 @@ class TestHealthcheckAPI(AuthenticatedAPITestCase):
 
 
 class TestUserCreation(AuthenticatedAPITestCase):
-
     def test_create_user_and_token(self):
         # Setup
         user_request = {"email": "test@example.org"}
         # Execute
-        request = self.adminclient.post('/api/v1/user/token/', user_request)
-        token = request.json().get('token', None)
+        request = self.adminclient.post("/api/v1/user/token/", user_request)
+        token = request.json().get("token", None)
         # Check
-        self.assertIsNotNone(
-            token, "Could not receive authentication token on post.")
+        self.assertIsNotNone(token, "Could not receive authentication token on post.")
         self.assertEqual(
-            request.status_code, 201,
+            request.status_code,
+            201,
             "Status code on /api/v1/user/token/ was %s (should be 201)."
-            % request.status_code)
+            % request.status_code,
+        )
 
     def test_create_user_and_token_fail_nonadmin(self):
         # Setup
         user_request = {"email": "test@example.org"}
         # Execute
-        request = self.client.post('/api/v1/user/token/', user_request)
-        error = request.json().get('detail', None)
+        request = self.client.post("/api/v1/user/token/", user_request)
+        error = request.json().get("detail", None)
         # Check
-        self.assertIsNotNone(
-            error, "Could not receive error on post.")
+        self.assertIsNotNone(error, "Could not receive error on post.")
         self.assertEqual(
-            error, "You do not have permission to perform this action.",
-            "Error message was unexpected: %s."
-            % error)
+            error,
+            "You do not have permission to perform this action.",
+            "Error message was unexpected: %s." % error,
+        )
 
     def test_create_user_and_token_not_created(self):
         # Setup
         user_request = {"email": "test@example.org"}
         # Execute
-        request = self.adminclient.post('/api/v1/user/token/', user_request)
-        token = request.json().get('token', None)
+        request = self.adminclient.post("/api/v1/user/token/", user_request)
+        token = request.json().get("token", None)
         # And again, to get the same token
-        request2 = self.adminclient.post('/api/v1/user/token/', user_request)
-        token2 = request2.json().get('token', None)
+        request2 = self.adminclient.post("/api/v1/user/token/", user_request)
+        token2 = request2.json().get("token", None)
 
         # Check
         self.assertEqual(
-            token, token2,
-            "Tokens are not equal, should be the same as not recreated.")
+            token, token2, "Tokens are not equal, should be the same as not recreated."
+        )
 
     def test_create_user_new_token_nonadmin(self):
         # Setup
         user_request = {"email": "test@example.org"}
-        request = self.adminclient.post('/api/v1/user/token/', user_request)
-        token = request.json().get('token', None)
+        request = self.adminclient.post("/api/v1/user/token/", user_request)
+        token = request.json().get("token", None)
         cleanclient = APIClient()
-        cleanclient.credentials(HTTP_AUTHORIZATION='Token %s' % token)
+        cleanclient.credentials(HTTP_AUTHORIZATION="Token %s" % token)
         # Execute
-        request = cleanclient.post('/api/v1/user/token/', user_request)
-        error = request.json().get('detail', None)
+        request = cleanclient.post("/api/v1/user/token/", user_request)
+        error = request.json().get("detail", None)
         # Check
         # new user should not be admin
-        self.assertIsNotNone(
-            error, "Could not receive error on post.")
+        self.assertIsNotNone(error, "Could not receive error on post.")
         self.assertEqual(
-            error, "You do not have permission to perform this action.",
-            "Error message was unexpected: %s."
-            % error)
+            error,
+            "You do not have permission to perform this action.",
+            "Error message was unexpected: %s." % error,
+        )
 
 
 class TestFormatter(TestCase):
-
-    @override_settings(
-        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.noop')
+    @override_settings(VOICE_TO_ADDR_FORMATTER="message_sender.formatters.noop")
     def test_noop(self):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
-        self.assertEqual(cb('12345'), '12345')
+        self.assertEqual(cb("12345"), "12345")
 
     @override_settings(
-        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_voice')
+        VOICE_TO_ADDR_FORMATTER="message_sender.formatters.vas2nets_voice"
+    )
     def test_vas2nets_voice(self):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
-        self.assertEqual(cb('+23456'), '9056')
-        self.assertEqual(cb('23456'), '9056')
+        self.assertEqual(cb("+23456"), "9056")
+        self.assertEqual(cb("23456"), "9056")
 
     @override_settings(
-        VOICE_TO_ADDR_FORMATTER='message_sender.formatters.vas2nets_text')
+        VOICE_TO_ADDR_FORMATTER="message_sender.formatters.vas2nets_text"
+    )
     def test_vas2nets_text(self):
         cb = load_callable(settings.VOICE_TO_ADDR_FORMATTER)
-        self.assertEqual(cb('+23456'), '23456')
-        self.assertEqual(cb('23456'), '23456')
+        self.assertEqual(cb("+23456"), "23456")
+        self.assertEqual(cb("23456"), "23456")
 
 
 class TestFactory(TestCase):
-
     def setUp(self):
         super(TestFactory, self).setUp()
         make_channels()
@@ -1850,725 +1888,794 @@ class TestFactory(TestCase):
         channel = Channel.objects.get(channel_id="JUNE_TEXT")
         message_sender = MessageClientFactory.create(channel)
         self.assertTrue(isinstance(message_sender, JunebugApiSender))
-        self.assertEqual(message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.auth, ('username', 'password'))
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.auth, ("username", "password"))
 
     def test_create_junebug_voice(self):
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertTrue(isinstance(message_sender, JunebugApiSender))
-        self.assertEqual(message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.auth, ('username', 'password'))
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.auth, ("username", "password"))
 
     def test_create_vumi_text(self):
         channel = Channel.objects.get(channel_id="VUMI_TEXT")
         message_sender = MessageClientFactory.create(channel)
         self.assertTrue(isinstance(message_sender, HttpApiSender))
-        self.assertEqual(
-            message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.account_key, 'account-key')
-        self.assertEqual(message_sender.conversation_key, 'conv-key')
-        self.assertEqual(message_sender.conversation_token, 'account-token')
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.account_key, "account-key")
+        self.assertEqual(message_sender.conversation_key, "conv-key")
+        self.assertEqual(message_sender.conversation_token, "account-token")
 
     def test_create_vumi_voice(self):
         channel = Channel.objects.get(channel_id="VUMI_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertTrue(isinstance(message_sender, HttpApiSender))
-        self.assertEqual(
-            message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.account_key, 'account-key')
-        self.assertEqual(message_sender.conversation_key, 'conv-key')
-        self.assertEqual(message_sender.conversation_token, 'account-token')
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.account_key, "account-key")
+        self.assertEqual(message_sender.conversation_key, "conv-key")
+        self.assertEqual(message_sender.conversation_token, "account-token")
 
     def test_create_http_api_voice(self):
         channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertTrue(isinstance(message_sender, HttpApiSender))
-        self.assertEqual(message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.auth, ('username', 'password'))
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.auth, ("username", "password"))
 
     def test_create_http_api_text(self):
         channel = Channel.objects.get(channel_id="HTTP_API_TEXT")
         message_sender = MessageClientFactory.create(channel)
         self.assertTrue(isinstance(message_sender, HttpApiSender))
-        self.assertEqual(message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.auth, ('username', 'password'))
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.auth, ("username", "password"))
 
     def test_create_no_backend_type_specified_default(self):
-        '''
+        """
         If no message backend is specified, it should use the default channel.
-        '''
+        """
         message_sender = MessageClientFactory.create()
         self.assertTrue(isinstance(message_sender, JunebugApiSender))
-        self.assertEqual(message_sender.api_url, 'http://example.com/')
-        self.assertEqual(message_sender.auth, ('username', 'password'))
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.auth, ("username", "password"))
 
 
 class TestGenericHttpApiSender(TestCase):
-
     def setUp(self):
         super(TestGenericHttpApiSender, self).setUp()
         make_channels()
 
     @responses.activate
     def test_send_text(self):
-        '''
+        """
         Using the send_text function should send a request to the api with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="HTTP_API_TEXT")
         message_sender = MessageClientFactory.create(channel)
-        res = message_sender.send_text('+1234', 'Test', session_event='new')
+        res = message_sender.send_text("+1234", "Test", session_event="new")
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['to'], '+1234')
-        self.assertEqual(r['from'], '+4321')
-        self.assertEqual(r['content'], 'Test')
-        self.assertEqual(r['channel_data']['session_event'], 'new')
+        self.assertEqual(r["to"], "+1234")
+        self.assertEqual(r["from"], "+4321")
+        self.assertEqual(r["content"], "Test")
+        self.assertEqual(r["channel_data"]["session_event"], "new")
 
     @responses.activate
     def test_send_voice(self):
-        '''
+        """
         Using the send_voice function should send a request to the api with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', '', speech_url='http://sbm.com/test.mp3',
-            session_event='new')
+            "+1234", "", speech_url="http://sbm.com/test.mp3", session_event="new"
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['to'], '+1234')
-        self.assertEqual(r['from'], '+4321')
-        self.assertEqual(r['content'], '')
-        self.assertEqual(r['channel_data']['session_event'], 'new')
-        self.assertEqual(r['channel_data']['voice']['speech_url'],
-                         'http://sbm.com/test.mp3')
+        self.assertEqual(r["to"], "+1234")
+        self.assertEqual(r["from"], "+4321")
+        self.assertEqual(r["content"], "")
+        self.assertEqual(r["channel_data"]["session_event"], "new")
+        self.assertEqual(
+            r["channel_data"]["voice"]["speech_url"], "http://sbm.com/test.mp3"
+        )
 
     @responses.activate
     def test_send_voice_multiple(self):
-        '''
+        """
         Using the send_voice function should send a request to the api with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', '', speech_url=['http://sbm.com/test1.mp3',
-                                     'http://sbm.com/test2.mp3'],
-            session_event='new')
+            "+1234",
+            "",
+            speech_url=["http://sbm.com/test1.mp3", "http://sbm.com/test2.mp3"],
+            session_event="new",
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['to'], '+1234')
-        self.assertEqual(r['from'], '+4321')
-        self.assertEqual(r['content'], '')
-        self.assertEqual(r['channel_data']['session_event'], 'new')
+        self.assertEqual(r["to"], "+1234")
+        self.assertEqual(r["from"], "+4321")
+        self.assertEqual(r["content"], "")
+        self.assertEqual(r["channel_data"]["session_event"], "new")
         self.assertEqual(
-            r['channel_data']['voice']['speech_url'],
-            ['http://sbm.com/test1.mp3', 'http://sbm.com/test2.mp3'])
+            r["channel_data"]["voice"]["speech_url"],
+            ["http://sbm.com/test1.mp3", "http://sbm.com/test2.mp3"],
+        )
 
     @responses.activate
     def test_send_voice_override_payload(self):
-        '''
+        """
         Using the send_voice function should send a request to the api with the
         correct JSON data based on the override_payload setting in the channel.
         The full path should be stripped if the STRIP_FILEPATH key is present.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         http_channel_override_payload = {
-            'channel_id': 'HTTP_API_VOICE_OP',
-            'channel_type': Channel.HTTP_API_TYPE,
-            'default': False,
-            'configuration': {
-                'HTTP_API_URL': 'http://example.com/',
-                'HTTP_API_AUTH': ('username', 'password'),
-                'HTTP_API_FROM': '+4321',
-                'OVERRIDE_PAYLOAD': {
-                    'mobile_no': 'to',
-                    'filename': 'channel_data.voice.speech_url',
-                    'nested_data': {'from_addr': 'from', 'unknown': 'unknown'}
+            "channel_id": "HTTP_API_VOICE_OP",
+            "channel_type": Channel.HTTP_API_TYPE,
+            "default": False,
+            "configuration": {
+                "HTTP_API_URL": "http://example.com/",
+                "HTTP_API_AUTH": ("username", "password"),
+                "HTTP_API_FROM": "+4321",
+                "OVERRIDE_PAYLOAD": {
+                    "mobile_no": "to",
+                    "filename": "channel_data.voice.speech_url",
+                    "nested_data": {"from_addr": "from", "unknown": "unknown"},
                 },
-                'STRIP_FILEPATH': 'true'
+                "STRIP_FILEPATH": "true",
             },
-            'concurrency_limit': 2,
-            'message_timeout': 20,
-            'message_delay': 10
+            "concurrency_limit": 2,
+            "message_timeout": 20,
+            "message_delay": 10,
         }
         channel = Channel.objects.create(**http_channel_override_payload)
 
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', '', speech_url='http://sbm.com/test.mp3',
-            session_event='new')
+            "+1234", "", speech_url="http://sbm.com/test.mp3", session_event="new"
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['mobile_no'], '+1234')
-        self.assertEqual(r['nested_data']['from_addr'], '+4321')
-        self.assertEqual(r['nested_data']['unknown'], 'unknown')
-        self.assertEqual(r['filename'], 'test.mp3')
+        self.assertEqual(r["mobile_no"], "+1234")
+        self.assertEqual(r["nested_data"]["from_addr"], "+4321")
+        self.assertEqual(r["nested_data"]["unknown"], "unknown")
+        self.assertEqual(r["filename"], "test.mp3")
 
     @responses.activate
     def test_send_voice_override_payload_multiple_urls(self):
-        '''
+        """
         Using the send_voice function should send a request to the api with the
         correct JSON data based on the override_payload setting in the channel.
         The full path should be stripped if the STRIP_FILEPATH key is present,
         even if there is a list of urls.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         http_channel_override_payload = {
-            'channel_id': 'HTTP_API_VOICE_OP',
-            'channel_type': Channel.HTTP_API_TYPE,
-            'default': False,
-            'configuration': {
-                'HTTP_API_URL': 'http://example.com/',
-                'HTTP_API_AUTH': ('username', 'password'),
-                'HTTP_API_FROM': '+4321',
-                'OVERRIDE_PAYLOAD': {
-                    'mobile_no': 'to',
-                    'filename': 'channel_data.voice.speech_url',
-                    'nested_data': {'from_addr': 'from', 'unknown': 'unknown'}
+            "channel_id": "HTTP_API_VOICE_OP",
+            "channel_type": Channel.HTTP_API_TYPE,
+            "default": False,
+            "configuration": {
+                "HTTP_API_URL": "http://example.com/",
+                "HTTP_API_AUTH": ("username", "password"),
+                "HTTP_API_FROM": "+4321",
+                "OVERRIDE_PAYLOAD": {
+                    "mobile_no": "to",
+                    "filename": "channel_data.voice.speech_url",
+                    "nested_data": {"from_addr": "from", "unknown": "unknown"},
                 },
-                'STRIP_FILEPATH': 'true'
+                "STRIP_FILEPATH": "true",
             },
-            'concurrency_limit': 2,
-            'message_timeout': 20,
-            'message_delay': 10
+            "concurrency_limit": 2,
+            "message_timeout": 20,
+            "message_delay": 10,
         }
         channel = Channel.objects.create(**http_channel_override_payload)
 
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', '', speech_url=[
-                'http://sbm.com/test1.mp3', 'http://sbm.com/test2.mp3'],
-            session_event='new')
+            "+1234",
+            "",
+            speech_url=["http://sbm.com/test1.mp3", "http://sbm.com/test2.mp3"],
+            session_event="new",
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['mobile_no'], '+1234')
-        self.assertEqual(r['nested_data']['from_addr'], '+4321')
-        self.assertEqual(r['nested_data']['unknown'], 'unknown')
-        self.assertEqual(r['filename'], ['test1.mp3', 'test2.mp3'])
+        self.assertEqual(r["mobile_no"], "+1234")
+        self.assertEqual(r["nested_data"]["from_addr"], "+4321")
+        self.assertEqual(r["nested_data"]["unknown"], "unknown")
+        self.assertEqual(r["filename"], ["test1.mp3", "test2.mp3"])
 
     @responses.activate
     def test_send_voice_strip_filepath_language(self):
-        '''
+        """
         Using the send_voice function should send a request to the api with the
         correct JSON data. The full path should be stripped if the
         STRIP_FILEPATH key is present, even if there is a list of urls. If
         there is a language code present it should not be removed.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         http_channel_override_payload = {
-            'channel_id': 'HTTP_API_VOICE_OP',
-            'channel_type': Channel.HTTP_API_TYPE,
-            'default': False,
-            'configuration': {
-                'HTTP_API_URL': 'http://example.com/',
-                'HTTP_API_AUTH': ('username', 'password'),
-                'HTTP_API_FROM': '+4321',
-                'STRIP_FILEPATH': 'true'
+            "channel_id": "HTTP_API_VOICE_OP",
+            "channel_type": Channel.HTTP_API_TYPE,
+            "default": False,
+            "configuration": {
+                "HTTP_API_URL": "http://example.com/",
+                "HTTP_API_AUTH": ("username", "password"),
+                "HTTP_API_FROM": "+4321",
+                "STRIP_FILEPATH": "true",
             },
-            'concurrency_limit': 2,
-            'message_timeout': 20,
-            'message_delay': 10
+            "concurrency_limit": 2,
+            "message_timeout": 20,
+            "message_delay": 10,
         }
         channel = Channel.objects.create(**http_channel_override_payload)
 
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', '', speech_url=[
-                'http://sbm.com/eng_ZA/test1.mp3',
-                'http://sbm.com/zul_ZA/nested/test2.mp3',
-                'http://sbm.com/test3.mp3'],
-            session_event='new')
+            "+1234",
+            "",
+            speech_url=[
+                "http://sbm.com/eng_ZA/test1.mp3",
+                "http://sbm.com/zul_ZA/nested/test2.mp3",
+                "http://sbm.com/test3.mp3",
+            ],
+            session_event="new",
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
         self.assertEqual(
-            r['channel_data']['voice']['speech_url'],
-            ['eng_ZA/test1.mp3', 'zul_ZA/nested/test2.mp3', 'test3.mp3'])
+            r["channel_data"]["voice"]["speech_url"],
+            ["eng_ZA/test1.mp3", "zul_ZA/nested/test2.mp3", "test3.mp3"],
+        )
 
     @responses.activate
     def test_send_voice_strip_filepath_unicode(self):
-        '''
+        """
         Using the send_voice function should send a request to the api with the
         correct JSON data. The full path should be stripped if the
         STRIP_FILEPATH key is present, even if it is a unicode.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         http_channel_override_payload = {
-            'channel_id': 'HTTP_API_VOICE_OP',
-            'channel_type': Channel.HTTP_API_TYPE,
-            'default': False,
-            'configuration': {
-                'HTTP_API_URL': 'http://example.com/',
-                'HTTP_API_AUTH': ('username', 'password'),
-                'HTTP_API_FROM': '+4321',
-                'STRIP_FILEPATH': 'true'
+            "channel_id": "HTTP_API_VOICE_OP",
+            "channel_type": Channel.HTTP_API_TYPE,
+            "default": False,
+            "configuration": {
+                "HTTP_API_URL": "http://example.com/",
+                "HTTP_API_AUTH": ("username", "password"),
+                "HTTP_API_FROM": "+4321",
+                "STRIP_FILEPATH": "true",
             },
-            'concurrency_limit': 2,
-            'message_timeout': 20,
-            'message_delay': 10
+            "concurrency_limit": 2,
+            "message_timeout": 20,
+            "message_delay": 10,
         }
         channel = Channel.objects.create(**http_channel_override_payload)
 
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', '', speech_url=u'http://sbm.com/test.mp3',
-            session_event='new')
+            "+1234", "", speech_url=u"http://sbm.com/test.mp3", session_event="new"
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(
-            r['channel_data']['voice']['speech_url'], 'test.mp3')
+        self.assertEqual(r["channel_data"]["voice"]["speech_url"], "test.mp3")
 
     def test_fire_metric(self):
-        '''
+        """
         Using the fire_metric function should result in an exception being
         raised, since the generic http api doesn't support metrics sending.
-        '''
+        """
         channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertRaises(
-            HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
-            3.0, agg='sum')
+            HttpApiSenderException,
+            message_sender.fire_metric,
+            "foo.bar",
+            3.0,
+            agg="sum",
+        )
 
     def test_send_image(self):
-        '''
+        """
         Using the send_image function should result in an exception being
         raised, since the generic http api doesn't support image sending.
-        '''
+        """
         channel = Channel.objects.get(channel_id="HTTP_API_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertRaises(
-            HttpApiSenderException, message_sender.send_image, '+1234', 'Test',
-            image_url='http://test.jpg')
+            HttpApiSenderException,
+            message_sender.send_image,
+            "+1234",
+            "Test",
+            image_url="http://test.jpg",
+        )
 
 
 class TestJunebugAPISender(TestCase):
-
     def setUp(self):
         super(TestJunebugAPISender, self).setUp()
         make_channels()
 
     @responses.activate
     def test_send_text(self):
-        '''
+        """
         Using the send_text function should send a request to Junebug with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="JUNE_TEXT")
         message_sender = MessageClientFactory.create(channel)
-        res = message_sender.send_text('+1234', 'Test', session_event='resume')
+        res = message_sender.send_text("+1234", "Test", session_event="resume")
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['to'], '+1234')
-        self.assertEqual(r['from'], '+4321')
-        self.assertEqual(r['content'], 'Test')
-        self.assertEqual(r['channel_data']['session_event'], 'resume')
-        self.assertEqual(
-            r['event_url'], 'http://example.com/api/v1/events/junebug')
+        self.assertEqual(r["to"], "+1234")
+        self.assertEqual(r["from"], "+4321")
+        self.assertEqual(r["content"], "Test")
+        self.assertEqual(r["channel_data"]["session_event"], "resume")
+        self.assertEqual(r["event_url"], "http://example.com/api/v1/events/junebug")
 
     @responses.activate
     def test_send_voice(self):
-        '''
+        """
         Using the send_voice function should send a request to Junebug with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/",
-            json={"result": {"message_id": "message-uuid"}}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/",
+            json={"result": {"message_id": "message-uuid"}},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', 'Test', speech_url='http://test.mp3', wait_for='#',
-            session_event='resume')
+            "+1234",
+            "Test",
+            speech_url="http://test.mp3",
+            wait_for="#",
+            session_event="resume",
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body)
-        self.assertEqual(r['to'], '+1234')
-        self.assertEqual(r['from'], '+4321')
-        self.assertEqual(r['content'], 'Test')
-        self.assertEqual(r['channel_data']['session_event'], 'resume')
-        self.assertEqual(
-            r['channel_data']['voice']['speech_url'], 'http://test.mp3')
-        self.assertEqual(r['channel_data']['voice']['wait_for'], '#')
-        self.assertEqual(
-            r['event_url'], 'http://example.com/api/v1/events/junebug')
+        self.assertEqual(r["to"], "+1234")
+        self.assertEqual(r["from"], "+4321")
+        self.assertEqual(r["content"], "Test")
+        self.assertEqual(r["channel_data"]["session_event"], "resume")
+        self.assertEqual(r["channel_data"]["voice"]["speech_url"], "http://test.mp3")
+        self.assertEqual(r["channel_data"]["voice"]["wait_for"], "#")
+        self.assertEqual(r["event_url"], "http://example.com/api/v1/events/junebug")
 
     def test_fire_metric(self):
-        '''
+        """
         Using the fire_metric function should result in an exception being
         raised, since Junebug doesn't support metrics sending.
-        '''
+        """
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
         message_sender = MessageClientFactory.create(channel)
         self.assertRaises(
-            HttpApiSenderException, message_sender.fire_metric, 'foo.bar',
-            3.0, agg='sum')
+            HttpApiSenderException,
+            message_sender.fire_metric,
+            "foo.bar",
+            3.0,
+            agg="sum",
+        )
 
 
 class TestWassupAPISender(TestCase):
-
     def setUp(self):
         super(TestWassupAPISender, self).setUp()
         make_channels()
 
     @responses.activate
     def test_send_text(self):
-        '''
+        """
         Using the send_text function should send a request to wassup with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/api/v1/hsms/the-uuid/send/",
-            json={"uuid": "message-uuid"}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/api/v1/hsms/the-uuid/send/",
+            json={"uuid": "message-uuid"},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="WASSUP_API")
         message_sender = MessageClientFactory.create(channel)
-        res = message_sender.send_text('+1234', 'Test', session_event='resume')
+        res = message_sender.send_text("+1234", "Test", session_event="resume")
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body.decode())
-        self.assertEqual(r['to_addr'], '+1234')
-        self.assertEqual(r['localizable_params'], [{"default": "Test"}])
+        self.assertEqual(r["to_addr"], "+1234")
+        self.assertEqual(r["localizable_params"], [{"default": "Test"}])
 
     @responses.activate
     def test_send_non_hsm_text(self):
-        '''
+        """
         Using the send_text function should send a non hsm request to wassup
         with the correct JSON data.
-        '''
+        """
         responses.add(
-            responses.POST, "http://example.com/api/v1/messages/",
-            json={"uuid": "message-uuid"}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="WASSUP_API_NON_HSM")
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_text(
-            '+1234', 'Test non HSM message', session_event='resume')
+            "+1234", "Test non HSM message", session_event="resume"
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [r] = responses.calls
         r = json.loads(r.request.body.decode())
-        self.assertEqual(r['to_addr'], '+1234')
-        self.assertEqual(r['number'], '+4321')
-        self.assertEqual(r['content'], 'Test non HSM message')
+        self.assertEqual(r["to_addr"], "+1234")
+        self.assertEqual(r["number"], "+4321")
+        self.assertEqual(r["content"], "Test non HSM message")
 
     @responses.activate
     def test_send_image(self):
-        '''
+        """
         Using the send_image function should send a request to wassup with the
         correct JSON data.
-        '''
+        """
         responses.add(
-            responses.GET, "http://test.jpg", body='', status=200,
-            content_type='image/jpeg', stream=True)
+            responses.GET,
+            "http://test.jpg",
+            body="",
+            status=200,
+            content_type="image/jpeg",
+            stream=True,
+        )
 
         responses.add(
-            responses.POST, "http://example.com/api/v1/messages/",
-            json={"uuid": "message-uuid"}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="WASSUP_API")
         message_sender = MessageClientFactory.create(channel)
-        res = message_sender.send_image(
-            '+1234', 'Test', image_url='http://test.jpg')
+        res = message_sender.send_image("+1234", "Test", image_url="http://test.jpg")
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [jpg, r] = responses.calls
         body = r.request.body.decode()
-        self.assertTrue('+1234' in body)
-        self.assertTrue('+4321' in body)
-        self.assertTrue('image_attachment' in body)
+        self.assertTrue("+1234" in body)
+        self.assertTrue("+4321" in body)
+        self.assertTrue("image_attachment" in body)
         self.assertTrue('filename="test.jpg"' in body)
-        self.assertTrue('Content-Type: image/jpeg' in body)
+        self.assertTrue("Content-Type: image/jpeg" in body)
 
     @responses.activate
     def test_send_voice(self):
-        '''
+        """
         Using the send_voice function should send a request to wassup with the
         correct JSON data.
-        '''
+        """
 
         responses.add(
-            responses.GET, "http://test.mp3", body='', status=200,
-            content_type='audio/mp3', stream=True)
+            responses.GET,
+            "http://test.mp3",
+            body="",
+            status=200,
+            content_type="audio/mp3",
+            stream=True,
+        )
 
         responses.add(
-            responses.POST, "http://example.com/api/v1/messages/",
-            json={"uuid": "message-uuid"}, status=200,
-            content_type='application/json')
+            responses.POST,
+            "http://example.com/api/v1/messages/",
+            json={"uuid": "message-uuid"},
+            status=200,
+            content_type="application/json",
+        )
 
         channel = Channel.objects.get(channel_id="WASSUP_API")
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            '+1234', 'Test', speech_url='http://test.mp3', wait_for='#',
-            session_event='resume')
+            "+1234",
+            "Test",
+            speech_url="http://test.mp3",
+            wait_for="#",
+            session_event="resume",
+        )
 
-        self.assertEqual(res['message_id'], 'message-uuid')
+        self.assertEqual(res["message_id"], "message-uuid")
 
         [mp3, r] = responses.calls
         body = r.request.body.decode()
-        self.assertTrue('+1234' in body)
-        self.assertTrue('+4321' in body)
-        self.assertTrue('audio_attachment' in body)
+        self.assertTrue("+1234" in body)
+        self.assertTrue("+4321" in body)
+        self.assertTrue("audio_attachment" in body)
 
     def test_fire_metric(self):
-        '''
+        """
         Using the fire_metric function should result in an exception being
         raised, since wassup doesn't support metrics sending.
-        '''
+        """
         channel = Channel.objects.get(channel_id="WASSUP_API")
         message_sender = MessageClientFactory.create(channel)
         self.assertRaises(
-            WassupApiSenderException, message_sender.fire_metric, 'foo.bar',
-            3.0, agg='sum')
+            WassupApiSenderException,
+            message_sender.fire_metric,
+            "foo.bar",
+            3.0,
+            agg="sum",
+        )
 
 
 class TestWassupEventsApi(AuthenticatedAPITestCase):
-
     def test_event_missing_fields(self):
-        '''
+        """
         If there are missing fields in the request, and error response should
         be returned.
-        '''
+        """
         response = self.client.post(
-            reverse('wassup-events'), json.dumps({}),
-            content_type='application/json')
-        self.assertEqual(json.loads(response.content.decode()), {
-            'accepted': False,
-            'reason': 'Unable to handle hook None',
-        })
+            reverse("wassup-events"), json.dumps({}), content_type="application/json"
+        )
+        self.assertEqual(
+            json.loads(response.content.decode()),
+            {"accepted": False, "reason": "Unable to handle hook None"},
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_event_no_message(self):
-        '''
+        """
         If we cannot find the message for the event, and error response should
         be returned.
-        '''
+        """
         event = {
-            'hook': {
-                'event': 'message.direct_outbound.status',
-            },
-            'data': {
-                'message_uuid': 'bad-message-id',
-                'status': 'sent',
-            }
+            "hook": {"event": "message.direct_outbound.status"},
+            "data": {"message_uuid": "bad-message-id", "status": "sent"},
         }
         response = self.client.post(
-            reverse('wassup-events'), json.dumps(event),
-            content_type='application/json')
+            reverse("wassup-events"), json.dumps(event), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertEqual(json.loads(response.content.decode()), {
-            'accepted': False,
-            'reason': 'Unable to find message for message_uuid',
-        })
+        self.assertEqual(
+            json.loads(response.content.decode()),
+            {"accepted": False, "reason": "Unable to find message for message_uuid"},
+        )
 
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_ack(self, mock_hook):
-        '''A submitted event should update the message object accordingly.'''
+        """A submitted event should update the message object accordingly."""
         existing = self.make_outbound()
 
         d = Outbound.objects.get(pk=existing)
         event = {
-            "hook": {
-                "event": "message.direct_outbound.status"
-            },
+            "hook": {"event": "message.direct_outbound.status"},
             "data": {
                 "message_uuid": d.vumi_message_id,
                 "status": "sent",
                 "timestamp": "2018-05-04T16:00:18Z",
-            }
+            },
         }
         response = self.client.post(
-            reverse('wassup-events'), json.dumps(event),
-            content_type='application/json')
+            reverse("wassup-events"), json.dumps(event), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
         self.assertEqual(
-            d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_nack(self, mock_hook):
-        '''
+        """
         A rejected event should retry and update the message object accordingly
-        '''
+        """
         self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
         event = {
-            'hook': {
-                'event': 'message.direct_outbound.status',
+            "hook": {"event": "message.direct_outbound.status"},
+            "data": {
+                "status": "unsent",
+                "message_uuid": d.vumi_message_id,
+                "timestamp": "2018-05-04T16:00:18Z",
+                "description": "stars not aligned",
             },
-            'data': {
-                'status': 'unsent',
-                'message_uuid': d.vumi_message_id,
-                'timestamp': "2018-05-04T16:00:18Z",
-                'description': 'stars not aligned',
-            }
         }
 
         response = self.client.post(
-            reverse('wassup-events'), json.dumps(event),
-            content_type='application/json')
+            reverse("wassup-events"), json.dumps(event), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         c = Outbound.objects.get(pk=existing)
         self.assertEqual(c.delivered, False)
         self.assertEqual(c.attempts, 2)
         self.assertEqual(
-            c.metadata["nack_reason"], {"description": "stars not aligned"})
-        self.assertEqual(True, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123' "
-            "[session_event: new]"))
+            c.metadata["nack_reason"], {"description": "stars not aligned"}
+        )
+        self.assertEqual(
+            True,
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27123' "
+                "[session_event: new]"
+            ),
+        )
         mock_hook.assert_called_once_with(d)
 
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_delivery_succeeded(self, mock_hook):
-        '''A successful delivery should update the message accordingly.'''
+        """A successful delivery should update the message accordingly."""
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         event = {
-            "hook": {
-                "event": "message.direct_outbound.status",
-            },
+            "hook": {"event": "message.direct_outbound.status"},
             "data": {
                 "status": "delivered",
                 "message_uuid": d.vumi_message_id,
-                'timestamp': "2018-05-04T16:00:18Z",
-            }
+                "timestamp": "2018-05-04T16:00:18Z",
+            },
         }
         response = self.client.post(
-            reverse('wassup-events'), json.dumps(event),
-            content_type='application/json')
+            reverse("wassup-events"), json.dumps(event), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
         self.assertEqual(
-            d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("message_sender.views.fire_delivery_hook")
     def test_event_delivery_failed(self, mock_hook):
-        '''
+        """
         A failed delivery should retry and update the message accordingly.
-        '''
+        """
         self.add_metrics_response()
         existing = self.make_outbound()
         d = Outbound.objects.get(pk=existing)
         event = {
-            "hook": {
-                "event": "message.direct_outbound.status",
-            },
+            "hook": {"event": "message.direct_outbound.status"},
             "data": {
                 "message_uuid": d.vumi_message_id,
                 "status": "failed",
                 "description": "computer said no",
                 "timestamp": "2018-05-04T16:00:18Z",
-            }
+            },
         }
 
         response = self.client.post(
-            reverse('wassup-events'), json.dumps(event),
-            content_type='application/json')
+            reverse("wassup-events"), json.dumps(event), content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 2)
         self.assertEqual(
-            d.metadata["delivery_failed_reason"], {
-                "description": "computer said no"
-            })
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"))
+            d.metadata["delivery_failed_reason"], {"description": "computer said no"}
+        )
+        self.assertEqual(
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
@@ -2583,9 +2690,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         message_id = str(uuid.uuid4())
 
         event = {
-            "hook": {
-                "event": "message.inbound",
-            },
+            "hook": {"event": "message.inbound"},
             "data": {
                 "uuid": message_id,
                 "content": "the content",
@@ -2593,15 +2698,15 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
                 "metadata": {},
                 "from_addr": "+27123456789",
                 "to_addr": "+27000000000",
-            }
+            },
         }
 
-        self.add_identity_search_response("+27123456789", '0c03d360')
+        self.add_identity_search_response("+27123456789", "0c03d360")
         response = self.client.post(
-            reverse('channels-inbound', kwargs={
-                'channel_id': channel.channel_id,
-            }),
-            json.dumps(event), content_type='application/json')
+            reverse("channels-inbound", kwargs={"channel_id": channel.channel_id}),
+            json.dumps(event),
+            content_type="application/json",
+        )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -2612,7 +2717,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(d.from_addr, "+27123456789")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "the content")
-        self.assertEqual(d.transport_name, '')
+        self.assertEqual(d.transport_name, "")
         self.assertEqual(d.transport_type, None)
         self.assertEqual(d.helper_metadata, {})
 
@@ -2629,9 +2734,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         message_id = str(uuid.uuid4())
 
         event = {
-            "hook": {
-                "event": "message.inbound",
-            },
+            "hook": {"event": "message.inbound"},
             "data": {
                 "uuid": message_id,
                 "content": "the content",
@@ -2639,15 +2742,16 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
                 "metadata": {},
                 "from_addr": "+27123456789",
                 "to_addr": "+27000000000",
-            }
+            },
         }
 
-        self.add_identity_search_response("+27123456789", '0c03d360')
-        self.add_create_identity_response('0c03d360', "+27123456789")
+        self.add_identity_search_response("+27123456789", "0c03d360")
+        self.add_create_identity_response("0c03d360", "+27123456789")
         response = self.client.post(
-            reverse('channels-inbound', kwargs={
-                'channel_id': channel.channel_id,
-            }), json.dumps(event), content_type='application/json')
+            reverse("channels-inbound", kwargs={"channel_id": channel.channel_id}),
+            json.dumps(event),
+            content_type="application/json",
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         d = Inbound.objects.last()
@@ -2668,7 +2772,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         if channel:
             channel = Channel.objects.get(channel_id=channel)
 
-        self.add_identity_search_response(to_addr, '098734738')
+        self.add_identity_search_response(to_addr, "098734738")
 
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
@@ -2677,7 +2781,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "content": "Simple outbound message",
             "delivered": False,
             "metadata": {"voice_speech_url": "http://test.com"},
-            "channel": channel
+            "channel": channel,
         }
         outbound = Outbound.objects.create(**outbound_message)
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
@@ -2692,10 +2796,10 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.fake_cache = MockCache()
 
     @responses.activate
-    @patch('time.time', MagicMock(return_value=1479131658.000000))
-    @patch('django.core.cache.cache.get')
-    @patch('django.core.cache.cache.add')
-    @patch('django.core.cache.cache.incr')
+    @patch("time.time", MagicMock(return_value=1479131658.000000))
+    @patch("django.core.cache.cache.get")
+    @patch("django.core.cache.cache.add")
+    @patch("django.core.cache.cache.incr")
     def test_limiter_limit_not_reached(self, mock_incr, mock_add, mock_get):
         """
         Messages under the limit should get sent.
@@ -2712,14 +2816,20 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         send_message(outbound1.pk)
         send_message(outbound2.pk)
 
-        self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] [voice: "
-            "{'speech_url': 'http://test.com'}]" %
-            (outbound1.content, outbound1.to_addr)))
-        self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] [voice: "
-            "{'speech_url': 'http://test.com'}]" %
-            (outbound2.content, outbound2.to_addr)))
+        self.assertTrue(
+            self.check_logs(
+                "Message: '%s' sent to '%s' [session_event: new] [voice: "
+                "{'speech_url': 'http://test.com'}]"
+                % (outbound1.content, outbound1.to_addr)
+            )
+        )
+        self.assertTrue(
+            self.check_logs(
+                "Message: '%s' sent to '%s' [session_event: new] [voice: "
+                "{'speech_url': 'http://test.com'}]"
+                % (outbound2.content, outbound2.to_addr)
+            )
+        )
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()
@@ -2727,17 +2837,16 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(len(self.fake_cache.cache_data), 1)
         bucket = 1479131658 // 60  # time() // bucket_size
         self.assertEqual(
-            self.fake_cache.cache_data["JUNE_VOICE2_messages_at_%s" % bucket],
-            2)
+            self.fake_cache.cache_data["JUNE_VOICE2_messages_at_%s" % bucket], 2
+        )
 
     @responses.activate
-    @patch('time.time', MagicMock(return_value=1479131658.000000))
-    @patch('django.core.cache.cache.get')
-    @patch('django.core.cache.cache.add')
-    @patch('django.core.cache.cache.incr')
-    @patch('message_sender.tasks.send_message.retry')
-    def test_limiter_limit_reached(self, mock_retry, mock_incr, mock_add,
-                                   mock_get):
+    @patch("time.time", MagicMock(return_value=1479131658.000000))
+    @patch("django.core.cache.cache.get")
+    @patch("django.core.cache.cache.add")
+    @patch("django.core.cache.cache.incr")
+    @patch("message_sender.tasks.send_message.retry")
+    def test_limiter_limit_reached(self, mock_retry, mock_incr, mock_add, mock_get):
         """
         Messages under the limit should get sent. Messages over the limit
         should get retried
@@ -2758,14 +2867,20 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             send_message(outbound2.pk)
         mock_retry.assert_called_with(countdown=100)
 
-        self.assertTrue(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] [voice: "
-            "{'speech_url': 'http://test.com'}]" %
-            (outbound1.content, outbound1.to_addr)))
-        self.assertFalse(self.check_logs(
-            "Message: '%s' sent to '%s' [session_event: new] "
-            "[voice: {'speech_url': 'http://test.com'}]" %
-            (outbound2.content, outbound2.to_addr)))
+        self.assertTrue(
+            self.check_logs(
+                "Message: '%s' sent to '%s' [session_event: new] [voice: "
+                "{'speech_url': 'http://test.com'}]"
+                % (outbound1.content, outbound1.to_addr)
+            )
+        )
+        self.assertFalse(
+            self.check_logs(
+                "Message: '%s' sent to '%s' [session_event: new] "
+                "[voice: {'speech_url': 'http://test.com'}]"
+                % (outbound2.content, outbound2.to_addr)
+            )
+        )
         outbound1.refresh_from_db()
         self.assertIsNotNone(outbound1.last_sent_time)
         outbound2.refresh_from_db()
@@ -2773,11 +2888,11 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(len(self.fake_cache.cache_data), 1)
         bucket = 1479131658 // 60  # time() // bucket_size
         self.assertEqual(
-            self.fake_cache.cache_data["JUNE_VOICE_messages_at_%s" % bucket],
-            1)
+            self.fake_cache.cache_data["JUNE_VOICE_messages_at_%s" % bucket], 1
+        )
 
-    @patch('time.time', MagicMock(return_value=1479131640.000000))
-    @patch('django.core.cache.cache.get')
+    @patch("time.time", MagicMock(return_value=1479131640.000000))
+    @patch("django.core.cache.cache.get")
     def test_limiter_buckets(self, mock_get):
         """
         The correct buckets should count towards the message count.
@@ -2789,7 +2904,9 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
 
         self.set_cache_entry("JUNE_VOICE", (now - 200) // 60, 1)  # Too old
         self.set_cache_entry("JUNE_VOICE", (now - 121) // 60, 10)  # Over delay
-        self.set_cache_entry("JUNE_VOICE", (now - 120) // 60, 100)  # Within delay # noqa
+        self.set_cache_entry(
+            "JUNE_VOICE", (now - 120) // 60, 100
+        )  # Within delay # noqa
         self.set_cache_entry("JUNE_VOICE", now // 60, 1000)  # Now
         self.set_cache_entry("JUNE_VOICE", (now + 60) // 60, 10000)  # In future # noqa
 
@@ -2797,9 +2914,9 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         count = ConcurrencyLimiter.get_current_message_count(channel)
         self.assertEqual(count, 1100)
 
-    @patch('time.time', MagicMock(return_value=1479131658.000000))
-    @patch('django.core.cache.cache.get_or_set')
-    @patch('django.core.cache.cache.decr')
+    @patch("time.time", MagicMock(return_value=1479131658.000000))
+    @patch("django.core.cache.cache.get_or_set")
+    @patch("django.core.cache.cache.decr")
     def test_limiter_decr_count(self, mock_decr, mock_get_or_set):
         """
         Events for messages should decrement the counter unless the message is
@@ -2812,22 +2929,29 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
 
         self.set_cache_entry("JUNE_VOICE", 1479131535 // 60, 1)  # Past delay
         self.set_cache_entry("JUNE_VOICE", 1479131588 // 60, 1)  # Within delay
-        self.set_cache_entry("JUNE_VOICE", 1479131648 // 60, -0)  # Invalid value  # noqa
+        self.set_cache_entry(
+            "JUNE_VOICE", 1479131648 // 60, -0
+        )  # Invalid value  # noqa
 
         channel = Channel.objects.get(channel_id="JUNE_VOICE")
 
         def get_utc(timestamp):
             return datetime.fromtimestamp(timestamp).replace(
-                tzinfo=timezone.now().tzinfo)
+                tzinfo=timezone.now().tzinfo
+            )
 
         ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131535))
         ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131588))
         ConcurrencyLimiter.decr_message_count(channel, get_utc(1479131608))
 
-        self.assertEqual(self.fake_cache.cache_data, {
-            "JUNE_VOICE_messages_at_24652192": 1,
-            "JUNE_VOICE_messages_at_24652193": 0,
-            "JUNE_VOICE_messages_at_24652194": 0})
+        self.assertEqual(
+            self.fake_cache.cache_data,
+            {
+                "JUNE_VOICE_messages_at_24652192": 1,
+                "JUNE_VOICE_messages_at_24652193": 0,
+                "JUNE_VOICE_messages_at_24652194": 0,
+            },
+        )
 
     @responses.activate
     def test_event_nack_concurrency_decr(self):
@@ -2836,7 +2960,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         limiter for the channel that the nack is for.
         """
         self.add_metrics_response()
-        channel = Channel.objects.get(channel_id='VUMI_VOICE')
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
         outbound_message = {
             "to_addr": "+27123",
             "vumi_message_id": "08b34de7-c6da-4853-a74d-9458533ed169",
@@ -2844,7 +2968,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "channel": channel,
             "delivered": False,
             "attempts": 3,
-            "metadata": {}
+            "metadata": {},
         }
         failed = Outbound.objects.create(**outbound_message)
         failed.last_sent_time = failed.created_at
@@ -2852,7 +2976,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
         nack = {
             "message_type": "event",
@@ -2862,33 +2986,36 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "user_message_id": failed.vumi_message_id,
             "helper_metadata": {},
             "timestamp": "2015-10-28 16:20:37.485612",
-            "sent_message_id": "external-id"
+            "sent_message_id": "external-id",
         }
 
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
-            response = self.client.post('/api/v1/events',
-                                        json.dumps(nack),
-                                        content_type='application/json')
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
+            response = self.client.post(
+                "/api/v1/events", json.dumps(nack), content_type="application/json"
+            )
             mock_method.assert_called_once_with(channel, failed.created_at)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=failed.id)
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 3)  # not moved on as last attempt passed
-        self.assertEqual(d.metadata["nack_reason"],
-                         "no answer")
-        self.assertEqual(False, self.check_logs(
-            "Message: 'Simple outbound message' sent to '+27123'"
-            "[session_event: new]"))
+        self.assertEqual(d.metadata["nack_reason"], "no answer")
+        self.assertEqual(
+            False,
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27123'"
+                "[session_event: new]"
+            ),
+        )
 
     @responses.activate
-    @patch('django.core.cache.cache.get_or_set')
-    @patch('django.core.cache.cache.decr')
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("django.core.cache.cache.get_or_set")
+    @patch("django.core.cache.cache.decr")
+    @patch("message_sender.views.fire_delivery_hook")
     @patch("message_sender.tasks.send_message.delay")
     def test_event_nack_concurrency_decr_junebug(
-            self, mock_send_message, mock_hook, mock_get_or_set, mock_decr):
+        self, mock_send_message, mock_hook, mock_get_or_set, mock_decr
+    ):
         """
         A rejected event should retry and update the message object accordingly
         as well as decrement the relative concurrency limiter
@@ -2899,14 +3026,14 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_decr.side_effect = self.fake_cache.decr
 
         channel = Channel.objects.get(channel_id="VUMI_VOICE")
-        d = self.make_outbound(to_addr='+27123', channel=channel.channel_id)
+        d = self.make_outbound(to_addr="+27123", channel=channel.channel_id)
         d.last_sent_time = d.created_at
         d.save()
 
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
-            dispatch_uid='psh_fire_msg_action_if_new'
+            dispatch_uid="psh_fire_msg_action_if_new",
         )
         nack = {
             "event_type": "rejected",
@@ -2915,11 +3042,12 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {"reason": "No answer"},
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
             response = self.client.post(
-                '/api/v1/events/junebug', json.dumps(nack),
-                content_type='application/json')
+                "/api/v1/events/junebug",
+                json.dumps(nack),
+                content_type="application/json",
+            )
             mock_method.assert_called_once_with(channel, d.created_at)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -2927,17 +3055,17 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         d.refresh_from_db()
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 0)
-        self.assertEqual(
-            d.metadata["nack_reason"], {"reason": "No answer"})
+        self.assertEqual(d.metadata["nack_reason"], {"reason": "No answer"})
         mock_hook.assert_called_once_with(d)
 
     @responses.activate
-    @patch('django.core.cache.cache.get_or_set')
-    @patch('django.core.cache.cache.decr')
-    @patch('message_sender.views.fire_delivery_hook')
+    @patch("django.core.cache.cache.get_or_set")
+    @patch("django.core.cache.cache.decr")
+    @patch("message_sender.views.fire_delivery_hook")
     @patch("message_sender.tasks.send_message.delay")
     def test_event_delivery_failed_concurrency_decr_june(
-            self, mock_send_message, mock_hook, mock_get_or_set, mock_decr):
+        self, mock_send_message, mock_hook, mock_get_or_set, mock_decr
+    ):
         """
         A failed delivery should retry and update the message accordingly, as
         well as decrement the concurrency limiter.
@@ -2948,7 +3076,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_decr.side_effect = self.fake_cache.decr
 
         channel = Channel.objects.get(channel_id="VUMI_VOICE")
-        d = self.make_outbound(to_addr='+27123', channel=channel.channel_id)
+        d = self.make_outbound(to_addr="+27123", channel=channel.channel_id)
         d.last_sent_time = d.created_at
         d.save()
         dr = {
@@ -2958,11 +3086,12 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
             "timestamp": "2015-10-28 16:19:37.485612",
             "event_details": {},
         }
-        with patch.object(ConcurrencyLimiter, 'decr_message_count') as \
-                mock_method:
+        with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
             response = self.client.post(
-                '/api/v1/events/junebug', json.dumps(dr),
-                content_type='application/json')
+                "/api/v1/events/junebug",
+                json.dumps(dr),
+                content_type="application/json",
+            )
             mock_method.assert_called_once_with(channel, d.created_at)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -2970,8 +3099,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         d.refresh_from_db()
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 0)
-        self.assertEqual(
-            d.metadata["delivery_failed_reason"], {})
+        self.assertEqual(d.metadata["delivery_failed_reason"], {})
         mock_hook.assert_called_once_with(d)
 
 
@@ -2981,7 +3109,7 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         if channel:
             channel = Channel.objects.get(channel_id=channel)
 
-        self.add_identity_search_response(to_addr, '34857985789')
+        self.add_identity_search_response(to_addr, "34857985789")
 
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
@@ -2990,7 +3118,7 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
             "content": "Simple outbound message",
             "delivered": False,
             "metadata": {"voice_speech_url": "http://test.com"},
-            "channel": channel
+            "channel": channel,
         }
         outbound = Outbound.objects.create(**outbound_message)
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
@@ -3010,7 +3138,8 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
             outbound=outbound1,
             task_id=uuid.uuid4(),
             initiated_at=timezone.now(),
-            reason='Error')
+            reason="Error",
+        )
 
         requeue_failed_tasks()
 
@@ -3022,13 +3151,12 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
 
 
 class TestFailedTaskAPI(AuthenticatedAPITestCase):
-
     def make_outbound(self, to_addr, channel=None):
 
         if channel:
             channel = Channel.objects.get(channel_id=channel)
 
-        self.add_identity_search_response(to_addr, '34857985789')
+        self.add_identity_search_response(to_addr, "34857985789")
 
         self._replace_post_save_hooks_outbound()  # don't let fixtures fire
         outbound_message = {
@@ -3037,7 +3165,7 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
             "content": "Simple outbound message",
             "delivered": False,
             "metadata": {"voice_speech_url": "http://test.com"},
-            "channel": channel
+            "channel": channel,
         }
         outbound = Outbound.objects.create(**outbound_message)
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
@@ -3058,23 +3186,27 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
                     outbound=outbound1,
                     task_id=uuid.uuid4(),
                     initiated_at=timezone.now(),
-                    reason='Error'))
+                    reason="Error",
+                )
+            )
 
-        response = self.client.get('/api/v1/failed-tasks/',
-                                   content_type='application/json')
+        response = self.client.get(
+            "/api/v1/failed-tasks/", content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data['results']
+        results = response.data["results"]
         self.assertEqual(len(results), 2)
-        self.assertEqual(results[0]['id'], failures[2].id)
-        self.assertEqual(results[1]['id'], failures[1].id)
-        self.assertIsNotNone(response.data['next'])
+        self.assertEqual(results[0]["id"], failures[2].id)
+        self.assertEqual(results[1]["id"], failures[1].id)
+        self.assertIsNotNone(response.data["next"])
 
-        response = self.client.get(response.data['next'],
-                                   content_type='application/json')
+        response = self.client.get(
+            response.data["next"], content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        results = response.data['results']
+        results = response.data["results"]
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]['id'], failures[0].id)
+        self.assertEqual(results[0]["id"], failures[0].id)
 
     @responses.activate
     def test_failed_tasks_requeue(self):
@@ -3089,10 +3221,12 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
             outbound=outbound1,
             task_id=uuid.uuid4(),
             initiated_at=timezone.now(),
-            reason='Error')
+            reason="Error",
+        )
 
-        response = self.client.post('/api/v1/failed-tasks/',
-                                    content_type='application/json')
+        response = self.client.post(
+            "/api/v1/failed-tasks/", content_type="application/json"
+        )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["requeued_failed_tasks"], True)
         self.assertEqual(OutboundSendFailure.objects.all().count(), 0)
@@ -3101,62 +3235,58 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
 class TestOutboundAdmin(AuthenticatedAPITestCase):
     def setUp(self):
         super(TestOutboundAdmin, self).setUp()
-        self.adminclient.login(username='testsu',
-                               password='dummypwd')
+        self.adminclient.login(username="testsu", password="dummypwd")
 
     @patch("message_sender.tasks.send_message.apply_async")
     def test_resend_outbound_only_selected(self, mock_send_message):
         outbound_id = self.make_outbound()
         self.make_outbound()
-        data = {'action': 'resend_outbound',
-                '_selected_action': [outbound_id]}
+        data = {"action": "resend_outbound", "_selected_action": [outbound_id]}
 
         response = self.adminclient.post(
-            reverse('admin:message_sender_outbound_changelist'), data,
-            follow=True)
+            reverse("admin:message_sender_outbound_changelist"), data, follow=True
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertContains(response, "Attempting to resend 1 message.")
 
-        mock_send_message.assert_called_once_with(kwargs={
-            "message_id": outbound_id})
+        mock_send_message.assert_called_once_with(kwargs={"message_id": outbound_id})
 
     @patch("message_sender.tasks.send_message.apply_async")
     def test_resend_outbound_multiple(self, mock_send_message):
         outbound_id_1 = self.make_outbound()
         outbound_id_2 = self.make_outbound()
-        data = {'action': 'resend_outbound',
-                '_selected_action': [outbound_id_1, outbound_id_2]}
+        data = {
+            "action": "resend_outbound",
+            "_selected_action": [outbound_id_1, outbound_id_2],
+        }
 
         response = self.adminclient.post(
-            reverse('admin:message_sender_outbound_changelist'), data,
-            follow=True)
+            reverse("admin:message_sender_outbound_changelist"), data, follow=True
+        )
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertContains(response, "Attempting to resend 2 messages.")
 
-        mock_send_message.assert_any_call(kwargs={
-            "message_id": outbound_id_1})
-        mock_send_message.assert_any_call(kwargs={
-            "message_id": outbound_id_2})
+        mock_send_message.assert_any_call(kwargs={"message_id": outbound_id_1})
+        mock_send_message.assert_any_call(kwargs={"message_id": outbound_id_2})
 
 
 class TestChannels(AuthenticatedAPITestCase):
-
     def test_channel_default_post_save(self):
 
         new_channel = {
-            'channel_id': 'NEW_DEFAULT',
-            'channel_type': Channel.JUNEBUG_TYPE,
-            'default': True,
-            'configuration': {
-                'JUNEBUG_API_URL': 'http://example.com/',
-                'JUNEBUG_API_AUTH': ('username', 'password'),
-                'JUNEBUG_API_FROM': '+4321'
+            "channel_id": "NEW_DEFAULT",
+            "channel_type": Channel.JUNEBUG_TYPE,
+            "default": True,
+            "configuration": {
+                "JUNEBUG_API_URL": "http://example.com/",
+                "JUNEBUG_API_AUTH": ("username", "password"),
+                "JUNEBUG_API_FROM": "+4321",
             },
-            'concurrency_limit': 0,
-            'message_timeout': 0,
-            'message_delay': 0
+            "concurrency_limit": 0,
+            "message_timeout": 0,
+            "message_delay": 0,
         }
 
         Channel.objects.create(**new_channel)
@@ -3171,19 +3301,15 @@ class TestChannels(AuthenticatedAPITestCase):
 
 
 class TestUpdateIdentityCommand(AuthenticatedAPITestCase):
-
-    def make_identity_lookup(self, msisdn='+27123', identity='56f6e9506ee3'):
-        identity = {
-            "msisdn": msisdn,
-            "identity": identity,
-        }
+    def make_identity_lookup(self, msisdn="+27123", identity="56f6e9506ee3"):
+        identity = {"msisdn": msisdn, "identity": identity}
         return IdentityLookup.objects.create(**identity)
 
     def prepare_data(self):
         self.out1 = self.make_outbound()
-        self.out2 = self.make_outbound(to_addr="+274321", to_identity='')
-        self.in1 = self.make_inbound('1234', from_addr='+27123')
-        self.in2 = self.make_inbound('1234', from_addr='+274321')
+        self.out2 = self.make_outbound(to_addr="+274321", to_identity="")
+        self.in1 = self.make_inbound("1234", from_addr="+27123")
+        self.in2 = self.make_inbound("1234", from_addr="+274321")
         self.make_identity_lookup()
 
     def check_data(self):
@@ -3209,22 +3335,22 @@ class TestUpdateIdentityCommand(AuthenticatedAPITestCase):
 
     def test_update_identity_no_argument(self):
         self.prepare_data()
-        call_command('update_identity_field')
+        call_command("update_identity_field")
         self.check_data()
 
     def test_update_identity_by_id(self):
         self.prepare_data()
-        call_command('update_identity_field', '--loop', 'ID')
+        call_command("update_identity_field", "--loop", "ID")
         self.check_data()
 
     def test_update_identity_by_msg(self):
         self.prepare_data()
-        call_command('update_identity_field', '--loop', 'MSG')
+        call_command("update_identity_field", "--loop", "MSG")
         self.check_data()
 
     def test_update_identity_by_sql(self):
         self.prepare_data()
-        call_command('update_identity_field', '--loop', 'SQL')
+        call_command("update_identity_field", "--loop", "SQL")
         self.check_data()
 
 
@@ -3264,23 +3390,23 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
         o.created_at = datetime(2017, 1, 3, tzinfo=timezone.utc)
         o.save()
 
-        self.assertNumQueries(
-            4,
-            tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
-        )
+        self.assertNumQueries(4, tasks.aggregate_outbounds("2017-01-01", "2017-01-02"))
 
         agg1 = AggregateOutbounds.objects.get(
-            date=date(2017, 1, 1), channel=c1, delivered=False)
+            date=date(2017, 1, 1), channel=c1, delivered=False
+        )
         self.assertEqual(agg1.total, 2)
         self.assertEqual(agg1.attempts, 3)
 
         agg2 = AggregateOutbounds.objects.get(
-            date=date(2017, 1, 1), channel=c2, delivered=True)
+            date=date(2017, 1, 1), channel=c2, delivered=True
+        )
         self.assertEqual(agg2.total, 1)
         self.assertEqual(agg2.attempts, 1)
 
         agg3 = AggregateOutbounds.objects.get(
-            date=date(2017, 1, 1), channel=c2, delivered=False)
+            date=date(2017, 1, 1), channel=c2, delivered=False
+        )
         self.assertEqual(agg3.total, 1)
         self.assertEqual(agg3.attempts, 1)
 
@@ -3299,54 +3425,49 @@ class TestAggregateOutbounds(AuthenticatedAPITestCase):
             o.created_at = datetime(2017, 1, 1, tzinfo=timezone.utc)
             o.save()
 
-        self.assertNumQueries(
-            2,
-            tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
-        )
+        self.assertNumQueries(2, tasks.aggregate_outbounds("2017-01-01", "2017-01-02"))
 
         agg = AggregateOutbounds.objects.get(
-            date=date(2017, 1, 1), channel=c, delivered=False)
+            date=date(2017, 1, 1), channel=c, delivered=False
+        )
         self.assertEqual(agg.total, 10)
 
         Outbound.objects.all().update(delivered=True)
 
-        self.assertNumQueries(
-            2,
-            tasks.aggregate_outbounds('2017-01-01', '2017-01-02')
-        )
+        self.assertNumQueries(2, tasks.aggregate_outbounds("2017-01-01", "2017-01-02"))
 
         agg = AggregateOutbounds.objects.get(
-            date=date(2017, 1, 1), channel=c, delivered=True)
+            date=date(2017, 1, 1), channel=c, delivered=True
+        )
         self.assertEqual(agg.total, 10)
         self.assertEqual(AggregateOutbounds.objects.count(), 1)
 
-    @mock.patch('message_sender.views.aggregate_outbounds')
+    @mock.patch("message_sender.views.aggregate_outbounds")
     def test_view_defaults(self, task):
         """
         Should default to today's date for end, and
         AGGREGATE_OUTBOUND_BACKTRACK days in the past for start
         """
         response = self.client.post(
-            '/api/v1/aggregate-outbounds/', content_type='application/json')
+            "/api/v1/aggregate-outbounds/", content_type="application/json"
+        )
         self.assertEqual(response.status_code, 202)
         end = datetime.now().date().isoformat()
         start = (datetime.now() - timedelta(30)).date().isoformat()
         task.delay.assert_called_once_with(start, end)
 
-    @mock.patch('message_sender.views.aggregate_outbounds')
+    @mock.patch("message_sender.views.aggregate_outbounds")
     def test_view(self, task):
         """
         Should fire the task with the provided parameters
         """
         response = self.client.post(
-            '/api/v1/aggregate-outbounds/', content_type='application/json',
-            data=json.dumps({
-                'start': '2017-01-01',
-                'end': '2017-01-03',
-            })
+            "/api/v1/aggregate-outbounds/",
+            content_type="application/json",
+            data=json.dumps({"start": "2017-01-01", "end": "2017-01-03"}),
         )
         self.assertEqual(response.status_code, 202)
-        task.delay.assert_called_once_with('2017-01-01', '2017-01-03')
+        task.delay.assert_called_once_with("2017-01-01", "2017-01-03")
 
 
 class ArchivedOutboundsTests(AuthenticatedAPITestCase):
@@ -3354,9 +3475,8 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         """
         The filename function should return the appropriate filename
         """
-        filename = tasks.archive_outbound.filename(
-            datetime(2017, 8, 9).date())
-        self.assertEqual(filename, 'outbounds-2017-08-09.gz')
+        filename = tasks.archive_outbound.filename(datetime(2017, 8, 9).date())
+        self.assertEqual(filename, "outbounds-2017-08-09.gz")
 
     def test_dump_data(self):
         """
@@ -3365,70 +3485,75 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         o = self.make_outbound()
         o = Outbound.objects.get(id=o)
 
-        tasks.archive_outbound.dump_data('test.gz', Outbound.objects.all())
+        tasks.archive_outbound.dump_data("test.gz", Outbound.objects.all())
 
-        with gzip.open('test.gz') as f:
-            [outbound] = map(lambda l: json.loads(l.decode('utf-8')), f)
+        with gzip.open("test.gz") as f:
+            [outbound] = map(lambda l: json.loads(l.decode("utf-8")), f)
 
-        outbound.pop('created_at')
-        outbound.pop('updated_at')
-        self.assertEqual(outbound, {
-            'attempts': o.attempts,
-            'call_answered': o.call_answered,
-            'channel': o.channel_id,
-            'content': o.content,
-            'created_by': o.created_by_id,
-            'delivered': o.delivered,
-            'id': str(o.id),
-            'last_sent_time': o.last_sent_time,
-            'metadata': o.metadata,
-            'resend': o.resend,
-            'to_addr': o.to_addr,
-            'to_identity': o.to_identity,
-            'updated_by': o.updated_by_id,
-            'version': o.version,
-            'vumi_message_id': o.vumi_message_id,
-        })
-        os.remove('test.gz')
+        outbound.pop("created_at")
+        outbound.pop("updated_at")
+        self.assertEqual(
+            outbound,
+            {
+                "attempts": o.attempts,
+                "call_answered": o.call_answered,
+                "channel": o.channel_id,
+                "content": o.content,
+                "created_by": o.created_by_id,
+                "delivered": o.delivered,
+                "id": str(o.id),
+                "last_sent_time": o.last_sent_time,
+                "metadata": o.metadata,
+                "resend": o.resend,
+                "to_addr": o.to_addr,
+                "to_identity": o.to_identity,
+                "updated_by": o.updated_by_id,
+                "version": o.version,
+                "vumi_message_id": o.vumi_message_id,
+            },
+        )
+        os.remove("test.gz")
 
     def test_create_archived_outbound(self):
         """
         Creates the model with the attached file
         """
-        with open('test', 'w') as f:
-            f.write('test')
+        with open("test", "w") as f:
+            f.write("test")
 
         tasks.archive_outbound.create_archived_outbound(
-            datetime(2017, 8, 9).date(), 'test')
+            datetime(2017, 8, 9).date(), "test"
+        )
 
-        os.remove('test')
+        os.remove("test")
 
         [archive] = ArchivedOutbounds.objects.all()
 
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
-        self.assertEqual(archive.archive.read().decode('utf-8'), 'test')
+        self.assertEqual(archive.archive.read().decode("utf-8"), "test")
 
     def test_task_skips_already_archived(self):
         """
         If there is already an ArchivedOutbounds for the given date, then the
         task should skip processing that date
         """
-        with open('test', 'w') as f:
-            f.write('test')
+        with open("test", "w") as f:
+            f.write("test")
         tasks.archive_outbound.create_archived_outbound(
-            datetime(2017, 8, 9).date(), 'test')
-        os.remove('test')
+            datetime(2017, 8, 9).date(), "test"
+        )
+        os.remove("test")
 
         o = self.make_outbound()
         o = Outbound.objects.get(id=o)
         o.created_at = datetime(2017, 8, 9, tzinfo=timezone.utc)
         o.save()
 
-        tasks.archive_outbound('2017-08-09', '2017-08-09')
+        tasks.archive_outbound("2017-08-09", "2017-08-09")
 
         [archive] = ArchivedOutbounds.objects.all()
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
-        self.assertEqual(archive.archive.read().decode('utf-8'), 'test')
+        self.assertEqual(archive.archive.read().decode("utf-8"), "test")
         self.assertEqual(Outbound.objects.count(), 1)
 
     def test_task_skips_empty_dates(self):
@@ -3436,7 +3561,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         If there are no outbounds for the date, then no archive should be
         created
         """
-        tasks.archive_outbound('2017-08-09', '2017-08-09')
+        tasks.archive_outbound("2017-08-09", "2017-08-09")
         self.assertEqual(ArchivedOutbounds.objects.count(), 0)
 
     def test_task_only_archives_outbounds_for_date(self):
@@ -3454,7 +3579,7 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         o.save()
 
         self.assertEqual(Outbound.objects.count(), 2)
-        tasks.archive_outbound('2017-08-09', '2017-08-09')
+        tasks.archive_outbound("2017-08-09", "2017-08-09")
         self.assertEqual(Outbound.objects.count(), 1)
 
     def test_task_creates_archive(self):
@@ -3467,28 +3592,26 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         o.save()
         o.refresh_from_db()
 
-        tasks.archive_outbound('2017-08-09', '2017-08-09')
+        tasks.archive_outbound("2017-08-09", "2017-08-09")
 
         self.assertEqual(Outbound.objects.count(), 0)
         [archive] = ArchivedOutbounds.objects.all()
         self.assertEqual(archive.date, datetime(2017, 8, 9).date())
         [outbound] = map(
-            lambda l: json.loads(l.decode('utf-8')),
-            gzip.GzipFile(fileobj=archive.archive)
+            lambda l: json.loads(l.decode("utf-8")),
+            gzip.GzipFile(fileobj=archive.archive),
         )
         self.assertEqual(outbound, OutboundArchiveSerializer(o).data)
 
-    @mock.patch('message_sender.views.archive_outbound')
+    @mock.patch("message_sender.views.archive_outbound")
     def test_view(self, task):
         """
         The view should call the task
         """
         response = self.client.post(
-            '/api/v1/archive-outbounds/', content_type='application/json',
-            data=json.dumps({
-                'start': '2017-01-01',
-                'end': '2017-01-03',
-            })
+            "/api/v1/archive-outbounds/",
+            content_type="application/json",
+            data=json.dumps({"start": "2017-01-01", "end": "2017-01-03"}),
         )
         self.assertEqual(response.status_code, 202)
-        task.delay.assert_called_once_with('2017-01-01', '2017-01-03')
+        task.delay.assert_called_once_with("2017-01-01", "2017-01-03")

@@ -6,8 +6,8 @@ from django.apps import apps
 
 
 class Command(BaseCommand):
-    args = 'Model.csv'
-    help = 'Import `Model`.csv into `Model` database.'
+    args = "Model.csv"
+    help = "Import `Model`.csv into `Model` database."
 
     def handle(self, *args, **options):
         if len(args) != 1:
@@ -24,15 +24,16 @@ class Command(BaseCommand):
 
         model_fields = [f.name for f in Model._meta.fields]
         fields_name = []
-        with open(csvPath, 'rb') as csvFile:
-            reader = csv.reader(csvFile, delimiter=',', quotechar="\"")
+        with open(csvPath, "rb") as csvFile:
+            reader = csv.reader(csvFile, delimiter=",", quotechar='"')
             fields_name = reader.next()
             for i, _ in enumerate(fields_name):
                 fields_name[i] = fields_name[i].lower()
-                fields_name[i] = fields_name[i].replace(' ', '_')
+                fields_name[i] = fields_name[i].replace(" ", "_")
                 if not fields_name[i] in model_fields:
-                    raise CommandError("%s field doesn't exists in %s Model" %
-                                       (fields_name[i], Model))
+                    raise CommandError(
+                        "%s field doesn't exists in %s Model" % (fields_name[i], Model)
+                    )
 
             for row in reader:
                 try:

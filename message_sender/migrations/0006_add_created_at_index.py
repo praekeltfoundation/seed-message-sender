@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0005_outbound_call_answered'),
-    ]
+    dependencies = [("message_sender", "0005_outbound_call_answered")]
 
     operations = [
         migrations.AlterField(
-            model_name='outbound',
-            name='created_at',
+            model_name="outbound",
+            name="created_at",
             field=models.DateTimeField(auto_now_add=True, db_index=True),
-        ),
+        )
     ]
