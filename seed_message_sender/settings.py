@@ -163,24 +163,24 @@ HOOK_DELIVERER = 'message_sender.tasks.deliver_hook_wrapper'
 
 HOOK_AUTH_TOKEN = env('HOOK_AUTH_TOKEN', 'REPLACEME')
 
-BROKER_URL = env('BROKER_URL', 'redis://localhost:6379/0')
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', 'redis://localhost:6379/0')
 
-CELERY_DEFAULT_QUEUE = 'seed_message_sender'
-CELERY_QUEUES = (
+CELERY_TASK_DEFAULT_QUEUE = 'seed_message_sender'
+CELERY_TASK_QUEUES = (
     Queue('seed_message_sender',
           Exchange('seed_message_sender'),
           routing_key='seed_message_sender'),
 )
 
-CELERY_ALWAYS_EAGER = False
+CELERY_TASK_ALWAYS_EAGER = False
 
 # Tell Celery where to find the tasks
 CELERY_IMPORTS = (
     'message_sender.tasks',
 )
 
-CELERY_CREATE_MISSING_QUEUES = True
-CELERY_ROUTES = {
+CELERY_TASK_CREATE_MISSING_QUEUES = True
+CELERY_TASK_ROUTES = {
     'celery.backend_cleanup': {
         'queue': 'mediumpriority',
     },
@@ -223,8 +223,8 @@ METRICS_SCHEDULED_TASKS = [
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_ACCEPT_CONTENT = ['json']
-CELERY_IGNORE_RESULT = True
-CELERYD_MAX_TASKS_PER_CHILD = 50
+CELERY_TASK_IGNORE_RESULT = True
+CELERY_WORKER_MAX_TASKS_PER_CHILD = 50
 
 MESSAGE_BACKEND_VOICE = env(
     'MESSAGE_SENDER_MESSAGE_BACKEND_VOICE', 'vumi')

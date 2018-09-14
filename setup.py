@@ -42,7 +42,7 @@ setup(
         'psycopg2==2.7.5',
         'raven==6.9.0',
         'django-filter==2.0.0',
-        'celery==3.1.26.post2',
+        'celery==4.2.1',
         'pytz==2018.5',
         'django-rest-hooks==1.5.0',
         'go_http==0.3.2',
