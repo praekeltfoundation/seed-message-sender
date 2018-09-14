@@ -10,6 +10,7 @@ install:
 script:
   - flake8
   - py.test
+  - python manage.py makemigrations | grep 'No changes detected' || (echo 'There are changes which require migrations.' && exit 1)
 deploy:
   provider: pypi
   user: praekelt.org
