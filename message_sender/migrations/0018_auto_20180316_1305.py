@@ -8,24 +8,52 @@ import django.db.models.deletion
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0017_auto_20180220_1329'),
-    ]
+    dependencies = [("message_sender", "0017_auto_20180220_1329")]
 
     operations = [
         migrations.CreateModel(
-            name='AggregateOutbounds',
+            name="AggregateOutbounds",
             fields=[
-                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('date', models.DateField(help_text=b'The date that the aggregate is for')),
-                ('delivered', models.BooleanField(help_text=b'Whether this is for delivery passed or failed messages')),
-                ('attempts', models.IntegerField(help_text=b'The total number of attempts')),
-                ('total', models.IntegerField(help_text=b'The total number of messages')),
-                ('channel', models.ForeignKey(help_text=b'Which channel this is for', null=True, on_delete=django.db.models.deletion.SET_NULL, to='message_sender.Channel')),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "date",
+                    models.DateField(help_text=b"The date that the aggregate is for"),
+                ),
+                (
+                    "delivered",
+                    models.BooleanField(
+                        help_text=b"Whether this is for delivery passed or failed messages"
+                    ),
+                ),
+                (
+                    "attempts",
+                    models.IntegerField(help_text=b"The total number of attempts"),
+                ),
+                (
+                    "total",
+                    models.IntegerField(help_text=b"The total number of messages"),
+                ),
+                (
+                    "channel",
+                    models.ForeignKey(
+                        help_text=b"Which channel this is for",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to="message_sender.Channel",
+                    ),
+                ),
             ],
         ),
         migrations.AlterUniqueTogether(
-            name='aggregateoutbounds',
-            unique_together=set([('date', 'delivered', 'channel')]),
+            name="aggregateoutbounds",
+            unique_together=set([("date", "delivered", "channel")]),
         ),
     ]

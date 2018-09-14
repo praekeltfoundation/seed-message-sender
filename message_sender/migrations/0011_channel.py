@@ -8,21 +8,31 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0010_merge'),
-    ]
+    dependencies = [("message_sender", "0010_merge")]
 
     operations = [
         migrations.CreateModel(
-            name='Channel',
+            name="Channel",
             fields=[
-                ('channel_id', models.CharField(editable=True, max_length=64, primary_key=True, serialize=False)),
-                ('channel_type', models.CharField(choices=[(b'junebug', b'Junebug'), (b'vumi', b'Vumi')], default=b'junebug', max_length=20)),
-                ('concurrency_limit', models.IntegerField(default=0)),
-                ('message_delay', models.IntegerField(default=0)),
-                ('message_timeout', models.IntegerField(default=0)),
-                ('default', models.BooleanField(default=False)),
-                ('configuration', django.contrib.postgres.fields.jsonb.JSONField()),
+                (
+                    "channel_id",
+                    models.CharField(
+                        editable=True, max_length=64, primary_key=True, serialize=False
+                    ),
+                ),
+                (
+                    "channel_type",
+                    models.CharField(
+                        choices=[(b"junebug", b"Junebug"), (b"vumi", b"Vumi")],
+                        default=b"junebug",
+                        max_length=20,
+                    ),
+                ),
+                ("concurrency_limit", models.IntegerField(default=0)),
+                ("message_delay", models.IntegerField(default=0)),
+                ("message_timeout", models.IntegerField(default=0)),
+                ("default", models.BooleanField(default=False)),
+                ("configuration", django.contrib.postgres.fields.jsonb.JSONField()),
             ],
-        ),
+        )
     ]

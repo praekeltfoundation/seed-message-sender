@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0003_auto_20161124_1357'),
-    ]
+    dependencies = [("message_sender", "0003_auto_20161124_1357")]
 
     operations = [
         migrations.AddField(
-            model_name='outbound',
-            name='last_sent_time',
+            model_name="outbound",
+            name="last_sent_time",
             field=models.DateTimeField(blank=True, null=True),
-        ),
+        )
     ]

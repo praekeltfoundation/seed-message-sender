@@ -12,7 +12,7 @@ def vas2nets_voice(msisdn):
     Vas2Nets is an aggregator in Nigeria, for some reason they need
     MSISDNs prefixed with a 9 instead of the country code to initiate an OBD.
     """
-    return re.sub(r'\+?234(\d+)$', r'90\1', msisdn)
+    return re.sub(r"\+?234(\d+)$", r"90\1", msisdn)
 
 
 def vas2nets_text(msisdn):
@@ -23,4 +23,4 @@ def vas2nets_text(msisdn):
     format, prefixed with a 0, instead of the international format with the
     country code.
     """
-    return re.sub(r'\+234(\d+)$', r'234\1', msisdn)
+    return re.sub(r"\+234(\d+)$", r"234\1", msisdn)

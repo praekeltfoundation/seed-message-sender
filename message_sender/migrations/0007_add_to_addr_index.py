@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0006_add_created_at_index'),
-    ]
+    dependencies = [("message_sender", "0006_add_created_at_index")]
 
     operations = [
         migrations.AlterField(
-            model_name='outbound',
-            name='to_addr',
+            model_name="outbound",
+            name="to_addr",
             field=models.CharField(db_index=True, max_length=500),
-        ),
+        )
     ]

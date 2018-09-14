@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0007_outboundsendfailure'),
-    ]
+    dependencies = [("message_sender", "0007_outboundsendfailure")]
 
     operations = [
         migrations.AlterField(
-            model_name='inbound',
-            name='from_addr',
+            model_name="inbound",
+            name="from_addr",
             field=models.CharField(db_index=True, max_length=255),
-        ),
+        )
     ]

@@ -7,24 +7,37 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0018_auto_20180316_1305'),
-    ]
+    dependencies = [("message_sender", "0018_auto_20180316_1305")]
 
     operations = [
         migrations.CreateModel(
-            name='ArchivedOutbounds',
+            name="ArchivedOutbounds",
             fields=[
-                ('date', models.DateField(help_text=b'The date that the archive is for', primary_key=True, serialize=False)),
-                ('archive', models.FileField(help_text=b'The file for the archive', upload_to=b'')),
+                (
+                    "date",
+                    models.DateField(
+                        help_text=b"The date that the archive is for",
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                (
+                    "archive",
+                    models.FileField(
+                        help_text=b"The file for the archive", upload_to=b""
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'archived outbounds',
-                'verbose_name_plural': 'archived outbounds',
+                "verbose_name": "archived outbounds",
+                "verbose_name_plural": "archived outbounds",
             },
         ),
         migrations.AlterModelOptions(
-            name='aggregateoutbounds',
-            options={'verbose_name': 'aggregate outbounds', 'verbose_name_plural': 'aggregate outbounds'},
+            name="aggregateoutbounds",
+            options={
+                "verbose_name": "aggregate outbounds",
+                "verbose_name_plural": "aggregate outbounds",
+            },
         ),
     ]

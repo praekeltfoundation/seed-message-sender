@@ -8,9 +8,8 @@ from django.db import migrations
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('message_sender', '0007_add_to_addr_index'),
-        ('message_sender', '0009_auto_20170323_1453'),
+        ("message_sender", "0007_add_to_addr_index"),
+        ("message_sender", "0009_auto_20170323_1453"),
     ]
 
-    operations = [
-    ]
+    operations = []

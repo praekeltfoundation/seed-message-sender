@@ -19,7 +19,7 @@ def get_available_metrics():
 
 
 def load_callable(dotted_path_to_callable):
-    module_name, func_name = dotted_path_to_callable.rsplit('.', 1)
+    module_name, func_name = dotted_path_to_callable.rsplit(".", 1)
     mod = import_module(module_name)
     func = getattr(mod, func_name)
     return func
@@ -28,15 +28,13 @@ def load_callable(dotted_path_to_callable):
 def get_identity_address(identity_uuid, use_communicate_through=False):
     params = {"default": True}
     if use_communicate_through:
-        params['use_communicate_through'] = True
+        params["use_communicate_through"] = True
 
-    return identity_store_client.get_identity_address(
-        identity_uuid, params=params)
+    return identity_store_client.get_identity_address(identity_uuid, params=params)
 
 
 def get_identity_by_address(address_value, address_type="msisdn"):
-    r = identity_store_client.get_identity_by_address(address_type,
-                                                      address_value)
+    r = identity_store_client.get_identity_by_address(address_type, address_value)
 
     results = list(r["results"])
     if len(results) > 0:

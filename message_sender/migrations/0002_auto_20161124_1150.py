@@ -7,14 +7,12 @@ from django.db import migrations, models
 
 class Migration(migrations.Migration):
 
-    dependencies = [
-        ('message_sender', '0001_initial'),
-    ]
+    dependencies = [("message_sender", "0001_initial")]
 
     operations = [
         migrations.AlterField(
-            model_name='outbound',
-            name='vumi_message_id',
+            model_name="outbound",
+            name="vumi_message_id",
             field=models.CharField(blank=True, db_index=True, max_length=36, null=True),
-        ),
+        )
     ]

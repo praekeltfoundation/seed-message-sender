@@ -13,6 +13,7 @@ script:
   - flake8
   - py.test
   - python manage.py makemigrations | grep 'No changes detected' || (echo 'There are changes which require migrations.' && exit 1)
+  - black message_sender seed_message_sender --check
 deploy:
   provider: pypi
   user: praekelt.org
