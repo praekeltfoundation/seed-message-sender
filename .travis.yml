@@ -1,7 +1,5 @@
 language: python
 cache: pip
-python:
-  - "3.6"
 addons:
   postgresql: "9.6"
 services:
@@ -24,9 +22,11 @@ deploy:
 matrix:
   include:
     - python: "3.7"
+      dist: xenial
+      sudo: true
     - python: "3.7"
-      sudo: required
-      dist: trusty
+      dist: xenial
+      sudo: true
       services: [docker]
       env:
         - IMAGE_NAME=praekeltfoundation/seed-message-sender:develop
