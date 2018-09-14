@@ -7,6 +7,8 @@ services:
 install:
   - "pip install -e ."
   - "pip install -r requirements-dev.txt"
+before_script:
+  - psql -U postgres -c 'create database seed_message_sender;'
 script:
   - flake8
   - py.test
