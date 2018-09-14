@@ -1,18 +1,18 @@
 language: python
 cache: pip
-python:
-  - "2.7"
-  - "3.4"
 addons:
-  postgresql: "9.4"
+  postgresql: "9.6"
 services:
   - postgresql
 install:
   - "pip install -e ."
   - "pip install -r requirements-dev.txt"
+before_script:
+  - psql -U postgres -c 'create database seed_message_sender;'
 script:
   - flake8
   - py.test
+  - python manage.py makemigrations | grep 'No changes detected' || (echo 'There are changes which require migrations.' && exit 1)
 deploy:
   provider: pypi
   user: praekelt.org
@@ -24,9 +24,12 @@ deploy:
 
 matrix:
   include:
-    - python: "2.7"
-      sudo: required
-      dist: trusty
+    - python: "3.7"
+      dist: xenial
+      sudo: true
+    - python: "3.7"
+      dist: xenial
+      sudo: true
       services: [docker]
       env:
         - IMAGE_NAME=praekeltfoundation/seed-message-sender:develop

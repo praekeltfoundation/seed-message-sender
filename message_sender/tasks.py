@@ -17,6 +17,7 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.core.files import File
 from django.db.models import Count, Sum
 from django.db.models.signals import post_delete
+from django.utils import timezone
 
 from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
@@ -35,7 +36,6 @@ from seed_message_sender.utils import (
     load_callable, get_identity_address, get_identity_by_address,
     create_identity)
 from message_sender.utils import daterange
-from seed_papertrail.decorators import papertrail
 
 logger = get_task_logger(__name__)
 
@@ -95,7 +95,6 @@ class FireMetric(Task):
     """
     name = "message_sender.tasks.fire_metric"
 
-    @papertrail.debug(name, sample=0.1)
     def run(self, metric_name, metric_value, session=None, **kwargs):
         metric_value = float(metric_value)
         metric = {
@@ -196,12 +195,11 @@ class SendMessage(Task):
     def get_client(self, channel=None):
         return MessageClientFactory.create(channel)
 
-    @papertrail.debug(name, sample=0.1)
     def run(self, message_id, **kwargs):
         """
         Load and contruct message and send them off
         """
-        l = self.get_logger(**kwargs)
+        log = self.get_logger(**kwargs)
 
         error_retry_count = kwargs.get('error_retry_count', 0)
         if error_retry_count >= self.max_error_retries:
@@ -209,7 +207,7 @@ class SendMessage(Task):
                 "Can't retry {0}[{1}] args:{2} kwargs:{3}".format(
                     self.name, self.request.id, self.request.args, kwargs))
 
-        l.info("Loading Outbound Message <%s>" % message_id)
+        log.info("Loading Outbound Message <%s>" % message_id)
         try:
             message = Outbound.objects.select_related('channel').get(
                 id=message_id)
@@ -222,7 +220,7 @@ class SendMessage(Task):
                 retry_delay = calculate_retry_delay(error_retry_count)
             else:
                 retry_delay = self.default_retry_delay
-            l.info("Attempts: %s" % message.attempts)
+            log.info("Attempts: %s" % message.attempts)
             # send or resend
             try:
                 if not message.channel:
@@ -270,7 +268,7 @@ class SendMessage(Task):
                         message.content,
                         speech_url=speech_url,
                         session_event="new")
-                    l.info("Sent voice message to <%s>" % message.to_addr)
+                    log.info("Sent voice message to <%s>" % message.to_addr)
 
                 elif "image_url" in message.metadata:
                     # Image message
@@ -279,7 +277,7 @@ class SendMessage(Task):
                         text_to_addr_formatter(message.to_addr),
                         message.content,
                         image_url=image_url)
-                    l.info("Sent image message to <%s>" % (message.to_addr,))
+                    log.info("Sent image message to <%s>" % (message.to_addr,))
 
                 else:
                     # Plain content
@@ -287,10 +285,10 @@ class SendMessage(Task):
                         text_to_addr_formatter(message.to_addr),
                         message.content,
                         session_event="new")
-                    l.info("Sent text message to <%s>" % (
+                    log.info("Sent text message to <%s>" % (
                         message.to_addr,))
 
-                message.last_sent_time = datetime.now()
+                message.last_sent_time = timezone.now()
                 message.attempts += 1
                 message.vumi_message_id = vumiresponse["message_id"]
                 message.save()
@@ -299,14 +297,14 @@ class SendMessage(Task):
                     "metric_value": 1.0
                 })
             except requests_exceptions.ConnectionError as exc:
-                l.info('Connection Error sending message')
+                log.info('Connection Error sending message')
                 fire_metric.delay(
                     'sender.send_message.connection_error.sum', 1)
                 kwargs['error_retry_count'] = error_retry_count + 1
                 self.retry(exc=exc, countdown=retry_delay, args=(message_id,),
                            kwargs=kwargs)
             except requests_exceptions.Timeout as exc:
-                l.info('Sending message failed due to timeout')
+                log.info('Sending message failed due to timeout')
                 fire_metric.delay('sender.send_message.timeout.sum', 1)
                 kwargs['error_retry_count'] = error_retry_count + 1
                 self.retry(exc=exc, countdown=retry_delay, args=(message_id,),
@@ -314,8 +312,8 @@ class SendMessage(Task):
             except requests_exceptions.HTTPError as exc:
                 # retry message sending if in 500 range (3 default
                 # retries)
-                l.info('Sending message failed due to status: %s' %
-                       exc.response.status_code)
+                log.info('Sending message failed due to status: %s' %
+                         exc.response.status_code)
                 metric_name = ('sender.send_message.http_error.%s.sum' %
                                exc.response.status_code)
                 fire_metric.delay(metric_name, 1)
@@ -332,7 +330,7 @@ class SendMessage(Task):
 
         else:
             # This is for retries based on async nacks from the transport.
-            l.info("Message <%s> at max retries." % str(message_id))
+            log.info("Message <%s> at max retries." % str(message_id))
             message.to_addr = ''
             message.save(update_fields=['to_addr'])
             fire_metric.apply_async(kwargs={
@@ -378,10 +376,10 @@ class RequeueFailedTasks(Task):
     name = "message_sender.tasks.requeue_failed_tasks"
 
     def run(self, **kwargs):
-        l = self.get_logger(**kwargs)
+        log = self.get_logger(**kwargs)
         failures = OutboundSendFailure.objects
-        l.info("Attempting to requeue <%s> failed Outbound sends" %
-               failures.all().count())
+        log.info("Attempting to requeue <%s> failed Outbound sends" %
+                 failures.all().count())
         for failure in failures.iterator():
             outbound_id = str(failure.outbound_id)
             # Cleanup the failure before requeueing it.
@@ -428,6 +426,7 @@ class AggregateOutboundMessages(Task):
                     attempts=aggregate['attempts'],
                     total=aggregate['total'],
                 )
+
 
 aggregate_outbounds = AggregateOutboundMessages()
 
@@ -501,5 +500,6 @@ class ArchiveOutboundMessages(Task):
                 receiver=model_deleted,
                 dispatch_uid='instance-deleted-hook',
             )
+
 
 archive_outbound = ArchiveOutboundMessages()

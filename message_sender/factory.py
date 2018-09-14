@@ -5,7 +5,7 @@ import pkg_resources
 
 from copy import deepcopy
 from django.conf import settings
-from django.core.urlresolvers import reverse
+from django.urls import reverse
 
 import requests
 from six.moves import urllib_parse
