@@ -208,3 +208,37 @@ class AggregateOutboundSerializer(serializers.Serializer):
 class ArchivedOutboundSerializer(serializers.Serializer):
     start = serializers.DateField()
     end = serializers.DateField()
+
+
+class EventSerializer(serializers.Serializer):
+    message_type = serializers.ChoiceField(choices=["event"])
+    event_type = serializers.ChoiceField(choices=["ack", "nack", "delivery_report"])
+    user_message_id = serializers.CharField()
+    timestamp = serializers.CharField()
+    nack_reason = serializers.JSONField(default="")
+
+
+class JunebugEventSerializer(serializers.Serializer):
+    event_type = serializers.ChoiceField(
+        choices=["submitted", "rejected", "delivery_succeeded", "delivery_failed"]
+    )
+    message_id = serializers.CharField()
+    timestamp = serializers.CharField()
+    event_details = serializers.JSONField(default="")
+
+
+class WassupEventSerializer(serializers.Serializer):
+    class HookSerializer(serializers.Serializer):
+        event = serializers.ChoiceField(choices=["message.direct_outbound.status"])
+
+    hook = HookSerializer()
+
+    class DataSerializer(serializers.Serializer):
+        status = serializers.ChoiceField(
+            choices=["sent", "unsent", "delivered", "failed"]
+        )
+        message_uuid = serializers.CharField()
+        description = serializers.CharField(default="")
+        timestamp = serializers.CharField()
+
+    data = DataSerializer()

@@ -2519,7 +2519,13 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         )
         self.assertEqual(
             json.loads(response.content.decode()),
-            {"accepted": False, "reason": "Unable to handle hook None"},
+            {
+                "accepted": False,
+                "reason": {
+                    "data": ["This field is required."],
+                    "hook": ["This field is required."],
+                },
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -2530,7 +2536,11 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         """
         event = {
             "hook": {"event": "message.direct_outbound.status"},
-            "data": {"message_uuid": "bad-message-id", "status": "sent"},
+            "data": {
+                "message_uuid": "bad-message-id",
+                "status": "sent",
+                "timestamp": "2018-05-04T16:00:18Z",
+            },
         }
         response = self.client.post(
             reverse("wassup-events"), json.dumps(event), content_type="application/json"

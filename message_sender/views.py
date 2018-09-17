@@ -32,6 +32,9 @@ from .serializers import (
     AggregateOutboundSerializer,
     ArchivedOutboundSerializer,
     WassupInboundSerializer,
+    EventSerializer,
+    JunebugEventSerializer,
+    WassupEventSerializer,
 )
 from .tasks import (
     send_message,
@@ -377,50 +380,23 @@ class EventListener(APIView):
         """
         Checks for expect event types before continuing
         """
-        missing = set(
-            ("message_type", "event_type", "user_message_id", "timestamp")
-        ).difference(request.data.keys())
-        if missing:
+        serializer = EventSerializer(data=request.data)
+
+        if not serializer.is_valid():
             return Response(
-                {
-                    "accepted": False,
-                    "reason": "Missing expected body keys: {}".format(missing),
-                },
-                status=400,
+                {"accepted": False, "reason": serializer.errors}, status=400
             )
 
-        if request.data["message_type"] != "event":
-            return Response(
-                {
-                    "accepted": False,
-                    "reason": "Unexpected message_type {}".format(
-                        request.data["message_type"]
-                    ),
-                },
-                status=400,
-            )
+        data = serializer.validated_data
 
         event_type = {
             "ack": "ack",
             "nack": "nack",
             "delivery_report": "delivery_succeeded",
-        }.get(request.data["event_type"])
-        if event_type is None:
-            return Response(
-                {
-                    "accepted": False,
-                    "reason": "Invalid event type {}".format(
-                        request.data["event_type"]
-                    ),
-                },
-                status=400,
-            )
+        }.get(data["event_type"])
 
         accepted, reason = process_event(
-            request.data["user_message_id"],
-            event_type,
-            request.data.get("nack_reason", ""),
-            request.data["timestamp"],
+            data["user_message_id"], event_type, data["nack_reason"], data["timestamp"]
         )
 
         return Response(
@@ -448,40 +424,22 @@ class JunebugEventListener(APIView):
         """
         Updates the message from the event data.
         """
-        missing = set(("event_type", "message_id", "timestamp")).difference(
-            request.data.keys()
-        )
-        if missing:
+        serializer = JunebugEventSerializer(data=request.data)
+        if not serializer.is_valid():
             return Response(
-                {
-                    "accepted": False,
-                    "reason": "Missing expected body keys: {}".format(missing),
-                },
-                status=400,
+                {"accepted": False, "reason": serializer.errors}, status=400
             )
+        data = serializer.validated_data
 
         event_type = {
             "submitted": "ack",
             "rejected": "nack",
             "delivery_succeeded": "delivery_succeeded",
             "delivery_failed": "delivery_failed",
-        }.get(request.data["event_type"])
-        if event_type is None:
-            return Response(
-                {
-                    "accepted": False,
-                    "reason": "Invalid event type {}".format(
-                        request.data["event_type"]
-                    ),
-                },
-                status=400,
-            )
+        }.get(data["event_type"])
 
         accepted, reason = process_event(
-            request.data["message_id"],
-            event_type,
-            request.data.get("event_details"),
-            request.data["timestamp"],
+            data["message_id"], event_type, data["event_details"], data["timestamp"]
         )
 
         return Response(
@@ -497,21 +455,16 @@ class WassupEventListener(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):
-        hook = request.data.get("hook", {})
-        data = request.data.get("data", {})
+        serializer = WassupEventSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"accepted": False, "reason": serializer.errors}, status=400
+            )
+        data = serializer.validated_data
 
         dispatcher = {"message.direct_outbound.status": self.handle_status}
-        handler = dispatcher.get(hook.get("event"), self.noop)
-        return handler(hook, data)
-
-    def noop(self, hook, data):
-        return Response(
-            {
-                "accepted": False,
-                "reason": "Unable to handle hook %s" % (hook.get("event"),),
-            },
-            status=400,
-        )
+        handler = dispatcher.get(data["hook"]["event"])
+        return handler(data["hook"], data["data"])
 
     def handle_status(self, hook, data):
         event_type = {
