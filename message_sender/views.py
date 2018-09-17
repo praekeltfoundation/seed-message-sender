@@ -35,6 +35,7 @@ from .serializers import (
     EventSerializer,
     JunebugEventSerializer,
     WassupEventSerializer,
+    WhatsAppEventSerializer,
 )
 from .tasks import (
     send_message,
@@ -362,6 +363,9 @@ def process_event(message_id, event_type, event_detail, timestamp):
                     "metric_value": 1.0,
                 }
             )
+    elif event_type == "read":
+        message.metadata["read_timestamp"] = timestamp
+        message.save(update_fields=["metadata"])
 
     fire_delivery_hook(message)
 
@@ -482,6 +486,36 @@ class WassupEventListener(APIView):
         )
         return Response(
             {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
+
+
+class WhatsAppEventListener(APIView):
+    permission_classes = (AllowAny,)
+
+    def post(self, request, *args, **kwargs):
+        serializer = WhatsAppEventSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"accepted": False, "reason": serializer.errors}, status=400
+            )
+        data = serializer.validated_data
+
+        response = []
+        for item in data["statuses"]:
+            event_type = {
+                "sent": "ack",
+                "delivered": "delivery_succeeded",
+                "failed": "delivery_failed",
+                "read": "read",
+            }.get(item["status"])
+
+            accepted, reason = process_event(
+                item["id"], event_type, "", item["timestamp"]
+            )
+            response.append({"accepted": accepted, "reason": reason, "id": item["id"]})
+
+        return Response(
+            response, status=200 if all(r["accepted"] for r in response) else 400
         )
 
 

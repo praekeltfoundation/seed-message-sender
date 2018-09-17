@@ -242,3 +242,14 @@ class WassupEventSerializer(serializers.Serializer):
         timestamp = serializers.CharField()
 
     data = DataSerializer()
+
+
+class WhatsAppEventSerializer(serializers.Serializer):
+    class StatusSerializer(serializers.Serializer):
+        id = serializers.CharField()
+        status = serializers.ChoiceField(
+            choices=["sent", "delivered", "read", "failed"]
+        )
+        timestamp = serializers.CharField()
+
+    statuses = serializers.ListField(child=StatusSerializer())

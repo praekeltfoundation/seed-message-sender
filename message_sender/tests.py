@@ -3621,3 +3621,156 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
         )
         self.assertEqual(response.status_code, 202)
         task.delay.assert_called_once_with("2017-01-01", "2017-01-03")
+
+
+class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
+    def test_event_missing_fields(self):
+        """
+        If there are missing fields in the request, and error response should
+        be returned.
+        """
+        response = self.client.post(
+            reverse("whatsapp-events"), json.dumps({}), content_type="application/json"
+        )
+        self.assertEqual(
+            json.loads(response.content.decode()),
+            {"accepted": False, "reason": {"statuses": ["This field is required."]}},
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_event_no_message(self):
+        """
+        If we cannot find the message for the event, an error response should
+        be returned.
+        """
+        event = {
+            "statuses": [
+                {
+                    "id": "bad-message-id",
+                    "status": "sent",
+                    "timestamp": "2018-05-04T16:00:18Z",
+                }
+            ]
+        }
+        response = self.client.post(
+            reverse("whatsapp-events"),
+            json.dumps(event),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            json.loads(response.content.decode()),
+            [
+                {
+                    "accepted": False,
+                    "reason": "Cannot find message for ID bad-message-id",
+                    "id": "bad-message-id",
+                }
+            ],
+        )
+
+    @patch("message_sender.views.fire_delivery_hook")
+    def test_event_ack(self, mock_hook):
+        """A submitted event should update the message object accordingly."""
+        existing = self.make_outbound()
+
+        d = Outbound.objects.get(pk=existing)
+        event = {
+            "statuses": [
+                {
+                    "id": d.vumi_message_id,
+                    "status": "sent",
+                    "timestamp": "2018-05-04T16:00:18Z",
+                }
+            ]
+        }
+        response = self.client.post(
+            reverse("whatsapp-events"),
+            json.dumps(event),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
+        self.assertEqual(
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
+        mock_hook.assert_called_once_with(d)
+
+    @responses.activate
+    @patch("message_sender.views.fire_delivery_hook")
+    def test_event_nack(self, mock_hook):
+        """
+        A rejected event should retry and update the message object accordingly
+        """
+        self.add_metrics_response()
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        post_save.connect(
+            psh_fire_msg_action_if_new,
+            sender=Outbound,
+            dispatch_uid="psh_fire_msg_action_if_new",
+        )
+        event = {
+            "statuses": [
+                {
+                    "id": d.vumi_message_id,
+                    "status": "failed",
+                    "timestamp": "2018-05-04T16:00:18Z",
+                }
+            ]
+        }
+
+        response = self.client.post(
+            reverse("whatsapp-events"),
+            json.dumps(event),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        c = Outbound.objects.get(pk=existing)
+        self.assertEqual(c.delivered, False)
+        self.assertEqual(c.attempts, 2)
+        self.assertEqual(
+            True,
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27123' "
+                "[session_event: new]"
+            ),
+        )
+        mock_hook.assert_called_once_with(d)
+
+    @patch("message_sender.views.fire_delivery_hook")
+    def test_event_delivery_succeeded(self, mock_hook):
+        """A successful delivery should update the message accordingly."""
+        existing = self.make_outbound()
+        d = Outbound.objects.get(pk=existing)
+        event = {
+            "statuses": [
+                {
+                    "id": d.vumi_message_id,
+                    "status": "delivered",
+                    "timestamp": "2018-05-04T16:00:18Z",
+                }
+            ]
+        }
+        response = self.client.post(
+            reverse("whatsapp-events"),
+            json.dumps(event),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        d = Outbound.objects.get(pk=existing)
+        self.assertEqual(d.delivered, True)
+        self.assertEqual(d.attempts, 1)
+        self.assertEqual(d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
+        self.assertEqual(
+            False,
+            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+        )
+        mock_hook.assert_called_once_with(d)

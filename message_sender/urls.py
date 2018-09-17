@@ -25,6 +25,11 @@ urlpatterns = [
         views.WassupEventListener.as_view(),
         name="wassup-events",
     ),
+    path(
+        "api/v1/events/whatsapp",
+        views.WhatsAppEventListener.as_view(),
+        name="whatsapp-events",
+    ),
     path("api/v1/user/token/", views.UserView.as_view(), name="create-user-token"),
     url(
         "^api/v1/inbound/(?P<channel_id>\w+)/$",
