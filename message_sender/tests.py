@@ -2538,7 +2538,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             json.loads(response.content.decode()),
-            {"accepted": False, "reason": "Unable to find message for message_uuid"},
+            {"accepted": False, "reason": "Cannot find message for ID bad-message-id"},
         )
 
     @patch("message_sender.views.fire_delivery_hook")
@@ -2602,9 +2602,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         c = Outbound.objects.get(pk=existing)
         self.assertEqual(c.delivered, False)
         self.assertEqual(c.attempts, 2)
-        self.assertEqual(
-            c.metadata["nack_reason"], {"description": "stars not aligned"}
-        )
+        self.assertEqual(c.metadata["nack_reason"], "stars not aligned")
         self.assertEqual(
             True,
             self.check_logs(
@@ -2669,9 +2667,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 2)
-        self.assertEqual(
-            d.metadata["delivery_failed_reason"], {"description": "computer said no"}
-        )
+        self.assertEqual(d.metadata["delivery_failed_reason"], "computer said no")
         self.assertEqual(
             False,
             self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),

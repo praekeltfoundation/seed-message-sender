@@ -294,6 +294,77 @@ def decr_message_count(message):
     ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
 
 
+def process_event(message_id, event_type, event_detail, timestamp):
+    """
+    Processes an event of the given details, returning a (success, message) tuple
+    """
+    # Load message
+    try:
+        message = Outbound.objects.select_related("channel").get(
+            vumi_message_id=message_id
+        )
+    except ObjectDoesNotExist:
+        return (False, "Cannot find message for ID {}".format(message_id))
+
+    if event_type == "ack":
+        message.delivered = True
+        message.to_addr = ""
+        message.metadata["ack_timestamp"] = timestamp
+        message.metadata["ack_reason"] = event_detail
+        message.save(update_fields=["delivered", "to_addr", "metadata"])
+
+        # OBD number of successful tries metric
+        if "voice_speech_url" in message.metadata:
+            fire_metric.apply_async(
+                kwargs={
+                    "metric_name": "vumimessage.obd.successful.sum",
+                    "metric_value": 1.0,
+                }
+            )
+    elif event_type == "nack":
+        message.metadata["nack_timestamp"] = timestamp
+        message.metadata["nack_reason"] = event_detail
+        message.save(update_fields=["metadata"])
+
+        decr_message_count(message)
+
+        send_message.delay(str(message.id))
+
+        if "voice_speech_url" in message.metadata:
+            fire_metric.apply_async(
+                kwargs={
+                    "metric_name": "vumimessage.obd.unsuccessful.sum",
+                    "metric_value": 1.0,
+                }
+            )
+    elif event_type == "delivery_succeeded":
+        message.delivered = True
+        message.to_addr = ""
+        message.metadata["delivery_timestamp"] = timestamp
+        message.metadata["delivery_reason"] = event_detail
+        message.save(update_fields=["delivered", "metadata", "to_addr"])
+    elif event_type == "delivery_failed":
+        message.metadata["delivery_failed_reason"] = event_detail
+        message.metadata["delivery_failed_timestamp"] = timestamp
+        message.save(update_fields=["metadata"])
+
+        decr_message_count(message)
+
+        send_message.delay(str(message.id))
+
+        if "voice_speech_url" in message.metadata:
+            fire_metric.apply_async(
+                kwargs={
+                    "metric_name": "vumimessage.obd.unsuccessful.sum",
+                    "metric_value": 1.0,
+                }
+            )
+
+    fire_delivery_hook(message)
+
+    return (True, "Event processed")
+
+
 class EventListener(APIView):
 
     """
@@ -306,79 +377,55 @@ class EventListener(APIView):
         """
         Checks for expect event types before continuing
         """
+        missing = set(
+            ("message_type", "event_type", "user_message_id", "timestamp")
+        ).difference(request.data.keys())
+        if missing:
+            return Response(
+                {
+                    "accepted": False,
+                    "reason": "Missing expected body keys: {}".format(missing),
+                },
+                status=400,
+            )
 
-        try:
-            expect = [
-                "message_type",
-                "event_type",
-                "user_message_id",
-                "event_id",
-                "timestamp",
-            ]
-            if set(expect).issubset(request.data.keys()):
-                # Load message
-                message = Outbound.objects.select_related("channel").get(
-                    vumi_message_id=request.data["user_message_id"]
-                )
-                # only expecting `event` on this endpoint
-                if request.data["message_type"] == "event":
-                    event = request.data["event_type"]
-                    # expecting ack, nack, delivery_report
-                    if event == "ack":
-                        message.delivered = True
-                        message.to_addr = ""
-                        message.metadata["ack_timestamp"] = request.data["timestamp"]
-                        message.save()
-                        fire_delivery_hook(message)
+        if request.data["message_type"] != "event":
+            return Response(
+                {
+                    "accepted": False,
+                    "reason": "Unexpected message_type {}".format(
+                        request.data["message_type"]
+                    ),
+                },
+                status=400,
+            )
 
-                        # OBD number of successful tries metric
-                        if "voice_speech_url" in message.metadata:
-                            fire_metric.apply_async(
-                                kwargs={
-                                    "metric_name": "vumimessage.obd.successful.sum",
-                                    "metric_value": 1.0,
-                                }
-                            )
-                    elif event == "delivery_report":
-                        message.delivered = True
-                        message.to_addr = ""
-                        message.metadata["delivery_timestamp"] = request.data[
-                            "timestamp"
-                        ]
-                        message.save()
-                        fire_delivery_hook(message)
-                    elif event == "nack":
-                        if "nack_reason" in request.data:
-                            message.metadata["nack_reason"] = request.data[
-                                "nack_reason"
-                            ]
-                            message.save()
-                        fire_delivery_hook(message)
+        event_type = {
+            "ack": "ack",
+            "nack": "nack",
+            "delivery_report": "delivery_succeeded",
+        }.get(request.data["event_type"])
+        if event_type is None:
+            return Response(
+                {
+                    "accepted": False,
+                    "reason": "Invalid event type {}".format(
+                        request.data["event_type"]
+                    ),
+                },
+                status=400,
+            )
 
-                        decr_message_count(message)
+        accepted, reason = process_event(
+            request.data["user_message_id"],
+            event_type,
+            request.data.get("nack_reason", ""),
+            request.data["timestamp"],
+        )
 
-                        send_message.delay(str(message.id))
-                        if "voice_speech_url" in message.metadata:
-                            fire_metric.apply_async(
-                                kwargs={
-                                    "metric_name": "vumimessage.obd.unsuccessful.sum",
-                                    "metric_value": 1.0,
-                                }
-                            )
-
-                    # Return
-                    status = 200
-                    accepted = {"accepted": True}
-                else:
-                    status = 400
-                    accepted = {"accepted": False, "reason": "Unexpected message_type"}
-            else:
-                status = 400
-                accepted = {"accepted": False, "reason": "Missing expected body keys"}
-        except ObjectDoesNotExist:
-            status = 400
-            accepted = {"accepted": False, "reason": "Missing message in control"}
-        return Response(accepted, status=status)
+        return Response(
+            {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
 
     # TODO make this work in test harness, works in production
     # def perform_create(self, serializer):
@@ -401,71 +448,45 @@ class JunebugEventListener(APIView):
         """
         Updates the message from the event data.
         """
-        expect = ["event_type", "message_id", "timestamp"]
-        if not set(expect).issubset(request.data.keys()):
+        missing = set(("event_type", "message_id", "timestamp")).difference(
+            request.data.keys()
+        )
+        if missing:
             return Response(
-                {"accepted": False, "reason": "Missing expected body keys"}, status=400
-            )
-
-        try:
-            message = Outbound.objects.select_related("channel").get(
-                vumi_message_id=request.data["message_id"]
-            )
-        except ObjectDoesNotExist:
-            return Response(
-                {"accepted": False, "reason": "Cannot find message for event"},
+                {
+                    "accepted": False,
+                    "reason": "Missing expected body keys: {}".format(missing),
+                },
                 status=400,
             )
 
-        event_type = request.data["event_type"]
-        if event_type == "submitted":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["ack_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=["metadata", "delivered", "to_addr"])
-            fire_delivery_hook(message)
-
-            # OBD number of successful tries metric
-            if "voice_speech_url" in message.metadata:
-                fire_metric.apply_async(
-                    kwargs={
-                        "metric_name": "vumimessage.obd.successful.sum",
-                        "metric_value": 1.0,
-                    }
-                )
-        elif event_type == "rejected":
-            message.metadata["nack_reason"] = request.data.get("event_details")
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-        elif event_type == "delivery_succeeded":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["delivery_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=["delivered", "metadata", "to_addr"])
-            fire_delivery_hook(message)
-        elif event_type == "delivery_failed":
-            message.metadata["delivery_failed_reason"] = request.data.get(
-                "event_details"
-            )
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-
-        if "voice_speech_url" in message.metadata and event_type in (
-            "rejected",
-            "delivery_failed",
-        ):
-            fire_metric.apply_async(
-                kwargs={
-                    "metric_name": "vumimessage.obd.unsuccessful.sum",
-                    "metric_value": 1.0,
-                }
+        event_type = {
+            "submitted": "ack",
+            "rejected": "nack",
+            "delivery_succeeded": "delivery_succeeded",
+            "delivery_failed": "delivery_failed",
+        }.get(request.data["event_type"])
+        if event_type is None:
+            return Response(
+                {
+                    "accepted": False,
+                    "reason": "Invalid event type {}".format(
+                        request.data["event_type"]
+                    ),
+                },
+                status=400,
             )
 
-        return Response({"accepted": True}, status=200)
+        accepted, reason = process_event(
+            request.data["message_id"],
+            event_type,
+            request.data.get("event_details"),
+            request.data["timestamp"],
+        )
+
+        return Response(
+            {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
 
 
 class WassupEventListener(APIView):
@@ -493,62 +514,22 @@ class WassupEventListener(APIView):
         )
 
     def handle_status(self, hook, data):
+        event_type = {
+            "sent": "ack",
+            "unsent": "nack",
+            "delivered": "delivery_succeeded",
+            "failed": "delivery_failed",
+        }.get(data["status"])
 
-        status = data["status"]
-
-        try:
-            message = Outbound.objects.select_related("channel").get(
-                vumi_message_id=data["message_uuid"]
-            )
-        except ObjectDoesNotExist:
-            return Response(
-                {
-                    "accepted": False,
-                    "reason": "Unable to find message for message_uuid",
-                },
-                status=400,
-            )
-
-        if status == "sent":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["ack_timestamp"] = data["timestamp"]
-            message.save(update_fields=["metadata", "delivered", "to_addr"])
-            fire_delivery_hook(message)
-
-            # OBD number of successful tries metric
-            if "voice_speech_url" in message.metadata:
-                fire_metric.apply_async(
-                    kwargs={
-                        "metric_name": "vumimessage.obd.successful.sum",
-                        "metric_value": 1.0,
-                    }
-                )
-
-        elif status == "unsent":
-            message.metadata["nack_reason"] = {"description": data["description"]}
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-
-        elif status == "delivered":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["delivery_timestamp"] = data["timestamp"]
-            message.save(update_fields=["delivered", "metadata", "to_addr"])
-            fire_delivery_hook(message)
-
-        elif status == "failed":
-            message.metadata["delivery_failed_reason"] = {
-                "description": data.get("description")
-            }
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-
-        return Response({"accepted": True}, status=200)
+        accepted, reason = process_event(
+            data["message_uuid"],
+            event_type,
+            data.get("description"),
+            data.get("timestamp"),
+        )
+        return Response(
+            {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
 
 
 class MetricsView(APIView):
