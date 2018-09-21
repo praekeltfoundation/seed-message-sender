@@ -1,11 +1,16 @@
+import base64
+import hmac
 from datetime import datetime, timedelta
 from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.shortcuts import get_object_or_404
 from django import forms
 from django_filters import rest_framework as filters
+from hashlib import sha256
 from rest_hooks.models import Hook
 from rest_framework import viewsets, status, mixins
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
@@ -492,7 +497,25 @@ class WassupEventListener(APIView):
 class WhatsAppEventListener(APIView):
     permission_classes = (AllowAny,)
 
-    def post(self, request, *args, **kwargs):
+    def validate_signature(self, channel, request):
+        secret = channel.configuration.get("HMAC_SECRET")
+        if not secret:
+            raise AuthenticationFailed(
+                "No HMAC_SECRET set on channel {}".format(channel.channel_id)
+            )
+
+        signature = request.META.get("X-Engage-Hook-Signature")
+        if not signature:
+            raise AuthenticationFailed("X-Engage-Hook-Signature header required")
+
+        h = hmac.new(secret.encode(), request.body, sha256)
+        if base64.b64encode(h.digest()) != signature:
+            raise AuthenticationFailed("Invalid hook signature")
+
+    def post(self, request, channel_id, *args, **kwargs):
+        channel = get_object_or_404(Channel, pk=channel_id)
+        self.validate_signature(channel, request)
+
         serializer = WhatsAppEventSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(

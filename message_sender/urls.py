@@ -26,7 +26,7 @@ urlpatterns = [
         name="wassup-events",
     ),
     path(
-        "api/v1/events/whatsapp",
+        "api/v1/events/whatsapp/<channel_id>",
         views.WhatsAppEventListener.as_view(),
         name="whatsapp-events",
     ),

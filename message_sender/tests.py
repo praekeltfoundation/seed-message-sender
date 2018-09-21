@@ -1,9 +1,12 @@
+import base64
 import gzip
+import hmac
 import json
 import os
 import uuid
 import logging
 from unittest import mock
+from hashlib import sha256
 import responses
 
 from urllib.parse import urlparse, urlencode
@@ -2230,7 +2233,7 @@ class TestGenericHttpApiSender(TestCase):
 
         message_sender = MessageClientFactory.create(channel)
         res = message_sender.send_voice(
-            "+1234", "", speech_url=u"http://sbm.com/test.mp3", session_event="new"
+            "+1234", "", speech_url="http://sbm.com/test.mp3", session_event="new"
         )
 
         self.assertEqual(res["message_id"], "message-uuid")
@@ -3624,13 +3627,28 @@ class ArchivedOutboundsTests(AuthenticatedAPITestCase):
 
 
 class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
+    def setUp(self):
+        self.channel = Channel.objects.create(
+            channel_id="test", configuration={"HMAC_SECRET": "testhmac"}
+        )
+        super().setUp()
+
+    def generate_signature(self, content):
+        h = hmac.new(
+            self.channel.configuration["HMAC_SECRET"].encode(), content.encode(), sha256
+        )
+        return base64.b64encode(h.digest())
+
     def test_event_missing_fields(self):
         """
         If there are missing fields in the request, and error response should
         be returned.
         """
         response = self.client.post(
-            reverse("whatsapp-events"), json.dumps({}), content_type="application/json"
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
+            json.dumps({}),
+            content_type="application/json",
+            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps({}))},
         )
         self.assertEqual(
             json.loads(response.content.decode()),
@@ -3653,9 +3671,10 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             ]
         }
         response = self.client.post(
-            reverse("whatsapp-events"),
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
+            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
@@ -3685,10 +3704,12 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             ]
         }
         response = self.client.post(
-            reverse("whatsapp-events"),
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
+            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
         )
+        print(response.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -3726,9 +3747,10 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         }
 
         response = self.client.post(
-            reverse("whatsapp-events"),
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
+            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -3759,9 +3781,10 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             ]
         }
         response = self.client.post(
-            reverse("whatsapp-events"),
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
+            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -3774,3 +3797,44 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
         )
         mock_hook.assert_called_once_with(d)
+
+    def test_missing_channel(self):
+        """
+        If there's no channel with the specified ID, a 404 response should be returned
+        """
+        response = self.client.post(
+            reverse("whatsapp-events", args=["badchannel"]),
+            json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_missing_hmac_header(self):
+        """
+        If the signature header is missing, the request should not be allowed
+        """
+        response = self.client.post(
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
+            json.dumps({}),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(
+            json.loads(response.content),
+            {"detail": "X-Engage-Hook-Signature header required"},
+        )
+
+    def test_invalid_hmac_header(self):
+        """
+        If the signature header is invalid, the request should not be allowed
+        """
+        response = self.client.post(
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
+            json.dumps({}),
+            content_type="application/json",
+            **{"X-Engage-Hook-Signature": "badsignature"},
+        )
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(
+            json.loads(response.content), {"detail": "Invalid hook signature"}
+        )
