@@ -18,6 +18,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.authtoken.models import Token
 
+from .formatters import e_164
 from .models import (
     Outbound,
     Inbound,
@@ -41,6 +42,7 @@ from .serializers import (
     JunebugEventSerializer,
     WassupEventSerializer,
     WhatsAppEventSerializer,
+    WhatsAppInboundSerializer,
 )
 from .tasks import (
     send_message,
@@ -186,83 +188,83 @@ class InboundViewSet(viewsets.ModelViewSet):
     ordering = ("-created_at",)
 
     def get_serializer_class(self):
-        try:
-            data = self.request.data
-        except AttributeError:
-            # No data object for docs
-            data = {}
         if self.action == "create":
-            if "channel_data" in data:
+            if self.channel.channel_type == Channel.VUMI_TYPE:
+                return InboundSerializer
+            elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
                 return JunebugInboundSerializer
-            elif "hook" in data:
+            elif self.channel.channel_type == Channel.WASSUP_API_TYPE:
                 return WassupInboundSerializer
+            elif self.channel.channel_type == Channel.WHATSAPP_API_TYPE:
+                return WhatsAppInboundSerializer
         return InboundSerializer
 
-    def create(self, request, *args, **kwargs):
-        if not kwargs.get("channel_id"):
-            channel = Channel.objects.get(default=True)
-        else:
-            channel = Channel.objects.get(channel_id=kwargs.get("channel_id"))
+    def pop_from_address(self, data):
+        if self.channel.channel_type == Channel.VUMI_TYPE:
+            return data.pop("from_addr")
+        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.pop("from")
+        elif self.channel.channel_type == Channel.WASSUP_API_TYPE:
+            return data["data"].pop("from_addr")
+        elif self.channel.channel_type == Channel.WHATSAPP_API_TYPE:
+            return data.pop("from")
 
-        if "from" in request.data:
-            msisdn = request.data.pop("from")
-        elif "from_addr" in request.data:
-            msisdn = request.data.pop("from_addr")
-        elif "hook" in request.data:
-            msisdn = request.data["data"]["from_addr"]
+    def is_close_event(self, data):
+        if self.channel.channel_type == Channel.VUMI_TYPE:
+            return data.get("session_event") == "close"
+        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.get("channel_data", {}).get("session_event") == "close"
+        # Wassup/WhatsApp doesn't have sessions
+        return False
 
+    def get_related_outbound_id(self, data):
+        if self.channel.channel_type == Channel.VUMI_TYPE:
+            return data.get("in_reply_to")
+        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.get("reply_to")
+        return None
+
+    def get_or_create_identity(self, msisdn):
         result = get_identity_by_address(msisdn)
 
         if result:
-            identity_id = result[0]["id"]
+            return result[0]["id"]
         else:
-            identity = {
-                "details": {
-                    "default_addr_type": "msisdn",
-                    "addresses": {"msisdn": {msisdn: {"default": True}}},
+            return create_identity(
+                {
+                    "details": {
+                        "default_addr_type": "msisdn",
+                        "addresses": {"msisdn": {msisdn: {"default": True}}},
+                    }
                 }
-            }
-            identity = create_identity(identity)
-            identity_id = identity["id"]
+            )["id"]
 
-        if "hook" in request.data:
-            request.data["data"]["from_identity"] = identity_id
+    def create(self, request, *args, **kwargs):
+        if not kwargs.get("channel_id"):
+            self.channel = Channel.objects.get(default=True)
         else:
-            request.data["from_identity"] = identity_id
+            self.channel = Channel.objects.get(channel_id=kwargs.get("channel_id"))
 
-        if channel.concurrency_limit == 0:
+        msisdn = e_164(self.pop_from_address(request.data))
+        request.data["from_identity"] = self.get_or_create_identity(msisdn)
+
+        if self.channel.concurrency_limit == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
-        close_event = False
-        # Handle message from Junebug
-        if request.data.get("channel_data", {}).get("session_event", None) == "close":
-            close_event = True
-            related_outbound = request.data["reply_to"]
-        elif "session_event" in request.data:  # Handle message from Vumi
-            if request.data["session_event"] == "close":
-                close_event = True
-                related_outbound = request.data["in_reply_to"]
-        elif "hook" in request.data:  # Handle messages from wassup
-            related_outbound = request.data["data"]["in_reply_to"]
-
-        if close_event:
-            if related_outbound is not None:
-                try:
-                    message = Outbound.objects.get(vumi_message_id=related_outbound)
-                except (ObjectDoesNotExist, MultipleObjectsReturned):
-                    message = (
-                        Outbound.objects.filter(to_identity=identity_id)
-                        .order_by("-created_at")
-                        .last()
-                    )
-            else:
+        related_outbound = self.get_related_outbound_id(request.data)
+        if self.is_close_event(request.data) and related_outbound:
+            try:
+                message = Outbound.objects.get(vumi_message_id=related_outbound)
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
                 message = (
-                    Outbound.objects.filter(to_identity=identity_id)
+                    Outbound.objects.filter(to_identity=request.data["from_identity"])
                     .order_by("-created_at")
                     .last()
                 )
             if message:
-                ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
+                ConcurrencyLimiter.decr_message_count(
+                    self.channel, message.last_sent_time
+                )
 
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 

@@ -211,6 +211,22 @@ def make_channels():
     }
     Channel.objects.create(**wassup_channel_text)
 
+    whatsapp_channel = {
+        "channel_id": "WHATSAPP",
+        "channel_type": Channel.WHATSAPP_API_TYPE,
+        "default": False,
+        "configuration": {
+            "API_URL": "http://example.com/",
+            "API_TOKEN": "http-api-token",
+            "HSM_NAMESPACE": "whatsapp:hsm:test",
+            "HSM_ELEMENT_NAME": "test",
+        },
+        "concurrency_limit": 0,
+        "message_timeout": 0,
+        "message_delay": 0,
+    }
+    Channel.objects.create(**whatsapp_channel)
+
 
 class RecordingAdapter(TestAdapter):
 
@@ -275,7 +291,9 @@ class APITestCase(TestCase):
 
 
 class AuthenticatedAPITestCase(APITestCase):
-    def make_outbound(self, to_addr="+27123", to_identity="0c03d360", channel=None):
+    def make_outbound(
+        self, to_addr="+27820000123", to_identity="0c03d360", channel=None
+    ):
 
         if channel:
             channel = Channel.objects.get(channel_id=channel)
@@ -295,12 +313,12 @@ class AuthenticatedAPITestCase(APITestCase):
         self._restore_post_save_hooks_outbound()  # let tests fire tasks
         return str(outbound.id)
 
-    def make_inbound(self, in_reply_to, from_addr="020", from_identity=""):
+    def make_inbound(self, in_reply_to, from_addr="+27820000020", from_identity=""):
         self._replace_post_save_hooks_inbound()
         inbound_message = {
             "message_id": str(uuid.uuid4()),
             "in_reply_to": in_reply_to,
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "from_addr": from_addr,
             "from_identity": from_identity,
             "content": "Call delivered",
@@ -475,10 +493,10 @@ class TestWassupMessagesAPI(AuthenticatedAPITestCase):
         """
         mock_send_image.return_value = {"message_id": str(uuid.uuid4())}
         self.add_metrics_response()
-        self.add_identity_search_response("+27123", "0c03d360")
+        self.add_identity_search_response("+27820000123", "0c03d360")
 
         post_outbound = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "delivered": "false",
             "metadata": {"image_url": "https://foo.com/file.jpg"},
             "channel": "WASSUP_API",
@@ -492,7 +510,7 @@ class TestWassupMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
         mock_send_image.assert_called_with(
-            "+27123", "Check this image", image_url="https://foo.com/file.jpg"
+            "+27820000123", "Check this image", image_url="https://foo.com/file.jpg"
         )
 
 
@@ -549,10 +567,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         object with the correct specified values.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("+27123", "0c03d360")
+        self.add_identity_search_response("+27820000123", "0c03d360")
 
         post_outbound = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "vumi_message_id": "075a32da-e1e4-4424-be46-1d09b71056fd",
             "content": "Say something",
             "delivered": False,
@@ -570,7 +588,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Outbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
-        self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_addr), "+27820000123")
         self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.content, "Say something")
         self.assertEqual(d.delivered, False)
@@ -585,10 +603,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         in the request should still create an Outbound object.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("+27123", "0c03d360")
+        self.add_identity_search_response("+27820000123", "0c03d360")
 
         post_outbound = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "delivered": "false",
             "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
         }
@@ -602,7 +620,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Outbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
-        self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_addr), "+27820000123")
         self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
@@ -617,11 +635,11 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         should be created on the identity store for that address.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("+2712345", None, 0)
-        self.add_create_identity_response("0c03d360123", "+2712345")
+        self.add_identity_search_response("+27820012345", None, 0)
+        self.add_create_identity_response("0c03d360123", "+27820012345")
 
         post_outbound = {
-            "to_addr": "+2712345",
+            "to_addr": "+27820012345",
             "delivered": "false",
             "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
         }
@@ -635,7 +653,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Outbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
-        self.assertEqual(str(d.to_addr), "+2712345")
+        self.assertEqual(str(d.to_addr), "+27820012345")
         self.assertEqual(str(d.to_identity), "0c03d360123")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
@@ -649,7 +667,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
             {
                 "details": {
                     "default_addr_type": "msisdn",
-                    "addresses": {"msisdn": {"+2712345": {"default": True}}},
+                    "addresses": {"msisdn": {"+27820012345": {"default": True}}},
                 }
             },
         )
@@ -661,10 +679,10 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         that Outbound should have the specified channel.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("+27123", "0c03d360")
+        self.add_identity_search_response("+27820000123", "0c03d360")
 
         post_outbound = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "delivered": "false",
             "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
             "channel": "JUNE_TEXT",
@@ -679,7 +697,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Outbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.version, 1)
-        self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_addr), "+27820000123")
         self.assertEqual(str(d.to_identity), "0c03d360")
         self.assertEqual(d.delivered, False)
         self.assertEqual(d.attempts, 1)
@@ -689,7 +707,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
     def test_create_outbound_data_with_channel_unknown(self):
 
         post_outbound = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "delivered": "false",
             "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
             "channel": "JUNE_VOICE_TEST",
@@ -766,7 +784,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
 
         d = Outbound.objects.get(pk=existing)
         self.assertEqual(d.version, 1)
-        self.assertEqual(str(d.to_addr), "+27123")
+        self.assertEqual(str(d.to_addr), "+27820000123")
         self.assertEqual(d.delivered, True)
         self.assertEqual(d.attempts, 2)
 
@@ -992,7 +1010,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         the concurrency limiter should not decrement.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("020", "0c03d360")
+        self.add_identity_search_response("+27820000020", "0c03d360")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1000,8 +1018,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_inbound = {
             "message_id": message_id,
             "in_reply_to": out.vumi_message_id,
-            "to_addr": "+27123",
-            "from_addr": "020",
+            "to_addr": "+27820000123",
+            "from_addr": "+27820000020",
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
@@ -1009,7 +1027,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         }
         with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
             response = self.client.post(
-                "/api/v1/inbound/",
+                "/api/v1/inbound/VUMI_TEXT/",
                 json.dumps(post_inbound),
                 content_type="application/json",
             )
@@ -1019,7 +1037,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.to_addr, "+27820000123")
         self.assertEqual(d.from_addr, "")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "Call delivered")
@@ -1035,8 +1053,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         address in the identity store.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("020", "0c03d360", 0)
-        self.add_create_identity_response("0c03d360", "020")
+        self.add_identity_search_response("+27820000020", "0c03d360", 0)
+        self.add_create_identity_response("0c03d360", "+27820000020")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1044,8 +1062,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_inbound = {
             "message_id": message_id,
             "in_reply_to": out.vumi_message_id,
-            "to_addr": "+27123",
-            "from_addr": "020",
+            "to_addr": "+27820000123",
+            "from_addr": "+27820000020",
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
@@ -1053,7 +1071,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         }
         with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
             response = self.client.post(
-                "/api/v1/inbound/",
+                "/api/v1/inbound/VUMI_TEXT/",
                 json.dumps(post_inbound),
                 content_type="application/json",
             )
@@ -1063,7 +1081,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.to_addr, "+27820000123")
         self.assertEqual(d.from_addr, "")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "Call delivered")
@@ -1078,7 +1096,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         URL is linked to should be set on the message.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("020", "0c03d360")
+        self.add_identity_search_response("+27820000020", "0c03d360")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1088,8 +1106,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_inbound = {
             "message_id": message_id,
             "in_reply_to": out.vumi_message_id,
-            "to_addr": "+27123",
-            "from_addr": "020",
+            "to_addr": "+27820000123",
+            "from_addr": "+27820000020",
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
@@ -1109,7 +1127,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.to_addr, "+27820000123")
         self.assertEqual(d.from_addr, "")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "Call delivered")
@@ -1124,7 +1142,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         channel specified in the URL as the channel on the inbound message.
         """
         self.add_metrics_response()
-        self.add_identity_search_response("020", "0c03d360")
+        self.add_identity_search_response("+27820000020", "0c03d360")
 
         existing_outbound = self.make_outbound()
         out = Outbound.objects.get(pk=existing_outbound)
@@ -1134,18 +1152,18 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         post_inbound = {
             "message_id": message_id,
             "in_reply_to": out.vumi_message_id,
-            "to_addr": "+27123",
-            "from_addr": "020",
+            "to_addr": "+27820000123",
+            "from_addr": "+27820000020",
             "content": "Call delivered",
             "transport_name": "test_voice",
             "transport_type": "voice",
             "helper_metadata": {},
             "session_event": "close",
         }
-        channel = Channel.objects.get(channel_id="JUNE_VOICE")
+        channel = Channel.objects.get(channel_id="VUMI_VOICE")
         with patch.object(ConcurrencyLimiter, "decr_message_count") as mock_method:
             response = self.client.post(
-                "/api/v1/inbound/JUNE_VOICE/",
+                "/api/v1/inbound/VUMI_VOICE/",
                 json.dumps(post_inbound),
                 content_type="application/json",
             )
@@ -1155,13 +1173,42 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
-        self.assertEqual(d.to_addr, "+27123")
+        self.assertEqual(d.to_addr, "+27820000123")
         self.assertEqual(d.from_addr, "")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "Call delivered")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
         self.assertEqual(d.helper_metadata, {"session_event": "close"})
+
+    @responses.activate
+    def test_create_inbound_data_with_channel_whatsapp(self):
+        """
+        When an inbound message is created from WhatsApp, it should create an Inbound
+        with the correct details
+        """
+        self.add_metrics_response()
+        identity_uuid = str(uuid.uuid4())
+        self.add_identity_search_response("+27820000000", identity_uuid)
+
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "id": message_id,
+            "from": "27820000000",
+            "text": {"body": "Test message"},
+        }
+        response = self.client.post(
+            "/api/v1/inbound/WHATSAPP/",
+            json.dumps(post_inbound),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.from_identity, identity_uuid)
+        self.assertEqual(d.content, "Test message")
 
     def test_update_inbound_data(self):
         existing_outbound = self.make_outbound()
@@ -1177,8 +1224,8 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Inbound.objects.get(pk=existing)
-        self.assertEqual(d.to_addr, "+27123")
-        self.assertEqual(d.from_addr, "020")
+        self.assertEqual(d.to_addr, "+27820000123")
+        self.assertEqual(d.from_addr, "+27820000020")
         self.assertEqual(d.content, "Opt out")
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, "voice")
@@ -1221,7 +1268,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -1249,7 +1298,9 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_timestamp"], "2015-10-28 16:20:37.485612")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -1286,7 +1337,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             True,
             self.check_logs(
-                "Message: 'Simple outbound message' sent to '+27123' "
+                "Message: 'Simple outbound message' sent to '+27820000123' "
                 "[session_event: new]"
             ),
         )
@@ -1301,7 +1352,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.add_metrics_response()
         # Be assured this is last message attempt
         outbound_message = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "vumi_message_id": "08b34de7-c6da-4853-a74d-9458533ed169",
             "content": "Simple outbound message",
             "delivered": False,
@@ -1338,7 +1389,7 @@ class TestVumiMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             False,
             self.check_logs(
-                "Message: 'Simple outbound message' sent to '+27123'"
+                "Message: 'Simple outbound message' sent to '+27820000123'"
                 "[session_event: new]"
             ),
         )
@@ -1500,7 +1551,9 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["ack_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -1537,7 +1590,7 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             True,
             self.check_logs(
-                "Message: 'Simple outbound message' sent to '+27123' "
+                "Message: 'Simple outbound message' sent to '+27820000123' "
                 "[session_event: new]"
             ),
         )
@@ -1566,7 +1619,9 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_timestamp"], "2015-10-28 16:19:37.485612")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -1597,7 +1652,9 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_failed_reason"], {})
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -1771,7 +1828,7 @@ class TestMetrics(AuthenticatedAPITestCase):
         Inbound.objects.create(
             message_id=str(uuid.uuid4()),
             in_reply_to=out.vumi_message_id,
-            to_addr="+27123",
+            to_addr="+27820000123",
             transport_name="test_voice",
             helper_metadata={},
         )
@@ -2579,7 +2636,9 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -2619,7 +2678,7 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(
             True,
             self.check_logs(
-                "Message: 'Simple outbound message' sent to '+27123' "
+                "Message: 'Simple outbound message' sent to '+27820000123' "
                 "[session_event: new]"
             ),
         )
@@ -2649,7 +2708,9 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -2683,7 +2744,9 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_failed_reason"], "computer said no")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -2705,12 +2768,12 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
                 "content": "the content",
                 "in_reply_to": None,
                 "metadata": {},
-                "from_addr": "+27123456789",
+                "from_addr": "+27820000123456789",
                 "to_addr": "+27000000000",
             },
         }
 
-        self.add_identity_search_response("+27123456789", "0c03d360")
+        self.add_identity_search_response("+27820000123456789", "0c03d360")
         response = self.client.post(
             reverse("channels-inbound", kwargs={"channel_id": channel.channel_id}),
             json.dumps(event),
@@ -2723,7 +2786,6 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
         self.assertEqual(d.to_addr, "+27000000000")
-        self.assertEqual(d.from_addr, "+27123456789")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "the content")
         self.assertEqual(d.transport_name, "")
@@ -2749,13 +2811,13 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
                 "content": "the content",
                 "in_reply_to": None,
                 "metadata": {},
-                "from_addr": "+27123456789",
+                "from_addr": "+27820000123456789",
                 "to_addr": "+27000000000",
             },
         }
 
-        self.add_identity_search_response("+27123456789", "0c03d360")
-        self.add_create_identity_response("0c03d360", "+27123456789")
+        self.add_identity_search_response("+27820000123456789", "0c03d360")
+        self.add_create_identity_response("0c03d360", "+27820000123456789")
         response = self.client.post(
             reverse("channels-inbound", kwargs={"channel_id": channel.channel_id}),
             json.dumps(event),
@@ -2767,7 +2829,6 @@ class TestWassupEventsApi(AuthenticatedAPITestCase):
         self.assertIsNotNone(d.id)
         self.assertEqual(d.message_id, message_id)
         self.assertEqual(d.to_addr, "+27000000000")
-        self.assertEqual(d.from_addr, "+27123456789")
         self.assertEqual(d.from_identity, "0c03d360")
         self.assertEqual(d.content, "the content")
         self.assertEqual(d.transport_name, "")
@@ -2819,7 +2880,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_add.side_effect = self.fake_cache.add
         mock_get.side_effect = self.fake_cache.get
 
-        outbound1 = self.make_outbound(to_addr="+27123", channel="JUNE_VOICE2")
+        outbound1 = self.make_outbound(to_addr="+27820000123", channel="JUNE_VOICE2")
         outbound2 = self.make_outbound(to_addr="+27987", channel="JUNE_VOICE2")
 
         send_message(outbound1.pk)
@@ -2868,7 +2929,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_add.side_effect = self.fake_cache.add
         mock_get.side_effect = self.fake_cache.get
 
-        outbound1 = self.make_outbound(to_addr="+27123", channel="JUNE_VOICE")
+        outbound1 = self.make_outbound(to_addr="+27820000123", channel="JUNE_VOICE")
         outbound2 = self.make_outbound(to_addr="+27987", channel="JUNE_VOICE")
 
         send_message(outbound1.pk)
@@ -2971,7 +3032,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.add_metrics_response()
         channel = Channel.objects.get(channel_id="VUMI_VOICE")
         outbound_message = {
-            "to_addr": "+27123",
+            "to_addr": "+27820000123",
             "vumi_message_id": "08b34de7-c6da-4853-a74d-9458533ed169",
             "content": "Simple outbound message",
             "channel": channel,
@@ -3012,7 +3073,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         self.assertEqual(
             False,
             self.check_logs(
-                "Message: 'Simple outbound message' sent to '+27123'"
+                "Message: 'Simple outbound message' sent to '+27820000123'"
                 "[session_event: new]"
             ),
         )
@@ -3035,7 +3096,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_decr.side_effect = self.fake_cache.decr
 
         channel = Channel.objects.get(channel_id="VUMI_VOICE")
-        d = self.make_outbound(to_addr="+27123", channel=channel.channel_id)
+        d = self.make_outbound(to_addr="+27820000123", channel=channel.channel_id)
         d.last_sent_time = d.created_at
         d.save()
 
@@ -3085,7 +3146,7 @@ class TestConcurrencyLimiter(AuthenticatedAPITestCase):
         mock_decr.side_effect = self.fake_cache.decr
 
         channel = Channel.objects.get(channel_id="VUMI_VOICE")
-        d = self.make_outbound(to_addr="+27123", channel=channel.channel_id)
+        d = self.make_outbound(to_addr="+27820000123", channel=channel.channel_id)
         d.last_sent_time = d.created_at
         d.save()
         dr = {
@@ -3141,7 +3202,7 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         be removed from the database.
         """
         self.add_metrics_response()
-        outbound1 = self.make_outbound(to_addr="+27123")
+        outbound1 = self.make_outbound(to_addr="+27820000123")
         outbound2 = self.make_outbound(to_addr="+27987")
         OutboundSendFailure.objects.create(
             outbound=outbound1,
@@ -3187,7 +3248,7 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
         list of all of the failed tasks should be returned.
         """
         self.add_metrics_response()
-        outbound1 = self.make_outbound(to_addr="+27123")
+        outbound1 = self.make_outbound(to_addr="+27820000123")
         failures = []
         for i in range(3):
             failures.append(
@@ -3225,7 +3286,7 @@ class TestFailedTaskAPI(AuthenticatedAPITestCase):
         be removed from the database.
         """
         self.add_metrics_response()
-        outbound1 = self.make_outbound(to_addr="+27123")
+        outbound1 = self.make_outbound(to_addr="+27820000123")
         OutboundSendFailure.objects.create(
             outbound=outbound1,
             task_id=uuid.uuid4(),
@@ -3310,14 +3371,14 @@ class TestChannels(AuthenticatedAPITestCase):
 
 
 class TestUpdateIdentityCommand(AuthenticatedAPITestCase):
-    def make_identity_lookup(self, msisdn="+27123", identity="56f6e9506ee3"):
+    def make_identity_lookup(self, msisdn="+27820000123", identity="56f6e9506ee3"):
         identity = {"msisdn": msisdn, "identity": identity}
         return IdentityLookup.objects.create(**identity)
 
     def prepare_data(self):
         self.out1 = self.make_outbound()
         self.out2 = self.make_outbound(to_addr="+274321", to_identity="")
-        self.in1 = self.make_inbound("1234", from_addr="+27123")
+        self.in1 = self.make_inbound("1234", from_addr="+27820000123")
         self.in2 = self.make_inbound("1234", from_addr="+274321")
         self.make_identity_lookup()
 
@@ -3709,7 +3770,6 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             content_type="application/json",
             **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
         )
-        print(response.data)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Outbound.objects.get(pk=existing)
@@ -3718,7 +3778,9 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["ack_timestamp"], "2018-05-04T16:00:18Z")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 
@@ -3760,7 +3822,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             True,
             self.check_logs(
-                "Message: 'Simple outbound message' sent to '+27123' "
+                "Message: 'Simple outbound message' sent to '+27820000123' "
                 "[session_event: new]"
             ),
         )
@@ -3794,7 +3856,9 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.metadata["delivery_timestamp"], "2018-05-04T16:00:18Z")
         self.assertEqual(
             False,
-            self.check_logs("Message: 'Simple outbound message' sent to '+27123'"),
+            self.check_logs(
+                "Message: 'Simple outbound message' sent to '+27820000123'"
+            ),
         )
         mock_hook.assert_called_once_with(d)
 

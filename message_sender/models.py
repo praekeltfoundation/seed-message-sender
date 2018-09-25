@@ -13,12 +13,14 @@ class Channel(models.Model):
     JUNEBUG_TYPE = "junebug"
     HTTP_API_TYPE = "http_api"
     WASSUP_API_TYPE = "wassup"
+    WHATSAPP_API_TYPE = "whatsapp"
 
     CHANNEL_TYPES = (
         (JUNEBUG_TYPE, "Junebug"),
         (VUMI_TYPE, "Vumi"),
         (HTTP_API_TYPE, "HTTP API"),
         (WASSUP_API_TYPE, "Wassup API"),
+        (WHATSAPP_API_TYPE, "WhatsApp API"),
     )
 
     channel_id = models.CharField(primary_key=True, editable=True, max_length=64)

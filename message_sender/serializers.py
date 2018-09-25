@@ -138,8 +138,6 @@ class WassupHookSerializer(serializers.Serializer):
 
 class WassupDataSerializer(serializers.Serializer):
     uuid = serializers.CharField()
-    from_addr = serializers.CharField()
-    from_identity = serializers.CharField()
     to_addr = serializers.CharField()
     in_reply_to = serializers.CharField(allow_null=True)
     content = serializers.CharField()
@@ -155,7 +153,6 @@ class WassupDataSerializer(serializers.Serializer):
             "content",
             "metadata",
         )
-        validators = [OneFieldRequiredValidator(["from_addr", "from_identity"])]
 
 
 class WassupInboundSerializer(serializers.Serializer):
@@ -165,6 +162,7 @@ class WassupInboundSerializer(serializers.Serializer):
 
     hook = WassupHookSerializer()
     data = WassupDataSerializer()
+    from_identity = serializers.CharField()
 
     class Meta:
         fields = ("hook", "data")
@@ -175,12 +173,43 @@ class WassupInboundSerializer(serializers.Serializer):
             message_id=data["uuid"],
             in_reply_to=data["in_reply_to"],
             to_addr=data["to_addr"],
-            from_addr=data["from_addr"],
-            from_identity=data["from_identity"],
+            from_identity=validated_data["from_identity"],
             content=data["content"],
             helper_metadata=data["metadata"],
         )
         return validated_data
+
+
+class WhatsAppInboundSerializer(serializers.Serializer):
+    """
+    Maps fields from WhatsApp onto the fields expected by the Inbound model.
+    """
+
+    id = serializers.CharField()
+
+    class TextSerializer(serializers.Serializer):
+        body = serializers.CharField()
+
+    text = TextSerializer()
+    from_identity = serializers.CharField()
+
+    class Meta:
+        fields = ("id", "from", "text")
+
+    def create(self, validated_data):
+        Inbound.objects.create(
+            message_id=validated_data["id"],
+            from_identity=validated_data["from_identity"],
+            content=validated_data["text"]["body"],
+            helper_metadata={},
+        )
+        return validated_data
+
+
+# Since from is a reserved keyword, we need to set it here
+setattr(
+    WhatsAppInboundSerializer, "from", serializers.CharField(source="from_identity")
+)
 
 
 class HookSerializer(serializers.ModelSerializer):
