@@ -3706,7 +3706,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         h = hmac.new(
             self.channel.configuration["HMAC_SECRET"].encode(), content.encode(), sha256
         )
-        return base64.b64encode(h.digest())
+        return base64.b64encode(h.digest()).decode()
 
     def test_event_missing_fields(self):
         """
