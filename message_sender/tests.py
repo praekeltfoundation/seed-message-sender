@@ -1989,6 +1989,15 @@ class TestFactory(TestCase):
         self.assertEqual(message_sender.api_url, "http://example.com/")
         self.assertEqual(message_sender.auth, ("username", "password"))
 
+    def test_create_whatsapp_api(self):
+        channel = Channel.objects.get(channel_id="WHATSAPP")
+        message_sender = MessageClientFactory.create(channel)
+        self.assertTrue(isinstance(message_sender, WhatsAppApiSender))
+        self.assertEqual(message_sender.api_url, "http://example.com/")
+        self.assertEqual(message_sender.token, "http-api-token")
+        self.assertEqual(message_sender.hsm_namespace, "whatsapp:hsm:test")
+        self.assertEqual(message_sender.hsm_element_name, "test")
+
     def test_create_no_backend_type_specified_default(self):
         """
         If no message backend is specified, it should use the default channel.

@@ -421,7 +421,7 @@ class MessageClientFactory(object):
         )
 
     @classmethod
-    def create_whatsapp_api_client(cls, channel):
+    def create_whatsapp_client(cls, channel):
         return WhatsAppApiSender(
             channel.configuration["API_URL"],
             channel.configuration["API_TOKEN"],
