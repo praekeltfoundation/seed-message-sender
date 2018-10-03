@@ -1,6 +1,7 @@
-from .models import Inbound, Outbound, OutboundSendFailure, Channel
-from rest_hooks.models import Hook
 from rest_framework import serializers
+from rest_hooks.models import Hook
+
+from .models import Channel, Inbound, Outbound, OutboundSendFailure
 
 
 class OneFieldRequiredValidator:

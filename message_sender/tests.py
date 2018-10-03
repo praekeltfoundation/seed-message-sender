@@ -2,64 +2,63 @@ import base64
 import gzip
 import hmac
 import json
+import logging
 import os
 import uuid
-import logging
-from unittest import mock
+from datetime import date, datetime, timedelta
 from hashlib import sha256
+from unittest import mock
+from unittest.mock import MagicMock, patch
+from urllib.parse import urlencode, urlparse
+
 import responses
-
-from urllib.parse import urlparse, urlencode
-
-from datetime import timedelta
-
 from celery.exceptions import Retry
-from datetime import datetime, date
-from django.test import TestCase, override_settings
-from django.contrib.auth.models import User
-from django.db.models.signals import post_save
 from django.conf import settings
+from django.contrib.auth.models import User
+from django.core.management import call_command
+from django.db.models.signals import post_save
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
-from django.core.management import call_command
-from unittest.mock import MagicMock, patch
-from rest_framework import status
-from rest_framework.test import APIClient
-from rest_framework.authtoken.models import Token
-from rest_hooks.models import Hook
-from requests_testadapter import TestAdapter, TestSession
 from go_http.send import LoggingSender
+from requests_testadapter import TestAdapter, TestSession
+from rest_framework import status
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APIClient
+from rest_hooks.models import Hook
 from seed_services_client.metrics import MetricsApiClient
 
+from seed_message_sender.utils import load_callable
+
+from . import tasks
 from .factory import (
-    MessageClientFactory,
-    JunebugApiSender,
     HttpApiSender,
     HttpApiSenderException,
+    JunebugApiSender,
+    MessageClientFactory,
     WassupApiSenderException,
+    WhatsAppApiSender,
+    WhatsAppApiSenderException,
 )
 from .models import (
+    AggregateOutbounds,
+    ArchivedOutbounds,
+    Channel,
+    IdentityLookup,
     Inbound,
     Outbound,
     OutboundSendFailure,
-    Channel,
-    IdentityLookup,
-    AggregateOutbounds,
-    ArchivedOutbounds,
 )
 from .serializers import OutboundArchiveSerializer
 from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
 from .tasks import (
-    SendMessage,
-    send_message,
-    fire_metric,
     ConcurrencyLimiter,
+    SendMessage,
+    fire_metric,
     requeue_failed_tasks,
+    send_message,
 )
 from .views import fire_delivery_hook
-from . import tasks
-
-from seed_message_sender.utils import load_callable
 
 
 class VumiLoggingSender(LoggingSender):
@@ -3901,4 +3900,175 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(
             json.loads(response.content), {"detail": "Invalid hook signature"}
+        )
+
+
+class TestWhatsAppAPISender(TestCase):
+    def test_send_text_to_send_text_message(self):
+        """
+        send_text should get the contact ID, and then delegate to send_text_message
+        when there is no HSM setup.
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender.get_contact = MagicMock(return_value="contact-id")
+        sender.send_text_message = MagicMock(
+            return_value={"messages": [{"id": "message-id"}]}
+        )
+
+        sender.send_text("+27820001001", "Test message")
+
+        sender.get_contact.assert_called_once_with("+27820001001")
+        sender.send_text_message.assert_called_once_with("contact-id", "Test message")
+
+    def test_send_text_to_send_hsm(self):
+        """
+        send_text should get the contact ID, and then delegate to send_hsm
+        when there are HSM config values
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+        )
+        sender.get_contact = MagicMock(return_value="contact-id")
+        sender.send_hsm = MagicMock(return_value={"messages": [{"id": "message-id"}]})
+
+        sender.send_text("+27820001001", "Test message")
+
+        sender.get_contact.assert_called_once_with("+27820001001")
+        sender.send_hsm.assert_called_once_with("contact-id", "Test message")
+
+    def test_send_image(self):
+        """
+        send_image should raise an API sender exception as it is not supported
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        self.assertRaises(
+            WhatsAppApiSenderException,
+            sender.send_image,
+            "+27820001001",
+            "Test message",
+            "http://example.jpg",
+        )
+
+    def test_send_voice(self):
+        """
+        send_voice should raise an API sender exception as it is not supported
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        self.assertRaises(
+            WhatsAppApiSenderException,
+            sender.send_voice,
+            "+27820001001",
+            "Test message",
+            "http://example.mp3",
+        )
+
+    def test_fire_metric(self):
+        """
+        fire_metric should raise an API sender exception as it is not supported
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        self.assertRaises(
+            WhatsAppApiSenderException, sender.fire_metric, "test.metric", 7
+        )
+
+    @responses.activate
+    def test_get_contact_exists(self):
+        """
+        get_contact should make the appropriate request to the WhatsApp API, and return
+        the contact ID.
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/contacts",
+            json={
+                "contacts": [
+                    {"input": "+27820001001", "status": "valid", "wa_id": "27820001001"}
+                ]
+            },
+            status=200,
+        )
+
+        self.assertEqual(sender.get_contact("+27820001001"), "27820001001")
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-token")
+        self.assertEqual(
+            json.loads(request.body), {"blocking": "wait", "contacts": ["+27820001001"]}
+        )
+
+    @responses.activate
+    def test_get_contact_not_exists(self):
+        """
+        get_contact should make the appropriate request to the WhatsApp API, and raise
+        an exception if the contact doesn't exist.
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/contacts",
+            json={"contacts": [{"input": "+27820001001", "status": "invalid"}]},
+            status=200,
+        )
+
+        self.assertRaises(
+            WhatsAppApiSenderException, sender.get_contact, "+27820001001"
+        )
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-token")
+        self.assertEqual(
+            json.loads(request.body), {"blocking": "wait", "contacts": ["+27820001001"]}
+        )
+
+    @responses.activate
+    def test_send_hsm(self):
+        """
+        send_hsm should make the appropriate request to the WhatsApp API
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+        )
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/messages",
+            json={"messages": [{"id": "message-id"}]},
+        )
+
+        sender.send_hsm("27820001001", "Test message")
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-token")
+        self.assertEqual(
+            json.loads(request.body),
+            {
+                "to": "27820001001",
+                "type": "hsm",
+                "hsm": {
+                    "namespace": "hsm-namespace",
+                    "element_name": "hsm-element-name",
+                    "localizable_params": [{"default": "Test message"}],
+                },
+            },
+        )
+
+    @responses.activate
+    def test_send_text_message(self):
+        """
+        send_text_message should make the appropriate request to the WhatsApp API
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/messages",
+            json={"messages": [{"id": "message-id"}]},
+        )
+
+        sender.send_text_message("27820001001", "Test message")
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-token")
+        self.assertEqual(
+            json.loads(request.body),
+            {"to": "27820001001", "text": {"body": "Test message"}},
         )

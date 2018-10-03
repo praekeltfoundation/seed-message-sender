@@ -1,5 +1,6 @@
-import phonenumbers
 import re
+
+import phonenumbers
 
 
 def noop(msisdn):

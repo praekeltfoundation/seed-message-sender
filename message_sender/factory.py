@@ -1,19 +1,17 @@
 import json
 import os
 import re
-import pkg_resources
-
 from copy import deepcopy
+
+import pkg_resources
+import requests
 from django.conf import settings
 from django.urls import reverse
-
-import requests
+from go_http.send import HttpApiSender
 from six.moves import urllib_parse
 
-from go_http.send import HttpApiSender
-
-from .utils import make_absolute_url
 from .models import Channel
+from .utils import make_absolute_url
 
 
 class FactoryException(Exception):
@@ -279,6 +277,96 @@ class WassupApiSender(object):
         raise WassupApiSenderException("Metrics sending not supported")
 
 
+class WhatsAppApiSenderException(Exception):
+    pass
+
+
+WHATSAPP_SESSIONS = {}
+
+
+class WhatsAppApiSender(object):
+    def __init__(self, api_url, token, hsm_namespace, hsm_element_name, session=None):
+        self.api_url = api_url
+        self.token = token
+        self.hsm_namespace = hsm_namespace
+        self.hsm_element_name = hsm_element_name
+
+        distribution = pkg_resources.get_distribution("seed_message_sender")
+
+        # reuse sessions on tokens to make use of SSL keep-alive
+        # but keep some separation around auth
+        self.session = session or WASSUP_SESSIONS.setdefault(token, requests.Session())
+        self.session.headers.update(
+            {
+                "Authorization": "Bearer %s" % (self.token,),
+                "User-Agent": "SeedMessageSender/%s" % (distribution.version,),
+            }
+        )
+
+    def get_contact(self, msisdn):
+        """
+        Returns the WhatsApp ID for the given MSISDN
+        """
+        response = self.session.post(
+            urllib_parse.urljoin(self.api_url, "/v1/contacts"),
+            json={"blocking": "wait", "contacts": [msisdn]},
+        )
+        response.raise_for_status()
+        whatsapp_id = response.json()["contacts"][0].get("wa_id")
+        if not whatsapp_id:
+            # TODO: This should rather trigger a webhook, so that we can do something
+            # useful
+            raise WhatsAppApiSenderException(
+                "No WhatsApp contact found for {}".format(msisdn)
+            )
+        return whatsapp_id
+
+    def send_hsm(self, whatsapp_id, content):
+        response = self.session.post(
+            urllib_parse.urljoin(self.api_url, "/v1/messages"),
+            json={
+                "to": whatsapp_id,
+                "type": "hsm",
+                "hsm": {
+                    "namespace": self.hsm_namespace,
+                    "element_name": self.hsm_element_name,
+                    "localizable_params": [{"default": content}],
+                },
+            },
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def send_text_message(self, whatsapp_id, content):
+        response = self.session.post(
+            urllib_parse.urljoin(self.api_url, "/v1/messages"),
+            json={"to": whatsapp_id, "text": {"body": content}},
+        )
+        response.raise_for_status()
+        return response.json()
+
+    def send_text(self, to_addr, content, session_event=None):
+        whatsapp_id = self.get_contact(to_addr)
+
+        if self.hsm_namespace and self.hsm_element_name:
+            data = self.send_hsm(whatsapp_id, content)
+        else:
+            data = self.send_text_message(whatsapp_id, content)
+
+        return {"message_id": data["messages"][0]["id"]}
+
+    def send_image(self, to_addr, content, image_url=None):
+        raise WhatsAppApiSenderException("Image sending not supported")
+
+    def send_voice(
+        self, to_addr, content, speech_url=None, wait_for=None, session_event=None
+    ):
+        raise WhatsAppApiSenderException("Voice sending not supported")
+
+    def fire_metric(self, metric, value, agg="last"):
+        raise WhatsAppApiSenderException("Metrics sending not supported")
+
+
 class MessageClientFactory(object):
     @classmethod
     def create(cls, channel=None):
@@ -330,4 +418,13 @@ class MessageClientFactory(object):
             channel.configuration.get("HTTP_API_FROM"),
             override_payload=channel.configuration.get("OVERRIDE_PAYLOAD"),
             strip_filepath=channel.configuration.get("STRIP_FILEPATH"),
+        )
+
+    @classmethod
+    def create_whatsapp_api_client(cls, channel):
+        return WhatsAppApiSender(
+            channel.configuration["API_URL"],
+            channel.configuration["API_TOKEN"],
+            channel.configuration.get("HSM_NAMESPACE"),
+            channel.configuration.get("HSM_ELEMENT_NAME"),
         )
