@@ -3711,7 +3711,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
     def test_event_missing_fields(self):
         """
         If there are missing fields in the request, and error response should
-        be returned.
+        be returned, detailing the errors if this was an event and if this was an inbound
         """
         response = self.client.post(
             reverse("whatsapp-events", args=[self.channel.channel_id]),
@@ -3721,7 +3721,17 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         )
         self.assertEqual(
             json.loads(response.content.decode()),
-            {"accepted": False, "reason": {"statuses": ["This field is required."]}},
+            {
+                "accepted": False,
+                "reason": {
+                    "event": {"statuses": ["This field is required."]},
+                    "inbound": {
+                        "from_identity": ["This field is required."],
+                        "id": ["This field is required."],
+                        "text": ["This field is required."],
+                    },
+                },
+            },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
@@ -3910,6 +3920,49 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             json.loads(response.content), {"detail": "Invalid hook signature"}
         )
+
+    @responses.activate
+    def test_create_inbound(self):
+        """
+        If an inbound message is sent to the event endpoint, then it should be treated
+        as an inbound message.
+        """
+        responses.add(
+            responses.POST, "http://metrics-url/metrics/", json={}, status=201
+        )
+        identity_uuid = str(uuid.uuid4())
+        responses.add(
+            responses.GET,
+            "{}/identities/search/?details__addresses__msisdn=%2B27820000000".format(
+                settings.IDENTITY_STORE_URL
+            ),
+            json={"results": [{"id": identity_uuid}]},
+            status=200,
+            match_querystring=True,
+        )
+
+        message_id = str(uuid.uuid4())
+        post_inbound = {
+            "id": message_id,
+            "from": "27820000000",
+            "text": {"body": "Test message"},
+        }
+        response = self.client.post(
+            reverse("whatsapp-events", args=[self.channel.channel_id]),
+            json.dumps(post_inbound),
+            content_type="application/json",
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(
+                json.dumps(post_inbound)
+            ),
+        )
+        print(response.data)
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        d = Inbound.objects.last()
+        self.assertIsNotNone(d.id)
+        self.assertEqual(d.message_id, message_id)
+        self.assertEqual(d.from_identity, identity_uuid)
+        self.assertEqual(d.content, "Test message")
 
 
 class TestWhatsAppAPISender(TestCase):
