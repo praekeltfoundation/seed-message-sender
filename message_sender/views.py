@@ -238,9 +238,7 @@ class InboundPreprocessor(object):
                     .last()
                 )
             if message:
-                ConcurrencyLimiter.decr_message_count(
-                    channel, message.last_sent_time
-                )
+                ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
 
 
 preprocess_inbound = InboundPreprocessor().preprocess_inbound
