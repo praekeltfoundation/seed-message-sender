@@ -1,6 +1,7 @@
-from .models import Inbound, Outbound, OutboundSendFailure, Channel
-from rest_hooks.models import Hook
 from rest_framework import serializers
+from rest_hooks.models import Hook
+
+from .models import Channel, Inbound, Outbound, OutboundSendFailure
 
 
 class OneFieldRequiredValidator:
@@ -138,8 +139,6 @@ class WassupHookSerializer(serializers.Serializer):
 
 class WassupDataSerializer(serializers.Serializer):
     uuid = serializers.CharField()
-    from_addr = serializers.CharField()
-    from_identity = serializers.CharField()
     to_addr = serializers.CharField()
     in_reply_to = serializers.CharField(allow_null=True)
     content = serializers.CharField()
@@ -155,7 +154,6 @@ class WassupDataSerializer(serializers.Serializer):
             "content",
             "metadata",
         )
-        validators = [OneFieldRequiredValidator(["from_addr", "from_identity"])]
 
 
 class WassupInboundSerializer(serializers.Serializer):
@@ -165,6 +163,7 @@ class WassupInboundSerializer(serializers.Serializer):
 
     hook = WassupHookSerializer()
     data = WassupDataSerializer()
+    from_identity = serializers.CharField()
 
     class Meta:
         fields = ("hook", "data")
@@ -175,12 +174,43 @@ class WassupInboundSerializer(serializers.Serializer):
             message_id=data["uuid"],
             in_reply_to=data["in_reply_to"],
             to_addr=data["to_addr"],
-            from_addr=data["from_addr"],
-            from_identity=data["from_identity"],
+            from_identity=validated_data["from_identity"],
             content=data["content"],
             helper_metadata=data["metadata"],
         )
         return validated_data
+
+
+class WhatsAppInboundSerializer(serializers.Serializer):
+    """
+    Maps fields from WhatsApp onto the fields expected by the Inbound model.
+    """
+
+    id = serializers.CharField()
+
+    class TextSerializer(serializers.Serializer):
+        body = serializers.CharField()
+
+    text = TextSerializer()
+    from_identity = serializers.CharField()
+
+    class Meta:
+        fields = ("id", "from", "text")
+
+    def create(self, validated_data):
+        Inbound.objects.create(
+            message_id=validated_data["id"],
+            from_identity=validated_data["from_identity"],
+            content=validated_data["text"]["body"],
+            helper_metadata={},
+        )
+        return validated_data
+
+
+# Since from is a reserved keyword, we need to set it here
+setattr(
+    WhatsAppInboundSerializer, "from", serializers.CharField(source="from_identity")
+)
 
 
 class HookSerializer(serializers.ModelSerializer):
@@ -208,3 +238,48 @@ class AggregateOutboundSerializer(serializers.Serializer):
 class ArchivedOutboundSerializer(serializers.Serializer):
     start = serializers.DateField()
     end = serializers.DateField()
+
+
+class EventSerializer(serializers.Serializer):
+    message_type = serializers.ChoiceField(choices=["event"])
+    event_type = serializers.ChoiceField(choices=["ack", "nack", "delivery_report"])
+    user_message_id = serializers.CharField()
+    timestamp = serializers.CharField()
+    nack_reason = serializers.JSONField(default="")
+
+
+class JunebugEventSerializer(serializers.Serializer):
+    event_type = serializers.ChoiceField(
+        choices=["submitted", "rejected", "delivery_succeeded", "delivery_failed"]
+    )
+    message_id = serializers.CharField()
+    timestamp = serializers.CharField()
+    event_details = serializers.JSONField(default="")
+
+
+class WassupEventSerializer(serializers.Serializer):
+    class HookSerializer(serializers.Serializer):
+        event = serializers.ChoiceField(choices=["message.direct_outbound.status"])
+
+    hook = HookSerializer()
+
+    class DataSerializer(serializers.Serializer):
+        status = serializers.ChoiceField(
+            choices=["sent", "unsent", "delivered", "failed"]
+        )
+        message_uuid = serializers.CharField()
+        description = serializers.CharField(default="")
+        timestamp = serializers.CharField()
+
+    data = DataSerializer()
+
+
+class WhatsAppEventSerializer(serializers.Serializer):
+    class StatusSerializer(serializers.Serializer):
+        id = serializers.CharField()
+        status = serializers.ChoiceField(
+            choices=["sent", "delivered", "read", "failed"]
+        )
+        timestamp = serializers.CharField()
+
+    statuses = serializers.ListField(child=StatusSerializer())

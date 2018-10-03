@@ -1,50 +1,63 @@
+import base64
+import hmac
 from datetime import datetime, timedelta
-from django.core.exceptions import ObjectDoesNotExist, MultipleObjectsReturned
+from hashlib import sha256
+
+from django import forms
 from django.conf import settings
 from django.contrib.auth.models import User
-from django import forms
+from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
+from django.shortcuts import get_object_or_404
 from django_filters import rest_framework as filters
-from rest_hooks.models import Hook
-from rest_framework import viewsets, status, mixins
+from rest_framework import mixins, status, viewsets
+from rest_framework.authtoken.models import Token
+from rest_framework.exceptions import AuthenticationFailed
 from rest_framework.filters import OrderingFilter
 from rest_framework.pagination import CursorPagination
-from rest_framework.permissions import IsAuthenticated, AllowAny, IsAdminUser
-from rest_framework.views import APIView
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
+from rest_framework.views import APIView
+from rest_hooks.models import Hook
 
-from .models import (
-    Outbound,
-    Inbound,
-    OutboundSendFailure,
-    Channel,
-    InvalidMessage,
-    AggregateOutbounds,
-    ArchivedOutbounds,
-)
-from .serializers import (
-    OutboundSerializer,
-    InboundSerializer,
-    JunebugInboundSerializer,
-    HookSerializer,
-    CreateUserSerializer,
-    OutboundSendFailureSerializer,
-    AggregateOutboundSerializer,
-    ArchivedOutboundSerializer,
-    WassupInboundSerializer,
-)
-from .tasks import (
-    send_message,
-    fire_metric,
-    ConcurrencyLimiter,
-    requeue_failed_tasks,
-    aggregate_outbounds,
-    archive_outbound,
-)
 from seed_message_sender.utils import (
+    create_identity,
     get_available_metrics,
     get_identity_by_address,
-    create_identity,
+)
+
+from .formatters import e_164
+from .models import (
+    AggregateOutbounds,
+    ArchivedOutbounds,
+    Channel,
+    Inbound,
+    InvalidMessage,
+    Outbound,
+    OutboundSendFailure,
+)
+from .serializers import (
+    AggregateOutboundSerializer,
+    ArchivedOutboundSerializer,
+    CreateUserSerializer,
+    EventSerializer,
+    HookSerializer,
+    InboundSerializer,
+    JunebugEventSerializer,
+    JunebugInboundSerializer,
+    OutboundSendFailureSerializer,
+    OutboundSerializer,
+    WassupEventSerializer,
+    WassupInboundSerializer,
+    WhatsAppEventSerializer,
+    WhatsAppInboundSerializer,
+)
+from .tasks import (
+    ConcurrencyLimiter,
+    aggregate_outbounds,
+    archive_outbound,
+    fire_metric,
+    requeue_failed_tasks,
+    send_message,
 )
 
 # Uncomment line below if scheduled metrics are added
@@ -177,83 +190,83 @@ class InboundViewSet(viewsets.ModelViewSet):
     ordering = ("-created_at",)
 
     def get_serializer_class(self):
-        try:
-            data = self.request.data
-        except AttributeError:
-            # No data object for docs
-            data = {}
         if self.action == "create":
-            if "channel_data" in data:
+            if self.channel.channel_type == Channel.VUMI_TYPE:
+                return InboundSerializer
+            elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
                 return JunebugInboundSerializer
-            elif "hook" in data:
+            elif self.channel.channel_type == Channel.WASSUP_API_TYPE:
                 return WassupInboundSerializer
+            elif self.channel.channel_type == Channel.WHATSAPP_API_TYPE:
+                return WhatsAppInboundSerializer
         return InboundSerializer
 
-    def create(self, request, *args, **kwargs):
-        if not kwargs.get("channel_id"):
-            channel = Channel.objects.get(default=True)
-        else:
-            channel = Channel.objects.get(channel_id=kwargs.get("channel_id"))
+    def pop_from_address(self, data):
+        if self.channel.channel_type == Channel.VUMI_TYPE:
+            return data.pop("from_addr")
+        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.pop("from")
+        elif self.channel.channel_type == Channel.WASSUP_API_TYPE:
+            return data["data"].pop("from_addr")
+        elif self.channel.channel_type == Channel.WHATSAPP_API_TYPE:
+            return data.pop("from")
 
-        if "from" in request.data:
-            msisdn = request.data.pop("from")
-        elif "from_addr" in request.data:
-            msisdn = request.data.pop("from_addr")
-        elif "hook" in request.data:
-            msisdn = request.data["data"]["from_addr"]
+    def is_close_event(self, data):
+        if self.channel.channel_type == Channel.VUMI_TYPE:
+            return data.get("session_event") == "close"
+        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.get("channel_data", {}).get("session_event") == "close"
+        # Wassup/WhatsApp doesn't have sessions
+        return False
 
+    def get_related_outbound_id(self, data):
+        if self.channel.channel_type == Channel.VUMI_TYPE:
+            return data.get("in_reply_to")
+        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.get("reply_to")
+        return None
+
+    def get_or_create_identity(self, msisdn):
         result = get_identity_by_address(msisdn)
 
         if result:
-            identity_id = result[0]["id"]
+            return result[0]["id"]
         else:
-            identity = {
-                "details": {
-                    "default_addr_type": "msisdn",
-                    "addresses": {"msisdn": {msisdn: {"default": True}}},
+            return create_identity(
+                {
+                    "details": {
+                        "default_addr_type": "msisdn",
+                        "addresses": {"msisdn": {msisdn: {"default": True}}},
+                    }
                 }
-            }
-            identity = create_identity(identity)
-            identity_id = identity["id"]
+            )["id"]
 
-        if "hook" in request.data:
-            request.data["data"]["from_identity"] = identity_id
+    def create(self, request, *args, **kwargs):
+        if not kwargs.get("channel_id"):
+            self.channel = Channel.objects.get(default=True)
         else:
-            request.data["from_identity"] = identity_id
+            self.channel = Channel.objects.get(channel_id=kwargs.get("channel_id"))
 
-        if channel.concurrency_limit == 0:
+        msisdn = e_164(self.pop_from_address(request.data))
+        request.data["from_identity"] = self.get_or_create_identity(msisdn)
+
+        if self.channel.concurrency_limit == 0:
             return super(InboundViewSet, self).create(request, *args, **kwargs)
 
-        close_event = False
-        # Handle message from Junebug
-        if request.data.get("channel_data", {}).get("session_event", None) == "close":
-            close_event = True
-            related_outbound = request.data["reply_to"]
-        elif "session_event" in request.data:  # Handle message from Vumi
-            if request.data["session_event"] == "close":
-                close_event = True
-                related_outbound = request.data["in_reply_to"]
-        elif "hook" in request.data:  # Handle messages from wassup
-            related_outbound = request.data["data"]["in_reply_to"]
-
-        if close_event:
-            if related_outbound is not None:
-                try:
-                    message = Outbound.objects.get(vumi_message_id=related_outbound)
-                except (ObjectDoesNotExist, MultipleObjectsReturned):
-                    message = (
-                        Outbound.objects.filter(to_identity=identity_id)
-                        .order_by("-created_at")
-                        .last()
-                    )
-            else:
+        related_outbound = self.get_related_outbound_id(request.data)
+        if self.is_close_event(request.data) and related_outbound:
+            try:
+                message = Outbound.objects.get(vumi_message_id=related_outbound)
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
                 message = (
-                    Outbound.objects.filter(to_identity=identity_id)
+                    Outbound.objects.filter(to_identity=request.data["from_identity"])
                     .order_by("-created_at")
                     .last()
                 )
             if message:
-                ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
+                ConcurrencyLimiter.decr_message_count(
+                    self.channel, message.last_sent_time
+                )
 
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 
@@ -294,6 +307,80 @@ def decr_message_count(message):
     ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
 
 
+def process_event(message_id, event_type, event_detail, timestamp):
+    """
+    Processes an event of the given details, returning a (success, message) tuple
+    """
+    # Load message
+    try:
+        message = Outbound.objects.select_related("channel").get(
+            vumi_message_id=message_id
+        )
+    except ObjectDoesNotExist:
+        return (False, "Cannot find message for ID {}".format(message_id))
+
+    if event_type == "ack":
+        message.delivered = True
+        message.to_addr = ""
+        message.metadata["ack_timestamp"] = timestamp
+        message.metadata["ack_reason"] = event_detail
+        message.save(update_fields=["delivered", "to_addr", "metadata"])
+
+        # OBD number of successful tries metric
+        if "voice_speech_url" in message.metadata:
+            fire_metric.apply_async(
+                kwargs={
+                    "metric_name": "vumimessage.obd.successful.sum",
+                    "metric_value": 1.0,
+                }
+            )
+    elif event_type == "nack":
+        message.metadata["nack_timestamp"] = timestamp
+        message.metadata["nack_reason"] = event_detail
+        message.save(update_fields=["metadata"])
+
+        decr_message_count(message)
+
+        send_message.delay(str(message.id))
+
+        if "voice_speech_url" in message.metadata:
+            fire_metric.apply_async(
+                kwargs={
+                    "metric_name": "vumimessage.obd.unsuccessful.sum",
+                    "metric_value": 1.0,
+                }
+            )
+    elif event_type == "delivery_succeeded":
+        message.delivered = True
+        message.to_addr = ""
+        message.metadata["delivery_timestamp"] = timestamp
+        message.metadata["delivery_reason"] = event_detail
+        message.save(update_fields=["delivered", "metadata", "to_addr"])
+    elif event_type == "delivery_failed":
+        message.metadata["delivery_failed_reason"] = event_detail
+        message.metadata["delivery_failed_timestamp"] = timestamp
+        message.save(update_fields=["metadata"])
+
+        decr_message_count(message)
+
+        send_message.delay(str(message.id))
+
+        if "voice_speech_url" in message.metadata:
+            fire_metric.apply_async(
+                kwargs={
+                    "metric_name": "vumimessage.obd.unsuccessful.sum",
+                    "metric_value": 1.0,
+                }
+            )
+    elif event_type == "read":
+        message.metadata["read_timestamp"] = timestamp
+        message.save(update_fields=["metadata"])
+
+    fire_delivery_hook(message)
+
+    return (True, "Event processed")
+
+
 class EventListener(APIView):
 
     """
@@ -306,79 +393,28 @@ class EventListener(APIView):
         """
         Checks for expect event types before continuing
         """
+        serializer = EventSerializer(data=request.data)
 
-        try:
-            expect = [
-                "message_type",
-                "event_type",
-                "user_message_id",
-                "event_id",
-                "timestamp",
-            ]
-            if set(expect).issubset(request.data.keys()):
-                # Load message
-                message = Outbound.objects.select_related("channel").get(
-                    vumi_message_id=request.data["user_message_id"]
-                )
-                # only expecting `event` on this endpoint
-                if request.data["message_type"] == "event":
-                    event = request.data["event_type"]
-                    # expecting ack, nack, delivery_report
-                    if event == "ack":
-                        message.delivered = True
-                        message.to_addr = ""
-                        message.metadata["ack_timestamp"] = request.data["timestamp"]
-                        message.save()
-                        fire_delivery_hook(message)
+        if not serializer.is_valid():
+            return Response(
+                {"accepted": False, "reason": serializer.errors}, status=400
+            )
 
-                        # OBD number of successful tries metric
-                        if "voice_speech_url" in message.metadata:
-                            fire_metric.apply_async(
-                                kwargs={
-                                    "metric_name": "vumimessage.obd.successful.sum",
-                                    "metric_value": 1.0,
-                                }
-                            )
-                    elif event == "delivery_report":
-                        message.delivered = True
-                        message.to_addr = ""
-                        message.metadata["delivery_timestamp"] = request.data[
-                            "timestamp"
-                        ]
-                        message.save()
-                        fire_delivery_hook(message)
-                    elif event == "nack":
-                        if "nack_reason" in request.data:
-                            message.metadata["nack_reason"] = request.data[
-                                "nack_reason"
-                            ]
-                            message.save()
-                        fire_delivery_hook(message)
+        data = serializer.validated_data
 
-                        decr_message_count(message)
+        event_type = {
+            "ack": "ack",
+            "nack": "nack",
+            "delivery_report": "delivery_succeeded",
+        }.get(data["event_type"])
 
-                        send_message.delay(str(message.id))
-                        if "voice_speech_url" in message.metadata:
-                            fire_metric.apply_async(
-                                kwargs={
-                                    "metric_name": "vumimessage.obd.unsuccessful.sum",
-                                    "metric_value": 1.0,
-                                }
-                            )
+        accepted, reason = process_event(
+            data["user_message_id"], event_type, data["nack_reason"], data["timestamp"]
+        )
 
-                    # Return
-                    status = 200
-                    accepted = {"accepted": True}
-                else:
-                    status = 400
-                    accepted = {"accepted": False, "reason": "Unexpected message_type"}
-            else:
-                status = 400
-                accepted = {"accepted": False, "reason": "Missing expected body keys"}
-        except ObjectDoesNotExist:
-            status = 400
-            accepted = {"accepted": False, "reason": "Missing message in control"}
-        return Response(accepted, status=status)
+        return Response(
+            {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
 
     # TODO make this work in test harness, works in production
     # def perform_create(self, serializer):
@@ -401,71 +437,27 @@ class JunebugEventListener(APIView):
         """
         Updates the message from the event data.
         """
-        expect = ["event_type", "message_id", "timestamp"]
-        if not set(expect).issubset(request.data.keys()):
+        serializer = JunebugEventSerializer(data=request.data)
+        if not serializer.is_valid():
             return Response(
-                {"accepted": False, "reason": "Missing expected body keys"}, status=400
+                {"accepted": False, "reason": serializer.errors}, status=400
             )
+        data = serializer.validated_data
 
-        try:
-            message = Outbound.objects.select_related("channel").get(
-                vumi_message_id=request.data["message_id"]
-            )
-        except ObjectDoesNotExist:
-            return Response(
-                {"accepted": False, "reason": "Cannot find message for event"},
-                status=400,
-            )
+        event_type = {
+            "submitted": "ack",
+            "rejected": "nack",
+            "delivery_succeeded": "delivery_succeeded",
+            "delivery_failed": "delivery_failed",
+        }.get(data["event_type"])
 
-        event_type = request.data["event_type"]
-        if event_type == "submitted":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["ack_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=["metadata", "delivered", "to_addr"])
-            fire_delivery_hook(message)
+        accepted, reason = process_event(
+            data["message_id"], event_type, data["event_details"], data["timestamp"]
+        )
 
-            # OBD number of successful tries metric
-            if "voice_speech_url" in message.metadata:
-                fire_metric.apply_async(
-                    kwargs={
-                        "metric_name": "vumimessage.obd.successful.sum",
-                        "metric_value": 1.0,
-                    }
-                )
-        elif event_type == "rejected":
-            message.metadata["nack_reason"] = request.data.get("event_details")
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-        elif event_type == "delivery_succeeded":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["delivery_timestamp"] = request.data["timestamp"]
-            message.save(update_fields=["delivered", "metadata", "to_addr"])
-            fire_delivery_hook(message)
-        elif event_type == "delivery_failed":
-            message.metadata["delivery_failed_reason"] = request.data.get(
-                "event_details"
-            )
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-
-        if "voice_speech_url" in message.metadata and event_type in (
-            "rejected",
-            "delivery_failed",
-        ):
-            fire_metric.apply_async(
-                kwargs={
-                    "metric_name": "vumimessage.obd.unsuccessful.sum",
-                    "metric_value": 1.0,
-                }
-            )
-
-        return Response({"accepted": True}, status=200)
+        return Response(
+            {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
 
 
 class WassupEventListener(APIView):
@@ -476,79 +468,82 @@ class WassupEventListener(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request, *args, **kwargs):
-        hook = request.data.get("hook", {})
-        data = request.data.get("data", {})
+        serializer = WassupEventSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"accepted": False, "reason": serializer.errors}, status=400
+            )
+        data = serializer.validated_data
 
         dispatcher = {"message.direct_outbound.status": self.handle_status}
-        handler = dispatcher.get(hook.get("event"), self.noop)
-        return handler(hook, data)
-
-    def noop(self, hook, data):
-        return Response(
-            {
-                "accepted": False,
-                "reason": "Unable to handle hook %s" % (hook.get("event"),),
-            },
-            status=400,
-        )
+        handler = dispatcher.get(data["hook"]["event"])
+        return handler(data["hook"], data["data"])
 
     def handle_status(self, hook, data):
+        event_type = {
+            "sent": "ack",
+            "unsent": "nack",
+            "delivered": "delivery_succeeded",
+            "failed": "delivery_failed",
+        }.get(data["status"])
 
-        status = data["status"]
+        accepted, reason = process_event(
+            data["message_uuid"],
+            event_type,
+            data.get("description"),
+            data.get("timestamp"),
+        )
+        return Response(
+            {"accepted": accepted, "reason": reason}, status=200 if accepted else 400
+        )
 
-        try:
-            message = Outbound.objects.select_related("channel").get(
-                vumi_message_id=data["message_uuid"]
+
+class WhatsAppEventListener(APIView):
+    permission_classes = (AllowAny,)
+
+    def validate_signature(self, channel, request):
+        secret = channel.configuration.get("HMAC_SECRET")
+        if not secret:
+            raise AuthenticationFailed(
+                "No HMAC_SECRET set on channel {}".format(channel.channel_id)
             )
-        except ObjectDoesNotExist:
+
+        signature = request.META.get("X-Engage-Hook-Signature")
+        if not signature:
+            raise AuthenticationFailed("X-Engage-Hook-Signature header required")
+
+        h = hmac.new(secret.encode(), request.body, sha256)
+        if base64.b64encode(h.digest()) != signature:
+            raise AuthenticationFailed("Invalid hook signature")
+
+    def post(self, request, channel_id, *args, **kwargs):
+        channel = get_object_or_404(Channel, pk=channel_id)
+        self.validate_signature(channel, request)
+
+        serializer = WhatsAppEventSerializer(data=request.data)
+        if not serializer.is_valid():
             return Response(
-                {
-                    "accepted": False,
-                    "reason": "Unable to find message for message_uuid",
-                },
-                status=400,
+                {"accepted": False, "reason": serializer.errors}, status=400
             )
+        data = serializer.validated_data
 
-        if status == "sent":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["ack_timestamp"] = data["timestamp"]
-            message.save(update_fields=["metadata", "delivered", "to_addr"])
-            fire_delivery_hook(message)
+        response = []
+        for item in data["statuses"]:
+            event_type = {
+                "sent": "ack",
+                "delivered": "delivery_succeeded",
+                "failed": "delivery_failed",
+                "read": "read",
+            }.get(item["status"])
 
-            # OBD number of successful tries metric
-            if "voice_speech_url" in message.metadata:
-                fire_metric.apply_async(
-                    kwargs={
-                        "metric_name": "vumimessage.obd.successful.sum",
-                        "metric_value": 1.0,
-                    }
-                )
+            accepted, reason = process_event(
+                item["id"], event_type, "", item["timestamp"]
+            )
+            response.append({"accepted": accepted, "reason": reason, "id": item["id"]})
 
-        elif status == "unsent":
-            message.metadata["nack_reason"] = {"description": data["description"]}
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-
-        elif status == "delivered":
-            message.delivered = True
-            message.to_addr = ""
-            message.metadata["delivery_timestamp"] = data["timestamp"]
-            message.save(update_fields=["delivered", "metadata", "to_addr"])
-            fire_delivery_hook(message)
-
-        elif status == "failed":
-            message.metadata["delivery_failed_reason"] = {
-                "description": data.get("description")
-            }
-            message.save(update_fields=["metadata"])
-            fire_delivery_hook(message)
-            decr_message_count(message)
-            send_message.delay(str(message.id))
-
-        return Response({"accepted": True}, status=200)
+        return Response(
+            response, status=200 if all(r["accepted"] for r in response) else 400
+        )
 
 
 class MetricsView(APIView):

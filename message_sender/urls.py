@@ -1,6 +1,7 @@
-from django.urls import include, path
 from django.conf.urls import url
+from django.urls import include, path
 from rest_framework import routers
+
 from . import views
 
 router = routers.DefaultRouter()
@@ -24,6 +25,11 @@ urlpatterns = [
         "api/v1/events/wassup",
         views.WassupEventListener.as_view(),
         name="wassup-events",
+    ),
+    path(
+        "api/v1/events/whatsapp/<channel_id>",
+        views.WhatsAppEventListener.as_view(),
+        name="whatsapp-events",
     ),
     path("api/v1/user/token/", views.UserView.as_view(), name="create-user-token"),
     url(
