@@ -3717,7 +3717,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps({}),
             content_type="application/json",
-            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps({}))},
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps({})),
         )
         self.assertEqual(
             json.loads(response.content.decode()),
@@ -3743,7 +3743,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
-            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps(event)),
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
@@ -3776,7 +3776,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
-            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps(event)),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -3820,7 +3820,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
-            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps(event)),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -3854,7 +3854,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps(event),
             content_type="application/json",
-            **{"X-Engage-Hook-Signature": self.generate_signature(json.dumps(event))},
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps(event)),
         )
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
@@ -3904,7 +3904,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
             reverse("whatsapp-events", args=[self.channel.channel_id]),
             json.dumps({}),
             content_type="application/json",
-            **{"X-Engage-Hook-Signature": "badsignature"},
+            HTTP_X_ENGAGE_HOOK_SIGNATURE="bad-signature",
         )
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
         self.assertEqual(

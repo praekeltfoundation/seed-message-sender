@@ -508,7 +508,7 @@ class WhatsAppEventListener(APIView):
                 "No HMAC_SECRET set on channel {}".format(channel.channel_id)
             )
 
-        signature = request.META.get("X-Engage-Hook-Signature")
+        signature = request.META.get("HTTP_X_ENGAGE_HOOK_SIGNATURE")
         if not signature:
             raise AuthenticationFailed("X-Engage-Hook-Signature header required")
 
