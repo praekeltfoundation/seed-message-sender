@@ -103,6 +103,8 @@ class ChannelAdminForm(forms.ModelForm):
                 "WASSUP_API_HSM_UUID",
                 "WASSUP_API_NUMBER",
             )
+        elif channel_type == Channel.WHATSAPP_API_TYPE:
+            keys = ("API_URL", "API_TOKEN")
 
         for key in keys:
             if key not in config.keys():
