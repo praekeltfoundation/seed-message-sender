@@ -48,6 +48,7 @@ from .serializers import (
     OutboundSerializer,
     WassupEventSerializer,
     WassupInboundSerializer,
+    WhatsAppWebhookSerializer,
     WhatsAppEventSerializer,
     WhatsAppInboundSerializer,
 )
@@ -217,23 +218,23 @@ class InboundPreprocessor(object):
                 }
             )["id"]
 
-    def preprocess_inbound(self, request, channel):
-        msisdn = self.pop_from_address(request.data, channel)
+    def preprocess_inbound(self, data, channel):
+        msisdn = self.pop_from_address(data, channel)
         if msisdn is None:
             return
         msisdn = e_164(msisdn)
-        request.data["from_identity"] = self.get_or_create_identity(msisdn)
+        data["from_identity"] = self.get_or_create_identity(msisdn)
 
         if channel.concurrency_limit == 0:
             return
 
-        related_outbound = self.get_related_outbound_id(request.data, channel)
-        if self.is_close_event(request.data, channel) and related_outbound:
+        related_outbound = self.get_related_outbound_id(data, channel)
+        if self.is_close_event(data, channel) and related_outbound:
             try:
                 message = Outbound.objects.get(vumi_message_id=related_outbound)
             except (ObjectDoesNotExist, MultipleObjectsReturned):
                 message = (
-                    Outbound.objects.filter(to_identity=request.data["from_identity"])
+                    Outbound.objects.filter(to_identity=data["from_identity"])
                     .order_by("-created_at")
                     .last()
                 )
@@ -275,7 +276,7 @@ class InboundViewSet(viewsets.ModelViewSet):
         else:
             self.channel = Channel.objects.get(channel_id=kwargs.get("channel_id"))
 
-        preprocess_inbound(request, self.channel)
+        preprocess_inbound(request.data, self.channel)
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 
 
@@ -527,50 +528,65 @@ class WhatsAppEventListener(APIView):
     def handle_event(self, serializer):
         data = serializer.validated_data
 
-        response = []
-        for item in data["statuses"]:
-            event_type = {
-                "sent": "ack",
-                "delivered": "delivery_succeeded",
-                "failed": "delivery_failed",
-                "read": "read",
-            }.get(item["status"])
+        event_type = {
+            "sent": "ack",
+            "delivered": "delivery_succeeded",
+            "failed": "delivery_failed",
+            "read": "read",
+        }.get(data["status"])
 
-            accepted, reason = process_event(
-                item["id"], event_type, "", item["timestamp"]
-            )
-            response.append({"accepted": accepted, "reason": reason, "id": item["id"]})
-
-        return Response(
-            response, status=200 if all(r["accepted"] for r in response) else 400
-        )
+        accepted, reason = process_event(data["id"], event_type, "", data["timestamp"])
+        return {"accepted": accepted, "reason": reason, "id": data["id"]}
 
     def handle_inbound(self, serializer):
         serializer.save()
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return {"accepted": True, "id": serializer.data["id"]}
 
     def post(self, request, channel_id, *args, **kwargs):
         channel = get_object_or_404(Channel, pk=channel_id)
         self.validate_signature(channel, request)
 
-        serializer_event = WhatsAppEventSerializer(data=request.data)
-        if serializer_event.is_valid():
-            return self.handle_event(serializer_event)
+        serializer = WhatsAppWebhookSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(
+                {"accepted": False, "reason": serializer.errors}, status=400
+            )
 
-        preprocess_inbound(request, channel)
-        serializer_inbound = WhatsAppInboundSerializer(data=request.data)
-        if serializer_inbound.is_valid():
-            return self.handle_inbound(serializer_inbound)
+        events = []
+        for event in serializer.validated_data.get("statuses", []):
+            event_serializer = WhatsAppEventSerializer(data=event)
+            if not event_serializer.is_valid():
+                events.append(
+                    {
+                        "accepted": False,
+                        "reason": event_serializer.errors,
+                        "id": event.get("id"),
+                    }
+                )
+                continue
+            events.append(self.handle_event(event_serializer))
 
+        inbounds = []
+        for inbound in serializer.validated_data.get("messages", []):
+            preprocess_inbound(inbound, channel)
+            inbound_serializer = WhatsAppInboundSerializer(data=inbound)
+            if not inbound_serializer.is_valid():
+                inbounds.append(
+                    {
+                        "accepted": False,
+                        "reason": inbound_serializer.errors,
+                        "id": inbound.get("id"),
+                    }
+                )
+                continue
+            inbounds.append(self.handle_inbound(inbound_serializer))
+
+        accepted = all(e["accepted"] for e in events) and all(
+            i["accepted"] for i in inbounds
+        )
         return Response(
-            {
-                "accepted": False,
-                "reason": {
-                    "event": serializer_event.errors,
-                    "inbound": serializer_inbound.errors,
-                },
-            },
-            status=400,
+            {"accepted": accepted, "messages": inbounds, "statuses": events},
+            status=200 if accepted else 400,
         )
 
 

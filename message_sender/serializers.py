@@ -192,10 +192,9 @@ class WhatsAppInboundSerializer(serializers.Serializer):
         body = serializers.CharField()
 
     text = TextSerializer()
-    from_identity = serializers.CharField()
 
-    class Meta:
-        fields = ("id", "from", "text")
+    # This gets added by the view
+    from_identity = serializers.UUIDField(required=False)
 
     def create(self, validated_data):
         Inbound.objects.create(
@@ -208,9 +207,7 @@ class WhatsAppInboundSerializer(serializers.Serializer):
 
 
 # Since from is a reserved keyword, we need to set it here
-setattr(
-    WhatsAppInboundSerializer, "from", serializers.CharField(source="from_identity")
-)
+setattr(WhatsAppInboundSerializer, "from", serializers.CharField())
 
 
 class HookSerializer(serializers.ModelSerializer):
@@ -275,11 +272,11 @@ class WassupEventSerializer(serializers.Serializer):
 
 
 class WhatsAppEventSerializer(serializers.Serializer):
-    class StatusSerializer(serializers.Serializer):
-        id = serializers.CharField()
-        status = serializers.ChoiceField(
-            choices=["sent", "delivered", "read", "failed"]
-        )
-        timestamp = serializers.CharField()
+    id = serializers.CharField()
+    status = serializers.ChoiceField(choices=["sent", "delivered", "read", "failed"])
+    timestamp = serializers.CharField()
 
-    statuses = serializers.ListField(child=StatusSerializer())
+
+class WhatsAppWebhookSerializer(serializers.Serializer):
+    statuses = serializers.ListField(required=False)
+    messages = serializers.ListField(required=False)

@@ -3713,24 +3713,38 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         If there are missing fields in the request, and error response should
         be returned, detailing the errors if this was an event and if this was an inbound
         """
+        data = {"statuses": [{}], "messages": [{}]}
         response = self.client.post(
             reverse("whatsapp-events", args=[self.channel.channel_id]),
-            json.dumps({}),
+            json.dumps(data),
             content_type="application/json",
-            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps({})),
+            HTTP_X_ENGAGE_HOOK_SIGNATURE=self.generate_signature(json.dumps(data)),
         )
         self.assertEqual(
             json.loads(response.content.decode()),
             {
                 "accepted": False,
-                "reason": {
-                    "event": {"statuses": ["This field is required."]},
-                    "inbound": {
-                        "from_identity": ["This field is required."],
-                        "id": ["This field is required."],
-                        "text": ["This field is required."],
-                    },
-                },
+                "statuses": [
+                    {
+                        "accepted": False,
+                        "id": None,
+                        "reason": {
+                            "id": ["This field is required."],
+                            "status": ["This field is required."],
+                            "timestamp": ["This field is required."],
+                        },
+                    }
+                ],
+                "messages": [
+                    {
+                        "accepted": False,
+                        "id": None,
+                        "reason": {
+                            "id": ["This field is required."],
+                            "text": ["This field is required."],
+                        },
+                    }
+                ],
             },
         )
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
@@ -3758,13 +3772,17 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(
             json.loads(response.content.decode()),
-            [
-                {
-                    "accepted": False,
-                    "reason": "Cannot find message for ID bad-message-id",
-                    "id": "bad-message-id",
-                }
-            ],
+            {
+                "accepted": False,
+                "messages": [],
+                "statuses": [
+                    {
+                        "accepted": False,
+                        "reason": "Cannot find message for ID bad-message-id",
+                        "id": "bad-message-id",
+                    }
+                ],
+            },
         )
 
     @patch("message_sender.views.fire_delivery_hook")
@@ -3943,9 +3961,13 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
 
         message_id = str(uuid.uuid4())
         post_inbound = {
-            "id": message_id,
-            "from": "27820000000",
-            "text": {"body": "Test message"},
+            "messages": [
+                {
+                    "id": message_id,
+                    "from": "27820000000",
+                    "text": {"body": "Test message"},
+                }
+            ]
         }
         response = self.client.post(
             reverse("whatsapp-events", args=[self.channel.channel_id]),
@@ -3955,8 +3977,7 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
                 json.dumps(post_inbound)
             ),
         )
-        print(response.data)
-        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
 
         d = Inbound.objects.last()
         self.assertIsNotNone(d.id)
