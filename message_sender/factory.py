@@ -8,6 +8,7 @@ import requests
 from django.conf import settings
 from django.urls import reverse
 from go_http.send import HttpApiSender
+from rest_hooks.models import Hook
 from six.moves import urllib_parse
 
 from .models import Channel
@@ -303,6 +304,19 @@ class WhatsAppApiSender(object):
             }
         )
 
+    def fire_failed_contact_lookup(self, msisdn):
+        """
+        Fires a webhook in the event of a failed WhatsApp contact lookup.
+        """
+        payload = {"address": msisdn}
+        # We cannot user the raw_hook_event here, because we don't have a user, so we
+        # manually filter and send the hooks for all users
+        hooks = Hook.objects.filter(event="whatsapp.failed_contact_check")
+        for hook in hooks:
+            hook.deliver_hook(
+                None, payload_override={"hook": hook.dict(), "data": payload}
+            )
+
     def get_contact(self, msisdn):
         """
         Returns the WhatsApp ID for the given MSISDN
@@ -314,11 +328,7 @@ class WhatsAppApiSender(object):
         response.raise_for_status()
         whatsapp_id = response.json()["contacts"][0].get("wa_id")
         if not whatsapp_id:
-            # TODO: This should rather trigger a webhook, so that we can do something
-            # useful
-            raise WhatsAppApiSenderException(
-                "No WhatsApp contact found for {}".format(msisdn)
-            )
+            self.fire_failed_contact_lookup(msisdn)
         return whatsapp_id
 
     def send_hsm(self, whatsapp_id, content):
@@ -347,6 +357,8 @@ class WhatsAppApiSender(object):
 
     def send_text(self, to_addr, content, session_event=None):
         whatsapp_id = self.get_contact(to_addr)
+        if not whatsapp_id:
+            return {"message_id": None}
 
         if self.hsm_namespace and self.hsm_element_name:
             data = self.send_hsm(whatsapp_id, content)

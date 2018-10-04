@@ -4083,8 +4083,8 @@ class TestWhatsAppAPISender(TestCase):
     @responses.activate
     def test_get_contact_not_exists(self):
         """
-        get_contact should make the appropriate request to the WhatsApp API, and raise
-        an exception if the contact doesn't exist.
+        get_contact should make the appropriate request to the WhatsApp API, and trigger
+        a webhook if the contact doesn't exist
         """
         sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
 
@@ -4095,13 +4095,25 @@ class TestWhatsAppAPISender(TestCase):
             status=200,
         )
 
-        self.assertRaises(
-            WhatsAppApiSenderException, sender.get_contact, "+27820001001"
+        user = User.objects.create_user("testuser")
+        hook = Hook.objects.create(
+            event="whatsapp.failed_contact_check", target="http://webhook", user=user
         )
-        request = responses.calls[-1].request
+
+        responses.add(method=responses.POST, url="http://webhook", json={}, status=200)
+
+        self.assertEqual(sender.get_contact("+27820001001"), None)
+
+        request = responses.calls[-2].request
         self.assertEqual(request.headers["Authorization"], "Bearer test-token")
         self.assertEqual(
             json.loads(request.body), {"blocking": "wait", "contacts": ["+27820001001"]}
+        )
+
+        webhook = responses.calls[-1].request
+        self.assertEqual(
+            json.loads(webhook.body),
+            {"hook": hook.dict(), "data": {"address": "+27820001001"}},
         )
 
     @responses.activate
