@@ -176,6 +176,74 @@ class InboundFilter(filters.FilterSet):
         )
 
 
+class InboundPreprocessor(object):
+    def pop_from_address(self, data, channel):
+        if channel.channel_type == Channel.VUMI_TYPE:
+            return data.pop("from_addr", None)
+        elif channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.pop("from", None)
+        elif channel.channel_type == Channel.WASSUP_API_TYPE:
+            return data.get("data", {}).pop("from_addr", None)
+        elif channel.channel_type == Channel.WHATSAPP_API_TYPE:
+            return data.pop("from", None)
+
+    def is_close_event(self, data, channel):
+        if channel.channel_type == Channel.VUMI_TYPE:
+            return data.get("session_event") == "close"
+        elif channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.get("channel_data", {}).get("session_event") == "close"
+        # Wassup/WhatsApp doesn't have sessions
+        return False
+
+    def get_related_outbound_id(self, data, channel):
+        if channel.channel_type == Channel.VUMI_TYPE:
+            return data.get("in_reply_to")
+        elif channel.channel_type == Channel.JUNEBUG_TYPE:
+            return data.get("reply_to")
+        return None
+
+    def get_or_create_identity(self, msisdn):
+        result = get_identity_by_address(msisdn)
+
+        if result:
+            return result[0]["id"]
+        else:
+            return create_identity(
+                {
+                    "details": {
+                        "default_addr_type": "msisdn",
+                        "addresses": {"msisdn": {msisdn: {"default": True}}},
+                    }
+                }
+            )["id"]
+
+    def preprocess_inbound(self, request, channel):
+        msisdn = self.pop_from_address(request.data, channel)
+        if msisdn is None:
+            return
+        msisdn = e_164(msisdn)
+        request.data["from_identity"] = self.get_or_create_identity(msisdn)
+
+        if channel.concurrency_limit == 0:
+            return
+
+        related_outbound = self.get_related_outbound_id(request.data, channel)
+        if self.is_close_event(request.data, channel) and related_outbound:
+            try:
+                message = Outbound.objects.get(vumi_message_id=related_outbound)
+            except (ObjectDoesNotExist, MultipleObjectsReturned):
+                message = (
+                    Outbound.objects.filter(to_identity=request.data["from_identity"])
+                    .order_by("-created_at")
+                    .last()
+                )
+            if message:
+                ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
+
+
+preprocess_inbound = InboundPreprocessor().preprocess_inbound
+
+
 class InboundViewSet(viewsets.ModelViewSet):
 
     """
@@ -201,73 +269,13 @@ class InboundViewSet(viewsets.ModelViewSet):
                 return WhatsAppInboundSerializer
         return InboundSerializer
 
-    def pop_from_address(self, data):
-        if self.channel.channel_type == Channel.VUMI_TYPE:
-            return data.pop("from_addr")
-        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
-            return data.pop("from")
-        elif self.channel.channel_type == Channel.WASSUP_API_TYPE:
-            return data["data"].pop("from_addr")
-        elif self.channel.channel_type == Channel.WHATSAPP_API_TYPE:
-            return data.pop("from")
-
-    def is_close_event(self, data):
-        if self.channel.channel_type == Channel.VUMI_TYPE:
-            return data.get("session_event") == "close"
-        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
-            return data.get("channel_data", {}).get("session_event") == "close"
-        # Wassup/WhatsApp doesn't have sessions
-        return False
-
-    def get_related_outbound_id(self, data):
-        if self.channel.channel_type == Channel.VUMI_TYPE:
-            return data.get("in_reply_to")
-        elif self.channel.channel_type == Channel.JUNEBUG_TYPE:
-            return data.get("reply_to")
-        return None
-
-    def get_or_create_identity(self, msisdn):
-        result = get_identity_by_address(msisdn)
-
-        if result:
-            return result[0]["id"]
-        else:
-            return create_identity(
-                {
-                    "details": {
-                        "default_addr_type": "msisdn",
-                        "addresses": {"msisdn": {msisdn: {"default": True}}},
-                    }
-                }
-            )["id"]
-
     def create(self, request, *args, **kwargs):
         if not kwargs.get("channel_id"):
             self.channel = Channel.objects.get(default=True)
         else:
             self.channel = Channel.objects.get(channel_id=kwargs.get("channel_id"))
 
-        msisdn = e_164(self.pop_from_address(request.data))
-        request.data["from_identity"] = self.get_or_create_identity(msisdn)
-
-        if self.channel.concurrency_limit == 0:
-            return super(InboundViewSet, self).create(request, *args, **kwargs)
-
-        related_outbound = self.get_related_outbound_id(request.data)
-        if self.is_close_event(request.data) and related_outbound:
-            try:
-                message = Outbound.objects.get(vumi_message_id=related_outbound)
-            except (ObjectDoesNotExist, MultipleObjectsReturned):
-                message = (
-                    Outbound.objects.filter(to_identity=request.data["from_identity"])
-                    .order_by("-created_at")
-                    .last()
-                )
-            if message:
-                ConcurrencyLimiter.decr_message_count(
-                    self.channel, message.last_sent_time
-                )
-
+        preprocess_inbound(request, self.channel)
         return super(InboundViewSet, self).create(request, *args, **kwargs)
 
 
@@ -516,15 +524,7 @@ class WhatsAppEventListener(APIView):
         if base64.b64encode(h.digest()).decode() != signature:
             raise AuthenticationFailed("Invalid hook signature")
 
-    def post(self, request, channel_id, *args, **kwargs):
-        channel = get_object_or_404(Channel, pk=channel_id)
-        self.validate_signature(channel, request)
-
-        serializer = WhatsAppEventSerializer(data=request.data)
-        if not serializer.is_valid():
-            return Response(
-                {"accepted": False, "reason": serializer.errors}, status=400
-            )
+    def handle_event(self, serializer):
         data = serializer.validated_data
 
         response = []
@@ -543,6 +543,34 @@ class WhatsAppEventListener(APIView):
 
         return Response(
             response, status=200 if all(r["accepted"] for r in response) else 400
+        )
+
+    def handle_inbound(self, serializer):
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def post(self, request, channel_id, *args, **kwargs):
+        channel = get_object_or_404(Channel, pk=channel_id)
+        self.validate_signature(channel, request)
+
+        serializer_event = WhatsAppEventSerializer(data=request.data)
+        if serializer_event.is_valid():
+            return self.handle_event(serializer_event)
+
+        preprocess_inbound(request, channel)
+        serializer_inbound = WhatsAppInboundSerializer(data=request.data)
+        if serializer_inbound.is_valid():
+            return self.handle_inbound(serializer_inbound)
+
+        return Response(
+            {
+                "accepted": False,
+                "reason": {
+                    "event": serializer_event.errors,
+                    "inbound": serializer_inbound.errors,
+                },
+            },
+            status=400,
         )
 
 
