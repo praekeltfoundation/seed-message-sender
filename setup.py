@@ -52,7 +52,7 @@ setup(
         "django-storages==1.7.1",
         "boto3==1.9.4",
         "coreapi==2.3.3",
-        "phonenumbers==8.9.14",
+        "phonenumberslite==8.9.14",
     ],
     classifiers=[
         "Development Status :: 4 - Beta",
