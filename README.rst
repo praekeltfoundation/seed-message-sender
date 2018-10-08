@@ -74,3 +74,12 @@ Vumi:
 * **VUMI_ACCOUNT_KEY**: account-key
 * **VUMI_ACCOUNT_TOKEN**: account-token
 * **VUMI_API_URL**: http://example.com/
+
+WhatsApp:
+"""""""""
+
+* **API_URL**: Root URL for WhatsApp API
+* **API_TOKEN**: Token for accessing the API
+* **HSM_NAMESPACE**: (optional) HSM namespace if outbounds are to be sent as HSMs
+* **HSM_ELEMENT_NAME**: (optional) HSM element name if outbounds are to be sent as HSMs
+* **HMAC_SECRET**: (optional) The HMAC secret key for receiving event and inbound webhooks
