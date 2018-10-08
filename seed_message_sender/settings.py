@@ -158,7 +158,7 @@ HOOK_DELIVERER = "message_sender.tasks.deliver_hook_wrapper"
 
 HOOK_AUTH_TOKEN = env("HOOK_AUTH_TOKEN", "REPLACEME")
 
-CELERY_BROKER_URL = env("CELERY_BROKER_URL", "redis://localhost:6379/0")
+CELERY_BROKER_URL = env("BROKER_URL", "redis://localhost:6379/0")
 
 CELERY_TASK_DEFAULT_QUEUE = "seed_message_sender"
 CELERY_TASK_QUEUES = (
