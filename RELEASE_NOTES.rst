@@ -1,3 +1,7 @@
+0.10.1
+------
+ - Fix celery env var regression: CELERY_BROKER_URL -> BROKER_URL
+
 0.10.0
 ------
  - Upgrade to Django 2.1
