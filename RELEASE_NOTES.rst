@@ -1,3 +1,6 @@
+0.10.3
+------
+ - Downgrade to ptyhon 3.6, celery doesn't support 3.7
 0.10.2
 ------
  - Fix celery config from django settings, ensure that namespace is CELERY
