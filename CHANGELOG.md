@@ -1,6 +1,11 @@
+0.10.4
+------
+ - Increase inbound message content limit to 4096
+
 0.10.3
 ------
  - Downgrade to ptyhon 3.6, celery doesn't support 3.7
+
 0.10.2
 ------
  - Fix celery config from django settings, ensure that namespace is CELERY
