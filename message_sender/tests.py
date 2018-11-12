@@ -8,7 +8,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from hashlib import sha256
 from unittest import mock
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 from urllib.parse import urlencode, urlparse
 
 import responses
@@ -3989,35 +3989,57 @@ class TestWhatsAppEventAPI(AuthenticatedAPITestCase):
 class TestWhatsAppAPISender(TestCase):
     def test_send_text_to_send_text_message(self):
         """
-        send_text should get the contact ID, and then delegate to send_text_message
-        when there is no HSM setup.
+        send_text should delegate to send_text_message when there is no HSM
+        setup.
         """
         sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
-        sender.get_contact = MagicMock(return_value="contact-id")
         sender.send_text_message = MagicMock(
             return_value={"messages": [{"id": "message-id"}]}
         )
 
         sender.send_text("+27820001001", "Test message")
 
-        sender.get_contact.assert_called_once_with("+27820001001")
-        sender.send_text_message.assert_called_once_with("contact-id", "Test message")
+        sender.send_text_message.assert_called_once_with("27820001001", "Test message")
 
     def test_send_text_to_send_hsm(self):
         """
-        send_text should get the contact ID, and then delegate to send_hsm
-        when there are HSM config values
+        send_text should delegate to send_hsm when there are HSM config values.
         """
         sender = WhatsAppApiSender(
             "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
         )
-        sender.get_contact = MagicMock(return_value="contact-id")
         sender.send_hsm = MagicMock(return_value={"messages": [{"id": "message-id"}]})
 
         sender.send_text("+27820001001", "Test message")
 
-        sender.get_contact.assert_called_once_with("+27820001001")
-        sender.send_hsm.assert_called_once_with("contact-id", "Test message")
+        sender.send_hsm.assert_called_once_with("27820001001", "Test message")
+
+    def test_send_text_unknown_contact(self):
+        """
+        If the sending fails with a unknown contact error, contact_check should
+        be called then the send should be retried.
+        """
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender.get_contact = MagicMock(return_value="27820001001")
+        sender.send_text_message = MagicMock(
+            return_value={
+                "errors": [
+                    {
+                        "code": 1006,
+                        "details": "unknown contact",
+                        "title": "Resource not found",
+                    }
+                ],
+                "messages": [{"id": "message-id"}],
+            }
+        )
+
+        sender.send_text("+27820001001", "Test message")
+        sender.get_contact.assert_called_with("+27820001001")
+
+        sender.send_text_message.assert_has_calls(
+            [call("27820001001", "Test message"), call("27820001001", "Test message")]
+        )
 
     def test_send_image(self):
         """

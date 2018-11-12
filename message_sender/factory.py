@@ -356,14 +356,27 @@ class WhatsAppApiSender(object):
         return response.json()
 
     def send_text(self, to_addr, content, session_event=None):
-        whatsapp_id = self.get_contact(to_addr)
-        if not whatsapp_id:
-            return {"message_id": None}
+        whatsapp_id = to_addr.replace("+", "")
 
-        if self.hsm_namespace and self.hsm_element_name:
-            data = self.send_hsm(whatsapp_id, content)
-        else:
-            data = self.send_text_message(whatsapp_id, content)
+        def send_message():
+            if self.hsm_namespace and self.hsm_element_name:
+                d = self.send_hsm(whatsapp_id, content)
+            else:
+                d = self.send_text_message(whatsapp_id, content)
+            return d
+
+        data = send_message()
+
+        if (
+            "errors" in data
+            and data["errors"][0]["code"] == 1006
+            and data["errors"][0]["details"] == "unknown contact"
+        ):
+            whatsapp_id = self.get_contact(to_addr)
+            if not whatsapp_id:
+                return {"message_id": None}
+
+            data = send_message()
 
         return {"message_id": data["messages"][0]["id"]}
 
