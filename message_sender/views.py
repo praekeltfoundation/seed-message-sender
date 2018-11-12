@@ -522,7 +522,7 @@ class WhatsAppEventListener(APIView):
             raise AuthenticationFailed("X-Engage-Hook-Signature header required")
 
         h = hmac.new(secret.encode(), request.body, sha256)
-        if base64.b64encode(h.digest()).decode() != signature:
+        if not hmac.compare_digest(base64.b64encode(h.digest()).decode(), signature):
             raise AuthenticationFailed("Invalid hook signature")
 
     def handle_event(self, serializer):
