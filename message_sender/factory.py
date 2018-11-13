@@ -9,6 +9,7 @@ from django.conf import settings
 from django.urls import reverse
 from go_http.send import HttpApiSender
 from rest_hooks.models import Hook
+from requests import exceptions as requests_exceptions
 from six.moves import urllib_parse
 
 from .models import Channel
@@ -296,7 +297,9 @@ class WhatsAppApiSender(object):
 
         # reuse sessions on tokens to make use of SSL keep-alive
         # but keep some separation around auth
-        self.session = session or WASSUP_SESSIONS.setdefault(token, requests.Session())
+        self.session = session or WHATSAPP_SESSIONS.setdefault(
+            token, requests.Session()
+        )
         self.session.headers.update(
             {
                 "Authorization": "Bearer %s" % (self.token,),
@@ -344,15 +347,22 @@ class WhatsAppApiSender(object):
                 },
             },
         )
-        response.raise_for_status()
-        return response.json()
+        return self.return_response(response)
 
     def send_text_message(self, whatsapp_id, content):
         response = self.session.post(
             urllib_parse.urljoin(self.api_url, "/v1/messages"),
             json={"to": whatsapp_id, "text": {"body": content}},
         )
-        response.raise_for_status()
+        return self.return_response(response)
+
+    def return_response(self, response):
+        try:
+            response.raise_for_status()
+        except requests_exceptions.HTTPError as exc:
+            resp = exc.response.text
+            if not("1006" in resp and "unknown contact" in resp):
+                raise exc
         return response.json()
 
     def send_text(self, to_addr, content, session_event=None):
