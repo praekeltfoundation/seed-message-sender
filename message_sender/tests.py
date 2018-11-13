@@ -26,6 +26,7 @@ from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient
 from rest_hooks.models import Hook
+from requests import exceptions as requests_exceptions
 from seed_services_client.metrics import MetricsApiClient
 
 from seed_message_sender.utils import load_callable
@@ -4167,6 +4168,69 @@ class TestWhatsAppAPISender(TestCase):
                     "localizable_params": [{"default": "Test message"}],
                 },
             },
+        )
+
+    @responses.activate
+    def test_send_hsm_unknown_contact(self):
+        """
+        send_hsm should return the appropriate body when there is a unknown
+        contact error returned by the API.
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+        )
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/messages",
+            json={
+                "errors": [
+                    {
+                        "code": 1006,
+                        "details": "unknown contact",
+                        "title": "Resource not found",
+                    }
+                ],
+                "meta": {"version": "2.19.4", "api_status": "stable"},
+            },
+            status=404,
+        )
+
+        response = sender.send_hsm("27820001001", "Test message")
+
+        self.assertEqual(response["errors"][0]["code"], 1006)
+        self.assertEqual(response["errors"][0]["details"], "unknown contact")
+
+    @responses.activate
+    def test_send_hsm_http_error(self):
+        """
+        send_hsm should re-raise the HTTPError if it is not handled
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+        )
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/messages",
+            json={
+                "errors": [
+                    {
+                        "code": 88,
+                        "details": "broken flux capacitor",
+                        "title": "Resource broken",
+                    }
+                ],
+                "meta": {"version": "2.19.4", "api_status": "stable"},
+            },
+            status=404,
+        )
+
+        self.assertRaises(
+            requests_exceptions.HTTPError,
+            sender.send_hsm,
+            "27820001001",
+            "Test message",
         )
 
     @responses.activate
