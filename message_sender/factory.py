@@ -361,7 +361,7 @@ class WhatsAppApiSender(object):
             response.raise_for_status()
         except requests_exceptions.HTTPError as exc:
             resp = exc.response.text
-            if not("1006" in resp and "unknown contact" in resp):
+            if not ("1006" in resp and "unknown contact" in resp):
                 raise exc
         return response.json()
 
