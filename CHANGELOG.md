@@ -1,3 +1,8 @@
+0.10.5
+------
+ - Only call Whatsapp contact check when necessary
+ - Use secure comparison for hmac signature
+
 0.10.4
 ------
  - Increase inbound message content limit to 4096
