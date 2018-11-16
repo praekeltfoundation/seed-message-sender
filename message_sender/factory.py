@@ -295,8 +295,6 @@ class WhatsAppApiSender(object):
         self.hsm_namespace = hsm_namespace
         self.hsm_element_name = hsm_element_name
         self.ttl = ttl
-        self.time_period = 0
-        self.max_time_period = 30
 
         distribution = pkg_resources.get_distribution("seed_message_sender")
 
@@ -340,18 +338,21 @@ class WhatsAppApiSender(object):
         return whatsapp_id
 
     def send_hsm(self, whatsapp_id, content):
+        data = {
+            "to": whatsapp_id,
+            "type": "hsm",
+            "hsm": {
+                "namespace": self.hsm_namespace,
+                "element_name": self.hsm_element_name,
+                "localizable_params": [{"default": content}],
+            }
+            }
+
+        if self.ttl is not None:
+            data["ttl"] = self.ttl
         response = self.session.post(
             urllib_parse.urljoin(self.api_url, "/v1/messages"),
-            json={
-                "to": whatsapp_id,
-                "ttl": self.ttl,
-                "type": "hsm",
-                "hsm": {
-                    "namespace": self.hsm_namespace,
-                    "element_name": self.hsm_element_name,
-                    "localizable_params": [{"default": content}],
-                },
-            },
+            json=data
         )
         return self.return_response(response)
 
