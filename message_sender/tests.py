@@ -3993,7 +3993,7 @@ class TestWhatsAppAPISender(TestCase):
         send_text should delegate to send_text_message when there is no HSM
         setup.
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
         sender.send_text_message = MagicMock(
             return_value={"messages": [{"id": "message-id"}]}
         )
@@ -4007,7 +4007,7 @@ class TestWhatsAppAPISender(TestCase):
         send_text should delegate to send_hsm when there are HSM config values.
         """
         sender = WhatsAppApiSender(
-            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
         )
         sender.send_hsm = MagicMock(return_value={"messages": [{"id": "message-id"}]})
 
@@ -4020,7 +4020,7 @@ class TestWhatsAppAPISender(TestCase):
         If the sending fails with a unknown contact error, contact_check should
         be called then the send should be retried.
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
         sender.get_contact = MagicMock(return_value="27820001001")
         sender.send_text_message = MagicMock(
             return_value={
@@ -4046,7 +4046,7 @@ class TestWhatsAppAPISender(TestCase):
         """
         send_image should raise an API sender exception as it is not supported
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
         self.assertRaises(
             WhatsAppApiSenderException,
             sender.send_image,
@@ -4059,7 +4059,7 @@ class TestWhatsAppAPISender(TestCase):
         """
         send_voice should raise an API sender exception as it is not supported
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
         self.assertRaises(
             WhatsAppApiSenderException,
             sender.send_voice,
@@ -4072,7 +4072,7 @@ class TestWhatsAppAPISender(TestCase):
         """
         fire_metric should raise an API sender exception as it is not supported
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
         self.assertRaises(
             WhatsAppApiSenderException, sender.fire_metric, "test.metric", 7
         )
@@ -4083,7 +4083,7 @@ class TestWhatsAppAPISender(TestCase):
         get_contact should make the appropriate request to the WhatsApp API, and return
         the contact ID.
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
 
         responses.add(
             method=responses.POST,
@@ -4109,7 +4109,7 @@ class TestWhatsAppAPISender(TestCase):
         get_contact should make the appropriate request to the WhatsApp API, and trigger
         a webhook if the contact doesn't exist
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
 
         responses.add(
             method=responses.POST,
@@ -4145,7 +4145,7 @@ class TestWhatsAppAPISender(TestCase):
         send_hsm should make the appropriate request to the WhatsApp API
         """
         sender = WhatsAppApiSender(
-            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
         )
 
         responses.add(
@@ -4161,7 +4161,7 @@ class TestWhatsAppAPISender(TestCase):
             json.loads(request.body),
             {
                 "to": "27820001001",
-                "ttl": 604800,
+                "ttl": "ttl",
                 "type": "hsm",
                 "hsm": {
                     "namespace": "hsm-namespace",
@@ -4178,7 +4178,7 @@ class TestWhatsAppAPISender(TestCase):
         contact error returned by the API.
         """
         sender = WhatsAppApiSender(
-            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
         )
 
         responses.add(
@@ -4208,7 +4208,7 @@ class TestWhatsAppAPISender(TestCase):
         send_hsm should re-raise the HTTPError if it is not handled
         """
         sender = WhatsAppApiSender(
-            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name"
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
         )
 
         responses.add(
@@ -4239,7 +4239,7 @@ class TestWhatsAppAPISender(TestCase):
         """
         send_text_message should make the appropriate request to the WhatsApp API
         """
-        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None)
+        sender = WhatsAppApiSender("http://whatsapp", "test-token", None, None, None)
 
         responses.add(
             method=responses.POST,
