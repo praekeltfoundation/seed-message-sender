@@ -368,15 +368,17 @@ class WhatsAppApiSender(object):
             if not ("1006" in resp and "unknown contact" in resp):
                 raise exc
 
-                if ("410" in resp):
-                    if (self.time_period == 0
-                       and self.time_period < self.max_time_period):
+                if "410" in resp:
+                    if (
+                        self.time_period == 0
+                        and self.time_period < self.max_time_period
+                    ):
                         self.time_period += 7
                         raise exc  # or send message?
-                    elif (self.time_period < self.max_time_period):
+                    elif self.time_period < self.max_time_period:
                         self.time_period += 7
-                elif (self.time_period >= self.max_time_period):
-                        self.time_period = 0
+                elif self.time_period >= self.max_time_period:
+                    self.time_period = 0
 
         return response.json()
 
