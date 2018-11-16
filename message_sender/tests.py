@@ -4145,7 +4145,7 @@ class TestWhatsAppAPISender(TestCase):
         send_hsm should make the appropriate request to the WhatsApp API
         """
         sender = WhatsAppApiSender(
-            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", 604800
         )
 
         responses.add(
@@ -4161,7 +4161,7 @@ class TestWhatsAppAPISender(TestCase):
             json.loads(request.body),
             {
                 "to": "27820001001",
-                "ttl": "ttl",
+                "ttl": 604800,
                 "type": "hsm",
                 "hsm": {
                     "namespace": "hsm-namespace",
