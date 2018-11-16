@@ -110,7 +110,7 @@ class Inbound(models.Model):
     from_identity = models.CharField(
         max_length=36, null=False, blank=True, db_index=True, default=""
     )
-    content = models.CharField(null=True, blank=True, max_length=4096)
+    content = models.TextField(null=True, blank=True)
     transport_name = models.CharField(null=False, blank=False, max_length=200)
     transport_type = models.CharField(null=True, blank=True, max_length=200)
     helper_metadata = JSONField()
