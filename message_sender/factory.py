@@ -287,8 +287,9 @@ WHATSAPP_SESSIONS = {}
 
 
 class WhatsAppApiSender(object):
-    def __init__(self, api_url, token, hsm_namespace, hsm_element_name, ttl,
-                 session=None):
+    def __init__(
+        self, api_url, token, hsm_namespace, hsm_element_name, ttl, session=None
+    ):
         self.api_url = api_url
         self.token = token
         self.hsm_namespace = hsm_namespace
