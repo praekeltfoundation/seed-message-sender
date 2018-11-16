@@ -287,11 +287,13 @@ WHATSAPP_SESSIONS = {}
 
 
 class WhatsAppApiSender(object):
-    def __init__(self, api_url, token, hsm_namespace, hsm_element_name, session=None):
+    def __init__(self, api_url, token, hsm_namespace, hsm_element_name, ttl,
+                 session=None):
         self.api_url = api_url
         self.token = token
         self.hsm_namespace = hsm_namespace
         self.hsm_element_name = hsm_element_name
+        self.ttl = ttl
         self.time_period = 0
         self.max_time_period = 30
 
@@ -341,7 +343,7 @@ class WhatsAppApiSender(object):
             urllib_parse.urljoin(self.api_url, "/v1/messages"),
             json={
                 "to": whatsapp_id,
-                "ttl": 604800,  # 7 days
+                "ttl": self.ttl,
                 "type": "hsm",
                 "hsm": {
                     "namespace": self.hsm_namespace,
@@ -367,18 +369,6 @@ class WhatsAppApiSender(object):
 
             if not ("1006" in resp and "unknown contact" in resp):
                 raise exc
-
-                if "410" in resp:
-                    if (
-                        self.time_period == 0
-                        and self.time_period < self.max_time_period
-                    ):
-                        self.time_period += 7
-                        raise exc  # or send message?
-                    elif self.time_period < self.max_time_period:
-                        self.time_period += 7
-                elif self.time_period >= self.max_time_period:
-                    self.time_period = 0
 
         return response.json()
 
@@ -479,5 +469,5 @@ class MessageClientFactory(object):
             channel.configuration["API_TOKEN"],
             channel.configuration.get("HSM_NAMESPACE"),
             channel.configuration.get("HSM_ELEMENT_NAME"),
-            channel.configuration.get("MESSAGE_TTL"),
+            channel.configuration.get("TTL"),
         )
