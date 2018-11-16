@@ -292,6 +292,8 @@ class WhatsAppApiSender(object):
         self.token = token
         self.hsm_namespace = hsm_namespace
         self.hsm_element_name = hsm_element_name
+        self.time_period = 0
+        self.max_time_period = 30
 
         distribution = pkg_resources.get_distribution("seed_message_sender")
 
@@ -339,6 +341,7 @@ class WhatsAppApiSender(object):
             urllib_parse.urljoin(self.api_url, "/v1/messages"),
             json={
                 "to": whatsapp_id,
+                "ttl": 604800,  # 7 days
                 "type": "hsm",
                 "hsm": {
                     "namespace": self.hsm_namespace,
@@ -361,8 +364,20 @@ class WhatsAppApiSender(object):
             response.raise_for_status()
         except requests_exceptions.HTTPError as exc:
             resp = exc.response.text
+
             if not ("1006" in resp and "unknown contact" in resp):
                 raise exc
+
+                if ("410" in resp):
+                    if (self.time_period == 0
+                       and self.time_period < self.max_time_period):
+                        self.time_period += 7
+                        raise exc  # or send message?
+                    elif (self.time_period < self.max_time_period):
+                        self.time_period += 7
+                elif (self.time_period >= self.max_time_period):
+                        self.time_period = 0
+
         return response.json()
 
     def send_text(self, to_addr, content, session_event=None):
@@ -462,4 +477,5 @@ class MessageClientFactory(object):
             channel.configuration["API_TOKEN"],
             channel.configuration.get("HSM_NAMESPACE"),
             channel.configuration.get("HSM_ELEMENT_NAME"),
+            channel.configuration.get("MESSAGE_TTL"),
         )
