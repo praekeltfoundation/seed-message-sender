@@ -4161,6 +4161,7 @@ class TestWhatsAppAPISender(TestCase):
             json.loads(request.body),
             {
                 "to": "27820001001",
+                "ttl": 604800,
                 "type": "hsm",
                 "hsm": {
                     "namespace": "hsm-namespace",
