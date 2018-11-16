@@ -345,14 +345,13 @@ class WhatsAppApiSender(object):
                 "namespace": self.hsm_namespace,
                 "element_name": self.hsm_element_name,
                 "localizable_params": [{"default": content}],
-            }
-            }
+            },
+        }
 
         if self.ttl is not None:
             data["ttl"] = self.ttl
         response = self.session.post(
-            urllib_parse.urljoin(self.api_url, "/v1/messages"),
-            json=data
+            urllib_parse.urljoin(self.api_url, "/v1/messages"), json=data
         )
         return self.return_response(response)
 
