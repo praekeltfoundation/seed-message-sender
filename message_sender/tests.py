@@ -314,7 +314,6 @@ class AuthenticatedAPITestCase(APITestCase):
         return str(outbound.id)
 
     def make_inbound(self, in_reply_to, from_addr="+27820000020", from_identity=""):
-        self._replace_post_save_hooks_inbound()
         inbound_message = {
             "message_id": str(uuid.uuid4()),
             "in_reply_to": in_reply_to,
@@ -327,7 +326,6 @@ class AuthenticatedAPITestCase(APITestCase):
             "helper_metadata": {},
         }
         inbound = Inbound.objects.create(**inbound_message)
-        self._restore_post_save_hooks_inbound()
         return str(inbound.id)
 
     def _replace_get_metric_client(self, session=None):
@@ -376,7 +374,6 @@ class AuthenticatedAPITestCase(APITestCase):
 
     def setUp(self):
         super(AuthenticatedAPITestCase, self).setUp()
-        self._replace_post_save_hooks_inbound
         tasks.get_metric_client = self._replace_get_metric_client
         self.adapter = self._mount_session()
 
@@ -401,7 +398,6 @@ class AuthenticatedAPITestCase(APITestCase):
         make_channels()
 
     def tearDown(self):
-        self._restore_post_save_hooks_inbound()
         tasks.get_metric_client = self._restore_get_metric_client
 
     def check_logs(self, msg):
@@ -1737,12 +1733,9 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             response.data["metrics_available"],
             [
-                "inbounds.created.sum",
                 "vumimessage.tries.sum",
                 "vumimessage.maxretries.sum",
                 "vumimessage.obd.tries.sum",
-                "vumimessage.obd.successful.sum",
-                "vumimessage.obd.unsuccessful.sum",
                 "message.failures.sum",
                 "message.sent.sum",
                 "sender.send_message.connection_error.sum",

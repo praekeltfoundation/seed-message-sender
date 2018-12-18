@@ -190,12 +190,9 @@ CELERY_TASK_ROUTES = {
 }
 
 METRICS_REALTIME = [
-    "inbounds.created.sum",
     "vumimessage.tries.sum",
     "vumimessage.maxretries.sum",
     "vumimessage.obd.tries.sum",
-    "vumimessage.obd.successful.sum",
-    "vumimessage.obd.unsuccessful.sum",
     "message.failures.sum",
     "message.sent.sum",
     "sender.send_message.connection_error.sum",
