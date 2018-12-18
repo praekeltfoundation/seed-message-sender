@@ -4,6 +4,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 from message_sender import views
+from django_prometheus import exports as django_prometheus
 from rest_framework.authtoken.views import obtain_auth_token
 from rest_framework.documentation import include_docs_urls
 
@@ -20,6 +21,7 @@ urlpatterns = [
     path("api/health/", views.HealthcheckView.as_view()),
     path("", include("message_sender.urls")),
     path("docs/", include_docs_urls()),
+    path("metrics", django_prometheus.ExportToDjangoView, name="metrics"),
 ]
 
 

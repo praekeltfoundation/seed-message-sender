@@ -49,6 +49,7 @@ INSTALLED_APPS = (
     "django_filters",
     "rest_hooks",
     "storages",
+    "django_prometheus",
     # us
     "message_sender",
 )
@@ -58,12 +59,14 @@ USE_SSL = os.environ.get("USE_SSL", "false").lower() == "true"
 USE_SSL = env("USE_SSL", False)
 
 MIDDLEWARE = (
+    "django_prometheus.middleware.PrometheusBeforeMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 )
 
 ROOT_URLCONF = "seed_message_sender.urls"
@@ -79,9 +82,12 @@ DATABASES = {
         default=env(
             "MESSAGE_SENDER_DATABASE",
             "postgres://postgres:@localhost/seed_message_sender",
-        )
+        ),
+        engine="django_prometheus.db.backends.postgresql",
     )
 }
+
+PROMETHEUS_EXPORT_MIGRATIONS = False
 
 
 # Internationalization
@@ -278,7 +284,7 @@ TEXT_MESSAGE_TIMEOUT = env("TEXT_MESSAGE_TIMEOUT", 0)
 
 CACHES = {
     "default": {
-        "BACKEND": "redis_cache.RedisCache",
+        "BACKEND": "django_prometheus.cache.backends.redis.RedisCache",
         "LOCATION": ["%s:%s" % (REDIS_HOST, REDIS_PORT)],
         "OPTIONS": {"DB": REDIS_DB},
     }
