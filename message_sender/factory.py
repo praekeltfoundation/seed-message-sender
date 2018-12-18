@@ -287,11 +287,14 @@ WHATSAPP_SESSIONS = {}
 
 
 class WhatsAppApiSender(object):
-    def __init__(self, api_url, token, hsm_namespace, hsm_element_name, session=None):
+    def __init__(
+        self, api_url, token, hsm_namespace, hsm_element_name, ttl, session=None
+    ):
         self.api_url = api_url
         self.token = token
         self.hsm_namespace = hsm_namespace
         self.hsm_element_name = hsm_element_name
+        self.ttl = ttl
 
         distribution = pkg_resources.get_distribution("seed_message_sender")
 
@@ -335,17 +338,20 @@ class WhatsAppApiSender(object):
         return whatsapp_id
 
     def send_hsm(self, whatsapp_id, content):
-        response = self.session.post(
-            urllib_parse.urljoin(self.api_url, "/v1/messages"),
-            json={
-                "to": whatsapp_id,
-                "type": "hsm",
-                "hsm": {
-                    "namespace": self.hsm_namespace,
-                    "element_name": self.hsm_element_name,
-                    "localizable_params": [{"default": content}],
-                },
+        data = {
+            "to": whatsapp_id,
+            "type": "hsm",
+            "hsm": {
+                "namespace": self.hsm_namespace,
+                "element_name": self.hsm_element_name,
+                "localizable_params": [{"default": content}],
             },
+        }
+
+        if self.ttl is not None:
+            data["ttl"] = self.ttl
+        response = self.session.post(
+            urllib_parse.urljoin(self.api_url, "/v1/messages"), json=data
         )
         return self.return_response(response)
 
@@ -361,8 +367,10 @@ class WhatsAppApiSender(object):
             response.raise_for_status()
         except requests_exceptions.HTTPError as exc:
             resp = exc.response.text
+
             if not ("1006" in resp and "unknown contact" in resp):
                 raise exc
+
         return response.json()
 
     def send_text(self, to_addr, content, session_event=None):
@@ -462,4 +470,5 @@ class MessageClientFactory(object):
             channel.configuration["API_TOKEN"],
             channel.configuration.get("HSM_NAMESPACE"),
             channel.configuration.get("HSM_ELEMENT_NAME"),
+            channel.configuration.get("TTL"),
         )
