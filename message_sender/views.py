@@ -9,6 +9,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import MultipleObjectsReturned, ObjectDoesNotExist
 from django.shortcuts import get_object_or_404
 from django_filters import rest_framework as filters
+from prometheus_client import Counter
 from rest_framework import mixins, status, viewsets
 from rest_framework.authtoken.models import Token
 from rest_framework.exceptions import AuthenticationFailed
@@ -56,7 +57,6 @@ from .tasks import (
     ConcurrencyLimiter,
     aggregate_outbounds,
     archive_outbound,
-    fire_metric,
     requeue_failed_tasks,
     send_message,
 )
@@ -316,6 +316,11 @@ def decr_message_count(message):
     ConcurrencyLimiter.decr_message_count(channel, message.last_sent_time)
 
 
+outbound_event_total = Counter(
+    "outbound_event_total", "Number of Outbound events", ["type", "channel"]
+)
+
+
 def process_event(message_id, event_type, event_detail, timestamp):
     """
     Processes an event of the given details, returning a (success, message) tuple
@@ -334,15 +339,6 @@ def process_event(message_id, event_type, event_detail, timestamp):
         message.metadata["ack_timestamp"] = timestamp
         message.metadata["ack_reason"] = event_detail
         message.save(update_fields=["delivered", "to_addr", "metadata"])
-
-        # OBD number of successful tries metric
-        if "voice_speech_url" in message.metadata:
-            fire_metric.apply_async(
-                kwargs={
-                    "metric_name": "vumimessage.obd.successful.sum",
-                    "metric_value": 1.0,
-                }
-            )
     elif event_type == "nack":
         message.metadata["nack_timestamp"] = timestamp
         message.metadata["nack_reason"] = event_detail
@@ -351,14 +347,6 @@ def process_event(message_id, event_type, event_detail, timestamp):
         decr_message_count(message)
 
         send_message.delay(str(message.id))
-
-        if "voice_speech_url" in message.metadata:
-            fire_metric.apply_async(
-                kwargs={
-                    "metric_name": "vumimessage.obd.unsuccessful.sum",
-                    "metric_value": 1.0,
-                }
-            )
     elif event_type == "delivery_succeeded":
         message.delivered = True
         message.to_addr = ""
@@ -373,18 +361,13 @@ def process_event(message_id, event_type, event_detail, timestamp):
         decr_message_count(message)
 
         send_message.delay(str(message.id))
-
-        if "voice_speech_url" in message.metadata:
-            fire_metric.apply_async(
-                kwargs={
-                    "metric_name": "vumimessage.obd.unsuccessful.sum",
-                    "metric_value": 1.0,
-                }
-            )
     elif event_type == "read":
+        message.delivered = True
+        message.to_addr = ""
         message.metadata["read_timestamp"] = timestamp
-        message.save(update_fields=["metadata"])
+        message.save(update_fields=["delivered", "to_addr", "metadata"])
 
+    outbound_event_total.labels(event_type, message.channel_id).inc()
     fire_delivery_hook(message)
 
     return (True, "Event processed")

@@ -51,7 +51,7 @@ from .models import (
     OutboundSendFailure,
 )
 from .serializers import OutboundArchiveSerializer
-from .signals import psh_fire_metrics_if_new, psh_fire_msg_action_if_new
+from .signals import psh_fire_msg_action_if_new
 from .tasks import (
     ConcurrencyLimiter,
     SendMessage,
@@ -314,7 +314,6 @@ class AuthenticatedAPITestCase(APITestCase):
         return str(outbound.id)
 
     def make_inbound(self, in_reply_to, from_addr="+27820000020", from_identity=""):
-        self._replace_post_save_hooks_inbound()
         inbound_message = {
             "message_id": str(uuid.uuid4()),
             "in_reply_to": in_reply_to,
@@ -327,7 +326,6 @@ class AuthenticatedAPITestCase(APITestCase):
             "helper_metadata": {},
         }
         inbound = Inbound.objects.create(**inbound_message)
-        self._restore_post_save_hooks_inbound()
         return str(inbound.id)
 
     def _replace_get_metric_client(self, session=None):
@@ -347,25 +345,11 @@ class AuthenticatedAPITestCase(APITestCase):
             dispatch_uid="psh_fire_msg_action_if_new",
         )
 
-    def _replace_post_save_hooks_inbound(self):
-        post_save.disconnect(
-            psh_fire_metrics_if_new,
-            sender=Inbound,
-            dispatch_uid="psh_fire_metrics_if_new",
-        )
-
     def _restore_post_save_hooks_outbound(self):
         post_save.connect(
             psh_fire_msg_action_if_new,
             sender=Outbound,
             dispatch_uid="psh_fire_msg_action_if_new",
-        )
-
-    def _restore_post_save_hooks_inbound(self):
-        post_save.connect(
-            psh_fire_metrics_if_new,
-            sender=Inbound,
-            dispatch_uid="psh_fire_metrics_if_new",
         )
 
     def check_request(self, request, method, params=None, data=None, headers=None):
@@ -390,7 +374,6 @@ class AuthenticatedAPITestCase(APITestCase):
 
     def setUp(self):
         super(AuthenticatedAPITestCase, self).setUp()
-        self._replace_post_save_hooks_inbound
         tasks.get_metric_client = self._replace_get_metric_client
         self.adapter = self._mount_session()
 
@@ -415,7 +398,6 @@ class AuthenticatedAPITestCase(APITestCase):
         make_channels()
 
     def tearDown(self):
-        self._restore_post_save_hooks_inbound()
         tasks.get_metric_client = self._restore_get_metric_client
 
     def check_logs(self, msg):
@@ -1751,12 +1733,9 @@ class TestMetricsAPI(AuthenticatedAPITestCase):
         self.assertEqual(
             response.data["metrics_available"],
             [
-                "inbounds.created.sum",
                 "vumimessage.tries.sum",
                 "vumimessage.maxretries.sum",
                 "vumimessage.obd.tries.sum",
-                "vumimessage.obd.successful.sum",
-                "vumimessage.obd.unsuccessful.sum",
                 "message.failures.sum",
                 "message.sent.sum",
                 "sender.send_message.connection_error.sum",
@@ -1805,39 +1784,6 @@ class TestMetrics(AuthenticatedAPITestCase):
         request = responses.calls[-1].request
         self.check_request(request, "POST", data={"foo.last": 1.0})
         self.assertEqual(result.get(), "Fired metric <foo.last> with value <1.0>")
-
-    @responses.activate
-    def test_created_metrics(self):
-        """
-        When creating a new inbound message, the correct metric should be
-        sent to the metrics API.
-        """
-        # Setup
-        self.add_metrics_response()
-        # reconnect metric post_save hook
-        post_save.connect(
-            psh_fire_metrics_if_new,
-            sender=Inbound,
-            dispatch_uid="psh_fire_metrics_if_new",
-        )
-        # make outbound
-        existing_outbound = self.make_outbound()
-        out = Outbound.objects.get(pk=existing_outbound)
-
-        # Execute
-        Inbound.objects.create(
-            message_id=str(uuid.uuid4()),
-            in_reply_to=out.vumi_message_id,
-            to_addr="+27820000123",
-            transport_name="test_voice",
-            helper_metadata={},
-        )
-
-        # Check
-        request = responses.calls[-1].request
-        self.check_request(request, "POST", data={"inbounds.created.sum": 1.0})
-        # remove post_save hooks to prevent teardown errors
-        post_save.disconnect(psh_fire_metrics_if_new, sender=Inbound)
 
 
 class TestHealthcheckAPI(AuthenticatedAPITestCase):
