@@ -57,7 +57,6 @@ from .tasks import (
     ConcurrencyLimiter,
     aggregate_outbounds,
     archive_outbound,
-    fire_metric,
     requeue_failed_tasks,
     send_message,
 )
