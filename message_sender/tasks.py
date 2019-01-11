@@ -102,28 +102,25 @@ def deliver_hook_wrapper(target, payload, instance, hook):
     deliver_hook.apply_async(kwargs=kwargs)
 
 
-def get_metric_client(session=None):
-    return MetricsApiClient(
-        url=settings.METRICS_URL, auth=settings.METRICS_AUTH, session=session
-    )
+metric_client = MetricsApiClient(url=settings.METRICS_URL, auth=settings.METRICS_AUTH)
 
 
-class FireMetric(Task):
-
+@app.task(
+    autoretry_for=(HTTPError, ConnectionError, HTTPServiceError, SoftTimeLimitExceeded),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=15,
+    acks_late=True,
+    soft_time_limit=10,
+    time_limit=15,
+)
+def fire_metric(metric_name, metric_value):
     """ Fires a metric using the MetricsApiClient
     """
-
-    name = "message_sender.tasks.fire_metric"
-
-    def run(self, metric_name, metric_value, session=None, **kwargs):
-        metric_value = float(metric_value)
-        metric = {metric_name: metric_value}
-        metric_client = get_metric_client(session=session)
-        metric_client.fire_metrics(**metric)
-        return "Fired metric <%s> with value <%s>" % (metric_name, metric_value)
-
-
-fire_metric = FireMetric()
+    metric_value = float(metric_value)
+    metric = {metric_name: metric_value}
+    metric_client.fire_metrics(**metric)
+    return "Fired metric <{}> with value <{}>".format(metric_name, metric_value)
 
 
 class ConcurrencyLimiter(object):
