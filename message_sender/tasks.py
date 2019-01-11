@@ -11,6 +11,7 @@ from celery.task import Task
 from celery.utils.log import get_task_logger
 
 from datetime import datetime, timedelta
+from demands import HTTPServiceError
 from django.conf import settings
 from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
@@ -318,7 +319,7 @@ class SendMessage(Task):
                 self.retry(
                     exc=exc, countdown=retry_delay, args=(message_id,), kwargs=kwargs
                 )
-            except requests_exceptions.HTTPError as exc:
+            except (requests_exceptions.HTTPError, HTTPServiceError) as exc:
                 # retry message sending if in 500 range (3 default
                 # retries)
                 log.info(
