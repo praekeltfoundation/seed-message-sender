@@ -6,7 +6,7 @@ import random
 import requests
 import time
 
-from celery.exceptions import MaxRetriesExceededError
+from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 from celery.task import Task
 from celery.utils.log import get_task_logger
 
@@ -22,8 +22,10 @@ from django.utils import timezone
 
 from seed_services_client.metrics import MetricsApiClient
 from requests import exceptions as requests_exceptions
+from requests.exceptions import ConnectionError, HTTPError
 from rest_framework.renderers import JSONRenderer
 from rest_hooks.models import model_deleted
+from seed_message_sender.celery import app
 
 from .factory import MessageClientFactory
 
@@ -61,22 +63,32 @@ def calculate_retry_delay(attempt, max_delay=300):
     return delay
 
 
-class DeliverHook(Task):
-    def run(self, target, payload, instance_id=None, hook_id=None, **kwargs):
-        """
+@app.task(
+    autoretry_for=(HTTPError, ConnectionError, SoftTimeLimitExceeded),
+    retry_backoff=True,
+    retry_jitter=True,
+    max_retries=15,
+    acks_late=True,
+    soft_time_limit=10,
+    time_limit=15,
+)
+def deliver_hook(target, payload, instance_id=None, hook_id=None, **kwargs):
+    """
         target:     the url to receive the payload.
         payload:    a python primitive data structure
         instance_id:   a possibly None "trigger" instance ID
         hook_id:       the ID of defining Hook object
         """
-        requests.post(
-            url=target,
-            data=json.dumps(payload),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": "Token %s" % settings.HOOK_AUTH_TOKEN,
-            },
-        )
+    r = requests.post(
+        url=target,
+        data=json.dumps(payload),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": "Token %s" % settings.HOOK_AUTH_TOKEN,
+        },
+    )
+    r.raise_for_status()
+    return r.text
 
 
 def deliver_hook_wrapper(target, payload, instance, hook):
@@ -87,7 +99,7 @@ def deliver_hook_wrapper(target, payload, instance, hook):
     kwargs = dict(
         target=target, payload=payload, instance_id=instance_id, hook_id=hook.id
     )
-    DeliverHook.apply_async(kwargs=kwargs)
+    deliver_hook.apply_async(kwargs=kwargs)
 
 
 def get_metric_client(session=None):
