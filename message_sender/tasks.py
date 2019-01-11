@@ -64,11 +64,7 @@ def calculate_retry_delay(attempt, max_delay=300):
 
 
 @app.task(
-    autoretry_for=(
-        HTTPError,
-        ConnectionError,
-        SoftTimeLimitExceeded,
-    ),
+    autoretry_for=(HTTPError, ConnectionError, SoftTimeLimitExceeded),
     retry_backoff=True,
     retry_jitter=True,
     max_retries=15,
