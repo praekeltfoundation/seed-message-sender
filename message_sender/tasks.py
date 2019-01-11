@@ -92,6 +92,7 @@ def deliver_hook(target, payload, instance_id=None, hook_id=None, **kwargs):
         },
     )
     r.raise_for_status()
+    return r.text
 
 
 def deliver_hook_wrapper(target, payload, instance, hook):
