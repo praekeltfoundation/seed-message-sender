@@ -1,3 +1,12 @@
+0.10.6
+------
+ - Remove character limit for inbound message content
+ - Add config for adding TTL to outbound whatsapp HSMs
+ - Add prometheus metrics endpoint
+ - Add HTTPServiceError to list of http error in message send
+ - Add retry strategy for webhooks
+ - Add retry strategy for metrics submission
+
 0.10.5
 ------
  - Only call Whatsapp contact check when necessary
