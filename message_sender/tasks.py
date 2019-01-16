@@ -353,8 +353,6 @@ class SendMessage(Task):
         else:
             # This is for retries based on async nacks from the transport.
             log.info("Message <%s> at max retries." % str(message_id))
-            message.to_addr = ""
-            message.save(update_fields=["to_addr"])
             fire_metric.apply_async(
                 kwargs={
                     "metric_name": "vumimessage.maxretries.sum",
