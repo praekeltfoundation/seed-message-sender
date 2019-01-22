@@ -317,7 +317,7 @@ class SendMessage(Task):
                             text_to_addr_formatter(message.to_addr),
                             message.content,
                             session_event="new",
-                            )
+                        )
                         log.info("Sent text message to <%s>" % (message.to_addr,))
                     else:
                         self.fire_failed_msisdn_lookup(message.to_addr)

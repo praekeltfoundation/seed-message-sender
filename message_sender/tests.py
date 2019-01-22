@@ -3201,8 +3201,7 @@ class TestFailedMsisdnLookUp(TestCase):
 
         webhook = responses.calls[0].request
         self.assertEqual(
-            json.loads(webhook.body),
-            {"hook": hook.dict(), "data": {"to_addr": None}}
+            json.loads(webhook.body), {"hook": hook.dict(), "data": {"to_addr": None}}
         )
 
 
