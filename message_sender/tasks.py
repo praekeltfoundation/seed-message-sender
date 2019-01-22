@@ -9,6 +9,7 @@ import time
 from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 from celery.task import Task
 from celery.utils.log import get_task_logger
+from rest_hooks.models import Hook
 
 from datetime import datetime, timedelta
 from demands import HTTPServiceError
@@ -210,6 +211,17 @@ class SendMessage(Task):
     def get_client(self, channel=None):
         return MessageClientFactory.create(channel)
 
+    def fire_failed_msisdn_lookup(self, to_addr):
+        """
+        Fires a webhook in the event of a None to_addr.
+        """
+        payload = {"to_addr": to_addr}
+        hooks = Hook.objects.filter(event="identity.no_address")
+        for hook in hooks:
+            hook.deliver_hook(
+                None, payload_override={"hook": hook.dict(), "data": payload}
+            )
+
     def run(self, message_id, **kwargs):
         """
         Load and contruct message and send them off
@@ -300,12 +312,15 @@ class SendMessage(Task):
 
                 else:
                     # Plain content
-                    vumiresponse = sender.send_text(
-                        text_to_addr_formatter(message.to_addr),
-                        message.content,
-                        session_event="new",
-                    )
-                    log.info("Sent text message to <%s>" % (message.to_addr,))
+                    if message.to_addr is not None:
+                        vumiresponse = sender.send_text(
+                            text_to_addr_formatter(message.to_addr),
+                            message.content,
+                            session_event="new",
+                            )
+                        log.info("Sent text message to <%s>" % (message.to_addr,))
+                    else:
+                        self.fire_failed_msisdn_lookup(message.to_addr)
 
                 message.last_sent_time = timezone.now()
                 message.attempts += 1
@@ -353,6 +368,8 @@ class SendMessage(Task):
         else:
             # This is for retries based on async nacks from the transport.
             log.info("Message <%s> at max retries." % str(message_id))
+            message.to_addr = ""
+            message.save(update_fields=["to_addr"])
             fire_metric.apply_async(
                 kwargs={
                     "metric_name": "vumimessage.maxretries.sum",
