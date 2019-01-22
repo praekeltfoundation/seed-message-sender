@@ -3176,12 +3176,35 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
 
 
 class TestFailedMsisdnLookUp(TestCase):
+    def add_identity_search_response(self, msisdn, identity, count=1):
+        msisdn = msisdn.replace("+", "%2B")
+        results = [
+            {
+                "id": identity,
+                "version": 1,
+                "details": {
+                    "default_addr_type": "msisdn",
+                    "addresses": {"msisdn": {msisdn: {}}},
+                },
+            }
+        ] * count
+        response = {"next": None, "previous": None, "results": results}
+        qs = "?details__addresses__msisdn=%s" % msisdn
+        responses.add(
+            responses.GET,
+            "%s/identities/search/%s" % (settings.IDENTITY_STORE_URL, qs),  # noqa
+            json=response,
+            status=200,
+            match_querystring=True,
+        )
+
     @responses.activate
-    def test_failed_msisdn_lookup(self):
+    def test_fire_failed_msisdn_lookup(self):
         """
         trigger a webhook if there is no to_addr in the identity
         """
         send_message = SendMessage()
+        self.add_identity_search_response("", str(uuid.uuid4()))
 
         responses.add(
             method=responses.POST,
@@ -3197,6 +3220,7 @@ class TestFailedMsisdnLookUp(TestCase):
 
         responses.add(method=responses.POST, url="http://webhook", json={}, status=200)
 
+        self.assertEqual(send_message.run(str(uuid.uuid4())), None)
         self.assertEqual(send_message.fire_failed_msisdn_lookup(None), None)
 
         webhook = responses.calls[0].request
