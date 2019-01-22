@@ -3175,6 +3175,37 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         self.assertEqual(OutboundSendFailure.objects.all().count(), 0)
 
 
+class TestFailedMsisdnLookUp(TestCase):
+    @responses.activate
+    def test_failed_msisdn_lookup(self):
+        """
+        trigger a webhook if there is no to_addr in the identity
+        """
+        send_message = SendMessage()
+
+        responses.add(
+            method=responses.POST,
+            url="http://example.com",
+            json={"identity": [{"to_addr": None}]},
+            status=200,
+        )
+
+        user = User.objects.create_user("test")
+        hook = Hook.objects.create(
+            event="identity.no_address", target="http://webhook", user=user
+        )
+
+        responses.add(method=responses.POST, url="http://webhook", json={}, status=200)
+
+        self.assertEqual(send_message.fire_failed_msisdn_lookup(None), None)
+
+        webhook = responses.calls[0].request
+        self.assertEqual(
+            json.loads(webhook.body),
+            {"hook": hook.dict(), "data": {"to_addr": None}}
+        )
+
+
 class TestFailedTaskAPI(AuthenticatedAPITestCase):
     def make_outbound(self, to_addr, channel=None):
 
