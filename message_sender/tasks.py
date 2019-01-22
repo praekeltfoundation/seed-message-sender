@@ -263,6 +263,8 @@ class SendMessage(Task):
                     message.to_addr = get_identity_address(
                         message.to_identity, use_communicate_through=True
                     )
+                    if message.to_addr is None:
+                        self.fire_failed_msisdn_lookup(message.to_addr)
 
                 if message.to_addr and not message.to_identity:
                     result = get_identity_by_address(message.to_addr)
@@ -312,15 +314,12 @@ class SendMessage(Task):
 
                 else:
                     # Plain content
-                    if message.to_addr is not None:
-                        vumiresponse = sender.send_text(
-                            text_to_addr_formatter(message.to_addr),
-                            message.content,
-                            session_event="new",
-                        )
-                        log.info("Sent text message to <%s>" % (message.to_addr,))
-                    else:
-                        self.fire_failed_msisdn_lookup(message.to_addr)
+                    vumiresponse = sender.send_text(
+                        text_to_addr_formatter(message.to_addr),
+                        message.content,
+                        session_event="new",
+                    )
+                    log.info("Sent text message to <%s>" % (message.to_addr,))
 
                 message.last_sent_time = timezone.now()
                 message.attempts += 1
