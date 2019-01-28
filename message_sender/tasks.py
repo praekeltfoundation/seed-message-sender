@@ -211,11 +211,11 @@ class SendMessage(Task):
     def get_client(self, channel=None):
         return MessageClientFactory.create(channel)
 
-    def fire_failed_msisdn_lookup(self, to_addr):
+    def fire_failed_msisdn_lookup(self, to_identity):
         """
         Fires a webhook in the event of a None to_addr.
         """
-        payload = {"to_addr": to_addr}
+        payload = {"to_identity": to_identity}
         hooks = Hook.objects.filter(event="identity.no_address")
         for hook in hooks:
             hook.deliver_hook(
@@ -263,8 +263,9 @@ class SendMessage(Task):
                     message.to_addr = get_identity_address(
                         message.to_identity, use_communicate_through=True
                     )
-                    if message.to_addr is None:
-                        self.fire_failed_msisdn_lookup(message.to_addr)
+                    if not message.to_addr:
+                        self.fire_failed_msisdn_lookup(message.to_identity)
+                        return
 
                 if message.to_addr and not message.to_identity:
                     result = get_identity_by_address(message.to_addr)
