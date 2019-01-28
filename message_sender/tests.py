@@ -3175,6 +3175,72 @@ class TestRequeueFailedTasks(AuthenticatedAPITestCase):
         self.assertEqual(OutboundSendFailure.objects.all().count(), 0)
 
 
+class TestFailedMsisdnLookUp(TestCase):
+    def add_identity_no_address_search_response(self, msisdn, identity, count=0):
+        response = {"next": None, "previous": None, "results": []}
+        responses.add(
+            responses.GET,
+            "%s/identities/%s/addresses/msisdn"
+            % (settings.IDENTITY_STORE_URL, identity),  # noqa
+            json=response,
+            status=200,
+        )
+
+    @responses.activate
+    def test_fire_failed_msisdn_lookup(self):
+        """
+        trigger a webhook if there is no to_addr in the identity
+        """
+        send_message = SendMessage()
+
+        new_channel = {
+            "channel_id": "NEW_DEFAULT",
+            "channel_type": Channel.JUNEBUG_TYPE,
+            "default": True,
+            "configuration": {
+                "JUNEBUG_API_URL": "http://example.com/",
+                "JUNEBUG_API_AUTH": ("username", "password"),
+                "JUNEBUG_API_FROM": "+4321",
+            },
+            "concurrency_limit": 0,
+            "message_timeout": 0,
+            "message_delay": 0,
+        }
+
+        Channel.objects.create(**new_channel)
+        self.assertEqual(Channel.objects.filter(default=True).count(), 1)
+        channel = Channel.objects.get(channel_id="NEW_DEFAULT")
+
+        self.add_identity_no_address_search_response("", "0c03d360")
+
+        outbound = {
+            "id": "075a32da-e1e4-4424-be46-1d09b71056fd",
+            "to_identity": "0c03d360",
+            "to_addr": "",
+            "content": "Simple outbound message",
+            "delivered": False,
+            "metadata": {"voice_speech_url": "https://foo.com/file.mp3"},
+            "channel": channel,
+        }
+
+        outbound = Outbound.objects.create(**outbound)
+
+        user = User.objects.create_user("test")
+        hook = Hook.objects.create(
+            event="identity.no_address", target="http://webhook", user=user
+        )
+
+        responses.add(method=responses.POST, url="http://webhook", json={}, status=200)
+
+        send_message.run("075a32da-e1e4-4424-be46-1d09b71056fd")
+
+        webhook = responses.calls[-1].request
+        self.assertEqual(
+            json.loads(webhook.body),
+            {"hook": hook.dict(), "data": {"to_identity": "0c03d360"}},
+        )
+
+
 class TestFailedTaskAPI(AuthenticatedAPITestCase):
     def make_outbound(self, to_addr, channel=None):
 
