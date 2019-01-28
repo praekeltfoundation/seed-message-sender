@@ -3186,11 +3186,6 @@ class TestFailedMsisdnLookUp(TestCase):
             status=200,
         )
 
-    def add_metrics_response(self):
-        responses.add(
-            responses.POST, "http://metrics-url/metrics/", json={}, status=201
-        )
-
     @responses.activate
     def test_fire_failed_msisdn_lookup(self):
         """
@@ -3215,8 +3210,6 @@ class TestFailedMsisdnLookUp(TestCase):
         Channel.objects.create(**new_channel)
         self.assertEqual(Channel.objects.filter(default=True).count(), 1)
         channel = Channel.objects.get(channel_id="NEW_DEFAULT")
-
-        self.add_metrics_response()
 
         self.add_identity_no_address_search_response("", "0c03d360")
 
