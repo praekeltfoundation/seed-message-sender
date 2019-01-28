@@ -3180,7 +3180,8 @@ class TestFailedMsisdnLookUp(TestCase):
         response = {"next": None, "previous": None, "results": []}
         responses.add(
             responses.GET,
-            "%s/identities/%s/addresses/msisdn" % (settings.IDENTITY_STORE_URL, identity),  # noqa
+            "%s/identities/%s/addresses/msisdn"
+            % (settings.IDENTITY_STORE_URL, identity),  # noqa
             json=response,
             status=200,
         )
@@ -3242,8 +3243,8 @@ class TestFailedMsisdnLookUp(TestCase):
 
         webhook = responses.calls[-1].request
         self.assertEqual(
-            json.loads(webhook.body), {"hook": hook.dict(),
-                                       "data": {"to_identity": "0c03d360"}}
+            json.loads(webhook.body),
+            {"hook": hook.dict(), "data": {"to_identity": "0c03d360"}},
         )
 
 
