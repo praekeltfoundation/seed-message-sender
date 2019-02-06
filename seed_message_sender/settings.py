@@ -158,6 +158,7 @@ HOOK_EVENTS = {
     # 'dummymodel.added': 'message_sender.DummyModel.created+'
     "outbound.delivery_report": None,
     "whatsapp.failed_contact_check": None,
+    "identity.no_address": None,
 }
 
 HOOK_DELIVERER = "message_sender.tasks.deliver_hook_wrapper"
