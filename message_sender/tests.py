@@ -1756,11 +1756,11 @@ class TestWhatsAppMessagesAPI(AuthenticatedAPITestCase):
                     "template": {
                         "name": "sbm",
                         "language": "eng_ZA",
-                        "variables": ["variable1", "variable2"]
+                        "variables": ["variable1", "variable2"],
                     }
-                }
+                },
             },
-            format="json"
+            format="json",
         )
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
 
@@ -1776,16 +1776,13 @@ class TestWhatsAppMessagesAPI(AuthenticatedAPITestCase):
                 "hsm": {
                     "namespace": "whatsapp:hsm:test",
                     "element_name": "sbm",
-                    "language": {
-                        "policy": "deterministic",
-                        "code": "eng_ZA",
-                    },
+                    "language": {"policy": "deterministic", "code": "eng_ZA"},
                     "localizable_params": [
                         {"default": "variable1"},
-                        {"default": "variable2"}
+                        {"default": "variable2"},
                     ],
-                }
-            }
+                },
+            },
         )
         SendMessage.get_client = mocked_get_client
 
@@ -4102,21 +4099,25 @@ class TestWhatsAppAPISender(TestCase):
         sender = WhatsAppApiSender(
             "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
         )
-        sender.send_custom_hsm = MagicMock(return_value={"messages":
-                                                         [{"id": "message-id"}]})
+        sender.send_custom_hsm = MagicMock(
+            return_value={"messages": [{"id": "message-id"}]}
+        )
 
-        sender.send_text("+27820001001", "Test message", metadata={
-            "template": {
-                "name": "sbm",
-                "language": "afr_ZA",
-                "variables": [
-                    "variable1",
-                    "variable2"
-                ]
-            }})
+        sender.send_text(
+            "+27820001001",
+            "Test message",
+            metadata={
+                "template": {
+                    "name": "sbm",
+                    "language": "afr_ZA",
+                    "variables": ["variable1", "variable2"],
+                }
+            },
+        )
 
         sender.send_custom_hsm.assert_called_once_with(
-            "27820001001", "sbm", "afr_ZA", ["variable1", "variable2"])
+            "27820001001", "sbm", "afr_ZA", ["variable1", "variable2"]
+        )
 
     def test_send_text_unknown_contact(self):
         """
@@ -4289,8 +4290,9 @@ class TestWhatsAppAPISender(TestCase):
             json={"messages": [{"id": "message-id"}]},
         )
 
-        sender.send_custom_hsm("27820001001", "sbm", "eng_ZA", ["variable1",
-                                                                "variable2"])
+        sender.send_custom_hsm(
+            "27820001001", "sbm", "eng_ZA", ["variable1", "variable2"]
+        )
         request = responses.calls[-1].request
         self.assertEqual(request.headers["Authorization"], "Bearer test-token")
         self.assertEqual(
@@ -4302,14 +4304,11 @@ class TestWhatsAppAPISender(TestCase):
                 "hsm": {
                     "namespace": "hsm-namespace",
                     "element_name": "sbm",
-                    "language": {
-                        "policy": "deterministic",
-                        "code": "eng_ZA"
-                    },
+                    "language": {"policy": "deterministic", "code": "eng_ZA"},
                     "localizable_params": [
-                                          {"default": "variable1"},
-                                          {"default": "variable2"}
-                    ]
+                        {"default": "variable1"},
+                        {"default": "variable2"},
+                    ],
                 },
             },
         )
