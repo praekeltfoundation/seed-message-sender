@@ -24,7 +24,15 @@ class HttpApiSenderException(Exception):
     pass
 
 
-class VumiHttpApiSender(HttpApiSender):
+# HttpApiSender doesn't take message metadata,
+# but we need the metadata for the WhatsApp channel, so we remove it here
+class BaseHttpApiSender(HttpApiSender):
+    def send_text(self, *args, **kwargs):
+        kwargs.pop("metadata", None)
+        return super().send_text(*args, **kwargs)
+
+
+class VumiHttpApiSender(BaseHttpApiSender):
     def send_image(self, to_addr, content, image_url=None):
         raise HttpApiSenderException("Sending images not available on this channel.")
 
@@ -200,7 +208,7 @@ class WassupApiSender(object):
             }
         )
 
-    def send_text(self, to_addr, content, session_event=None):
+    def send_text(self, to_addr, content, session_event=None, metadata=None):
         if self.hsm_disabled:
             if not self.number:
                 raise WassupApiSenderException(
