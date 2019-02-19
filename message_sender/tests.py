@@ -4027,6 +4027,30 @@ class TestWhatsAppAPISender(TestCase):
 
         sender.send_hsm.assert_called_once_with("27820001001", "Test message")
 
+    def test_send_text_to_send_custom_hsm(self):
+        """
+        send_text should delegate to send_custom_hsm when there is a 'template'
+        key inside the message metadata.
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
+        )
+        sender.send_custom_hsm = MagicMock(return_value={"messages": [{"id": "message-id"}]})
+
+        sender.send_text("+27820001001", "Test message", metadata={
+            "template": {
+                "name": "sbm",
+                "language": "afr_ZA",
+                "variables": [
+                    "variable1",
+                    "variable2"
+                ]
+            }})
+
+        sender.send_custom_hsm.assert_called_once_with(
+            "27820001001", "sbm", "afr_ZA", ["variable1", "variable2"])
+
+
     def test_send_text_unknown_contact(self):
         """
         If the sending fails with a unknown contact error, contact_check should
@@ -4179,6 +4203,45 @@ class TestWhatsAppAPISender(TestCase):
                     "namespace": "hsm-namespace",
                     "element_name": "hsm-element-name",
                     "localizable_params": [{"default": "Test message"}],
+                },
+            },
+        )
+
+    @responses.activate
+    def test_send_custom_hsm(self):
+        """
+        send_custom_hsm should make the appropriate request to the WhatsApp API
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", 604800
+        )
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/messages",
+            json={"messages": [{"id": "message-id"}]},
+        )
+
+        sender.send_custom_hsm("27820001001", "sbm", "eng_ZA", ["variable1", "variable2"])
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-token")
+        self.assertEqual(
+            json.loads(request.body),
+            {
+                "to": "27820001001",
+                "ttl": 604800,
+                "type": "hsm",
+                "hsm": {
+                    "namespace": "hsm-namespace",
+                    "element_name": "sbm",
+                    "language": {
+                        "policy": "deterministic",
+                        "code": "eng_ZA"
+                    },
+                    "localizable_params": [ 
+                        { "default": "variable1" }, 
+                        { "default": "variable2" } 
+                    ]
                 },
             },
         )
