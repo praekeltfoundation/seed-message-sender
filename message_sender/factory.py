@@ -373,13 +373,8 @@ class WhatsAppApiSender(object):
             "hsm": {
                 "namespace": self.hsm_namespace,
                 "element_name": template_name,
-                "language": {
-                    "policy": "deterministic",
-                    "code": language,
-                },
-                "localizable_params": [
-                    {"default": variable} for variable in variables
-                ]
+                "language": {"policy": "deterministic", "code": language},
+                "localizable_params": [{"default": variable} for variable in variables],
             },
         }
 
@@ -414,7 +409,12 @@ class WhatsAppApiSender(object):
         def send_message():
             if metadata and "template" in metadata:
                 template = metadata["template"]
-                d = self.send_custom_hsm(whatsapp_id, template["name"], template["language"], template["variables"])
+                d = self.send_custom_hsm(
+                    whatsapp_id,
+                    template["name"],
+                    template["language"],
+                    template["variables"],
+                )
             elif self.hsm_namespace and self.hsm_element_name:
                 d = self.send_hsm(whatsapp_id, content)
             else:
