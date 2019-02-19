@@ -1732,7 +1732,8 @@ class TestWhatsAppMessagesAPI(AuthenticatedAPITestCase):
     @responses.activate
     def test_whatsapp_custom_hsm(self):
         """
-        If we send a message with a template key in the metadata, it should send an HSM to the WhatsApp API with the parameters specified in the metadata
+        If we send a message with a template key in the metadata, it should
+        send an HSM to the WhatsApp API with the parameters specified in the metadata
         """
         # This client is mocked for all tests, but we don't want it mocked for this test
         mocked_get_client = SendMessage.get_client
@@ -1742,10 +1743,8 @@ class TestWhatsAppMessagesAPI(AuthenticatedAPITestCase):
             method=responses.POST,
             url="http://example.com/v1/messages",
             json={"messages": [{"id": "message-id"}]},
-        ) 
+        )
         self.add_metrics_response()
-       
-
         response = self.client.post(
             reverse("outbound-list"),
             {
@@ -4103,7 +4102,8 @@ class TestWhatsAppAPISender(TestCase):
         sender = WhatsAppApiSender(
             "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
         )
-        sender.send_custom_hsm = MagicMock(return_value={"messages": [{"id": "message-id"}]})
+        sender.send_custom_hsm = MagicMock(return_value={"messages":
+                                                         [{"id": "message-id"}]})
 
         sender.send_text("+27820001001", "Test message", metadata={
             "template": {
@@ -4117,7 +4117,6 @@ class TestWhatsAppAPISender(TestCase):
 
         sender.send_custom_hsm.assert_called_once_with(
             "27820001001", "sbm", "afr_ZA", ["variable1", "variable2"])
-
 
     def test_send_text_unknown_contact(self):
         """
@@ -4290,7 +4289,8 @@ class TestWhatsAppAPISender(TestCase):
             json={"messages": [{"id": "message-id"}]},
         )
 
-        sender.send_custom_hsm("27820001001", "sbm", "eng_ZA", ["variable1", "variable2"])
+        sender.send_custom_hsm("27820001001", "sbm", "eng_ZA", ["variable1",
+                                                                "variable2"])
         request = responses.calls[-1].request
         self.assertEqual(request.headers["Authorization"], "Bearer test-token")
         self.assertEqual(
@@ -4306,9 +4306,9 @@ class TestWhatsAppAPISender(TestCase):
                         "policy": "deterministic",
                         "code": "eng_ZA"
                     },
-                    "localizable_params": [ 
-                        { "default": "variable1" }, 
-                        { "default": "variable2" } 
+                    "localizable_params": [
+                                          {"default": "variable1"},
+                                          {"default": "variable2"}
                     ]
                 },
             },
