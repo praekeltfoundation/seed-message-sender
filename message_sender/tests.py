@@ -1767,7 +1767,6 @@ class TestWhatsAppMessagesAPI(AuthenticatedAPITestCase):
         [call] = list(filter(lambda c: "example.com" in c.request.url, responses.calls))
         request = call.request
         self.assertEqual(request.headers["Authorization"], "Bearer http-api-token")
-        self.maxDiff = None
         self.assertEqual(
             json.loads(request.body),
             {
