@@ -1,3 +1,7 @@
+0.10.7
+------
+- Added function that fires a webhook in the event of a None to_addr.
+
 0.10.6
 ------
  - Remove character limit for inbound message content
