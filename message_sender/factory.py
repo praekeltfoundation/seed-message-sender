@@ -24,7 +24,15 @@ class HttpApiSenderException(Exception):
     pass
 
 
-class VumiHttpApiSender(HttpApiSender):
+# HttpApiSender doesn't take message metadata,
+# but we need the metadata for the WhatsApp channel, so we remove it here
+class BaseHttpApiSender(HttpApiSender):
+    def send_text(self, *args, **kwargs):
+        kwargs.pop("metadata", None)
+        return super().send_text(*args, **kwargs)
+
+
+class VumiHttpApiSender(BaseHttpApiSender):
     def send_image(self, to_addr, content, image_url=None):
         raise HttpApiSenderException("Sending images not available on this channel.")
 
@@ -200,7 +208,7 @@ class WassupApiSender(object):
             }
         )
 
-    def send_text(self, to_addr, content, session_event=None):
+    def send_text(self, to_addr, content, session_event=None, metadata=None):
         if self.hsm_disabled:
             if not self.number:
                 raise WassupApiSenderException(
@@ -355,6 +363,28 @@ class WhatsAppApiSender(object):
         )
         return self.return_response(response)
 
+    def send_custom_hsm(self, whatsapp_id, template_name, language, variables):
+        """
+        Sends an HSM with more customizable fields than the send_hsm function
+        """
+        data = {
+            "to": whatsapp_id,
+            "type": "hsm",
+            "hsm": {
+                "namespace": self.hsm_namespace,
+                "element_name": template_name,
+                "language": {"policy": "deterministic", "code": language},
+                "localizable_params": [{"default": variable} for variable in variables],
+            },
+        }
+
+        if self.ttl is not None:
+            data["ttl"] = self.ttl
+        response = self.session.post(
+            urllib_parse.urljoin(self.api_url, "/v1/messages"), json=data
+        )
+        return self.return_response(response)
+
     def send_text_message(self, whatsapp_id, content):
         response = self.session.post(
             urllib_parse.urljoin(self.api_url, "/v1/messages"),
@@ -373,11 +403,19 @@ class WhatsAppApiSender(object):
 
         return response.json()
 
-    def send_text(self, to_addr, content, session_event=None):
+    def send_text(self, to_addr, content, session_event=None, metadata=None):
         whatsapp_id = to_addr.replace("+", "")
 
         def send_message():
-            if self.hsm_namespace and self.hsm_element_name:
+            if metadata and "template" in metadata:
+                template = metadata["template"]
+                d = self.send_custom_hsm(
+                    whatsapp_id,
+                    template["name"],
+                    template["language"],
+                    template["variables"],
+                )
+            elif self.hsm_namespace and self.hsm_element_name:
                 d = self.send_hsm(whatsapp_id, content)
             else:
                 d = self.send_text_message(whatsapp_id, content)

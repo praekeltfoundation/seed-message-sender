@@ -318,6 +318,7 @@ class SendMessage(Task):
                     vumiresponse = sender.send_text(
                         text_to_addr_formatter(message.to_addr),
                         message.content,
+                        metadata=message.metadata,
                         session_event="new",
                     )
                     log.info("Sent text message to <%s>" % (message.to_addr,))

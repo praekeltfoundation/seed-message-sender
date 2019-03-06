@@ -63,10 +63,15 @@ from .views import fire_delivery_hook
 
 
 class VumiLoggingSender(LoggingSender):
+    def send_text(self, *args, **kwargs):
+        kwargs.pop("metadata", None)
+        return super().send_text(*args, **kwargs)
+
     def send_image(self, to_addr, content, image_url=None):
         raise HttpApiSenderException("Sending images not available on this channel.")
 
 
+get_client_original = SendMessage.get_client
 SendMessage.get_client = lambda x, y: VumiLoggingSender("go_http.test")
 
 
@@ -1721,6 +1726,64 @@ class TestJunebugMessagesAPI(AuthenticatedAPITestCase):
         self.assertEqual(d.transport_name, "test_voice")
         self.assertEqual(d.transport_type, None)
         self.assertEqual(d.helper_metadata, {"session_event": "close"})
+
+
+class TestWhatsAppMessagesAPI(AuthenticatedAPITestCase):
+    @responses.activate
+    def test_whatsapp_custom_hsm(self):
+        """
+        If we send a message with a template key in the metadata, it should
+        send an HSM to the WhatsApp API with the parameters specified in the metadata
+        """
+        # This client is mocked for all tests, but we don't want it mocked for this test
+        mocked_get_client = SendMessage.get_client
+        SendMessage.get_client = get_client_original
+
+        responses.add(
+            method=responses.POST,
+            url="http://example.com/v1/messages",
+            json={"messages": [{"id": "message-id"}]},
+        )
+        self.add_metrics_response()
+        response = self.client.post(
+            reverse("outbound-list"),
+            {
+                "to_identity": "identity-uuid",
+                "to_addr": "+27820001001",
+                "content": "ignore",
+                "channel": "WHATSAPP",
+                "metadata": {
+                    "template": {
+                        "name": "sbm",
+                        "language": "eng_ZA",
+                        "variables": ["variable1", "variable2"],
+                    }
+                },
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        [call] = list(filter(lambda c: "example.com" in c.request.url, responses.calls))
+        request = call.request
+        self.assertEqual(request.headers["Authorization"], "Bearer http-api-token")
+        self.assertEqual(
+            json.loads(request.body),
+            {
+                "to": "27820001001",
+                "type": "hsm",
+                "hsm": {
+                    "namespace": "whatsapp:hsm:test",
+                    "element_name": "sbm",
+                    "language": {"policy": "deterministic", "code": "eng_ZA"},
+                    "localizable_params": [
+                        {"default": "variable1"},
+                        {"default": "variable2"},
+                    ],
+                },
+            },
+        )
+        SendMessage.get_client = mocked_get_client
 
 
 class TestMetricsAPI(AuthenticatedAPITestCase):
@@ -4027,6 +4090,34 @@ class TestWhatsAppAPISender(TestCase):
 
         sender.send_hsm.assert_called_once_with("27820001001", "Test message")
 
+    def test_send_text_to_send_custom_hsm(self):
+        """
+        send_text should delegate to send_custom_hsm when there is a 'template'
+        key inside the message metadata.
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", "ttl"
+        )
+        sender.send_custom_hsm = MagicMock(
+            return_value={"messages": [{"id": "message-id"}]}
+        )
+
+        sender.send_text(
+            "+27820001001",
+            "Test message",
+            metadata={
+                "template": {
+                    "name": "sbm",
+                    "language": "afr_ZA",
+                    "variables": ["variable1", "variable2"],
+                }
+            },
+        )
+
+        sender.send_custom_hsm.assert_called_once_with(
+            "27820001001", "sbm", "afr_ZA", ["variable1", "variable2"]
+        )
+
     def test_send_text_unknown_contact(self):
         """
         If the sending fails with a unknown contact error, contact_check should
@@ -4179,6 +4270,44 @@ class TestWhatsAppAPISender(TestCase):
                     "namespace": "hsm-namespace",
                     "element_name": "hsm-element-name",
                     "localizable_params": [{"default": "Test message"}],
+                },
+            },
+        )
+
+    @responses.activate
+    def test_send_custom_hsm(self):
+        """
+        send_custom_hsm should make the appropriate request to the WhatsApp API
+        """
+        sender = WhatsAppApiSender(
+            "http://whatsapp", "test-token", "hsm-namespace", "hsm-element-name", 604800
+        )
+
+        responses.add(
+            method=responses.POST,
+            url="http://whatsapp/v1/messages",
+            json={"messages": [{"id": "message-id"}]},
+        )
+
+        sender.send_custom_hsm(
+            "27820001001", "sbm", "eng_ZA", ["variable1", "variable2"]
+        )
+        request = responses.calls[-1].request
+        self.assertEqual(request.headers["Authorization"], "Bearer test-token")
+        self.assertEqual(
+            json.loads(request.body),
+            {
+                "to": "27820001001",
+                "ttl": 604800,
+                "type": "hsm",
+                "hsm": {
+                    "namespace": "hsm-namespace",
+                    "element_name": "sbm",
+                    "language": {"policy": "deterministic", "code": "eng_ZA"},
+                    "localizable_params": [
+                        {"default": "variable1"},
+                        {"default": "variable2"},
+                    ],
                 },
             },
         )
