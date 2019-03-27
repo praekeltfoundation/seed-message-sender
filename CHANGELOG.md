@@ -1,3 +1,7 @@
+0.10.8
+------
+- Added full WhatsApp template support by specifying template details in metadata
+
 0.10.7
 ------
 - Added function that fires a webhook in the event of a None to_addr.
