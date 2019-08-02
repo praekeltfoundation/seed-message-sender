@@ -4416,14 +4416,12 @@ class CachedTokenAuthenticationTests(TestCase):
 
         with self.assertNumQueries(2):
             r = self.client.get(
-                self.url,
-                HTTP_AUTHORIZATION="Token {}".format(token.key)
+                self.url, HTTP_AUTHORIZATION="Token {}".format(token.key)
             )
             self.assertEqual(r.status_code, status.HTTP_200_OK)
 
         with self.assertNumQueries(1):
             r = self.client.get(
-                self.url,
-                HTTP_AUTHORIZATION="Token {}".format(token.key)
+                self.url, HTTP_AUTHORIZATION="Token {}".format(token.key)
             )
             self.assertEqual(r.status_code, status.HTTP_200_OK)
