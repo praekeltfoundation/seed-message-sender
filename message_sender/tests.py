@@ -4395,3 +4395,33 @@ class TestWhatsAppAPISender(TestCase):
             json.loads(request.body),
             {"to": "27820001001", "text": {"body": "Test message"}},
         )
+
+
+class CachedTokenAuthenticationTests(TestCase):
+    url = reverse("outbound-list")
+
+    def test_auth_required(self):
+        """
+        Ensure that the view we're testing actually requires token auth
+        """
+        r = self.client.get(self.url)
+        self.assertEqual(r.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_caching_working(self):
+        """
+        Ensure that the second time we make a request, there's no database hit
+        """
+        user = User.objects.create_user("test")
+        token = Token.objects.create(user=user)
+
+        with self.assertNumQueries(2):
+            r = self.client.get(
+                self.url, HTTP_AUTHORIZATION="Token {}".format(token.key)
+            )
+            self.assertEqual(r.status_code, status.HTTP_200_OK)
+
+        with self.assertNumQueries(1):
+            r = self.client.get(
+                self.url, HTTP_AUTHORIZATION="Token {}".format(token.key)
+            )
+            self.assertEqual(r.status_code, status.HTTP_200_OK)

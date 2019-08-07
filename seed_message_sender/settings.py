@@ -146,7 +146,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.CursorPagination",
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.BasicAuthentication",
-        "rest_framework.authentication.TokenAuthentication",
+        "seed_message_sender.auth.CachedTokenAuthentication",
     ),
     "DEFAULT_PERMISSION_CLASSES": ("rest_framework.permissions.IsAuthenticated",),
     "DEFAULT_FILTER_BACKENDS": ("django_filters.rest_framework.DjangoFilterBackend",),
@@ -285,7 +285,8 @@ CACHES = {
         "BACKEND": "django_prometheus.cache.backends.redis.RedisCache",
         "LOCATION": ["%s:%s" % (REDIS_HOST, REDIS_PORT)],
         "OPTIONS": {"DB": REDIS_DB},
-    }
+    },
+    "locmem": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
 }
 REDIS_PASSWORD = env("REDIS_PASSWORD", None)
 if REDIS_PASSWORD:
