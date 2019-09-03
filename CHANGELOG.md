@@ -1,3 +1,9 @@
+0.10.9
+------
+- Upgrade dependancies with security vulneribilities
+- Cache auth lookups
+- Improve HTTP error logging
+
 0.10.8
 ------
 - Added full WhatsApp template support by specifying template details in metadata
