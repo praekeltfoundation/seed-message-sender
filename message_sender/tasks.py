@@ -348,8 +348,12 @@ class SendMessage(Task):
                 # retry message sending if in 500 range (3 default
                 # retries)
                 log.info(
-                    "Sending message failed due to status: %s"
-                    % exc.response.status_code
+                    (
+                        "Sending message failed due to HTTP response error\n"
+                        "status: {response.status_code}\n"
+                        "headers: {response.headers}\n"
+                        "body: {response.text}\n"
+                    ).format(response=exc.response)
                 )
                 metric_name = (
                     "sender.send_message.http_error.%s.sum" % exc.response.status_code
