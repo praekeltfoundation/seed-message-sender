@@ -27,6 +27,7 @@ from requests.exceptions import ConnectionError, HTTPError
 from rest_framework.renderers import JSONRenderer
 from rest_hooks.models import model_deleted
 from seed_message_sender.celery import app
+from seed_message_sender.utils import is_in_time_interval
 
 from .factory import MessageClientFactory
 
@@ -227,6 +228,11 @@ class SendMessage(Task):
         Load and contruct message and send them off
         """
         log = self.get_logger(**kwargs)
+
+        if settings.SAFE_TIME_INTERVAL:
+            safe, next_time = is_in_time_interval(settings.SAFE_TIME_INTERVAL)
+            if not safe:
+                self.retry(eta=next_time)
 
         error_retry_count = kwargs.get("error_retry_count", 0)
         if error_retry_count >= self.max_error_retries:
