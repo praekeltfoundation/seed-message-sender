@@ -1,6 +1,9 @@
 from django.conf import settings
 from importlib import import_module
 from seed_services_client import IdentityStoreApiClient
+from datetime import timedelta
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 
 identity_store_client = IdentityStoreApiClient(
     settings.IDENTITY_STORE_TOKEN,
@@ -45,3 +48,31 @@ def get_identity_by_address(address_value, address_type="msisdn"):
 
 def create_identity(identity):
     return identity_store_client.create_identity(identity)
+
+
+def is_in_time_interval(interval, timestamp=None):
+    """
+    Checks whether a timestamp falls within an interval or not, and when would be the
+    next time that it would fall within the interval.
+
+    interval (str): The interval to check, given by two ISO-8601 times,
+        `<time1>/<time2>`, eg. "09:00:00Z/17:00:00Z"
+    timestamp (datetime, optional): The timestamp to check. Defaults to the current time.
+
+    Returns (in_interval (bool), safe (datetime))
+    """
+    if timestamp is None:
+        timestamp = timezone.now()
+
+    start, end = interval.split("/")
+    start = parse_datetime(f"{timestamp.date().isoformat()}T{start}")
+    end = parse_datetime(f"{timestamp.date().isoformat()}T{end}")
+
+    in_interval = start < timestamp < end
+    if in_interval:
+        return in_interval, timestamp
+    else:
+        if timestamp > end:
+            return in_interval, start + timedelta(days=1)
+        else:
+            return in_interval, start
