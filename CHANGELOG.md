@@ -1,3 +1,7 @@
+0.10.10
+-------
+- Optional "safe sending interval" configuration option, for restricting when messages can be sent
+
 0.10.9
 ------
 - Upgrade dependancies with security vulneribilities
