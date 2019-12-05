@@ -1,3 +1,7 @@
+0.10.11
+-------
+- Upgrade Django to 2.2.8 (Security vulnerability)
+
 0.10.10
 -------
 - Optional "safe sending interval" configuration option, for restricting when messages can be sent
